@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "FFmpeg Media Processing": {
+      "source": "donghaozhang/video-agent-skill",
+      "sourceType": "github",
+      "computedHash": "70f906df8ea2cf6d327d4db036f65d3d31a1b16e095135551ad307abad7b4d68"
+    }
+  }
+}

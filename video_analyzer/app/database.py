@@ -1,0 +1,103 @@
+from sqlalchemy import create_engine, Column, String, DateTime, Integer, Float, Text, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+from app.config import settings
+
+DATABASE_URL = f"sqlite:///{settings.DATA_DIR}/video_analyzer.db"
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    echo=False
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+
+class Video(Base):
+    __tablename__ = "videos"
+
+    id = Column(String, primary_key=True)
+    filename = Column(String, unique=True, index=True)
+    original_filename = Column(String)
+    file_path = Column(String, nullable=True)
+    source = Column(String, default="uploaded")  # "uploaded" | "local_scan"
+    upload_date = Column(DateTime, default=datetime.utcnow)
+    file_size = Column(Integer)
+    duration = Column(Float, nullable=True)
+    status = Column(String, default="pending")  # pending | queued | processing | completed | failed
+    error_message = Column(String, nullable=True)
+
+
+class Transcript(Base):
+    __tablename__ = "transcripts"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True)
+    content = Column(Text)
+    language = Column(String, default="zh")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Summary(Base):
+    __tablename__ = "summaries"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True)
+    summary = Column(Text)
+    key_points = Column(Text)       # JSON 陣列
+    mindmap = Column(Text, nullable=True)       # Markmap Markdown 格式
+    faq = Column(Text, nullable=True)           # JSON 陣列 [{question, answer}]
+    study_notes = Column(Text, nullable=True)   # Markdown 格式的學習筆記
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Classification(Base):
+    __tablename__ = "classifications"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True)
+    category = Column(String)
+    confidence = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TaskQueue(Base):
+    """持久化任務佇列"""
+    __tablename__ = "task_queue"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True)
+    priority = Column(Integer, default=5)
+    status = Column(String, default="pending", index=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    error_message = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+
+class ChatMessage(Base):
+    """影片 Q&A 對話記錄"""
+    __tablename__ = "chat_messages"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True)
+    role = Column(String)           # "user" | "assistant"
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.egg-info/
+
+# Environment
+.env
+
+# Data & Uploads (do NOT commit)
+video_analyzer/data/
+video_analyzer/uploads/
+video_analyzer/logs/
+
+# macOS
+.DS_Store

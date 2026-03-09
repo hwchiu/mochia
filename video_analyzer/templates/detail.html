@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>影片詳情 - Video Analyzer</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Markmap -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.16"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.16"></script>
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@9"></script>
+  <style>
+    .tabs { display:flex; gap:4px; margin-bottom:16px; flex-wrap:wrap; }
+    .tab-btn { padding:8px 16px; border:1px solid var(--border,#ddd); background:var(--surface,#f5f5f5); border-radius:6px; cursor:pointer; font-size:14px; transition:all .2s; }
+    .tab-btn.active { background:var(--primary,#4f46e5); color:#fff; border-color:var(--primary,#4f46e5); }
+    .tab-btn:hover:not(.active) { background:var(--border,#eee); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .faq-item { margin-bottom:12px; border:1px solid var(--border,#ddd); border-radius:8px; overflow:hidden; }
+    .faq-q { padding:12px 16px; background:var(--surface,#f8f9fa); font-weight:600; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+    .faq-q:hover { background:var(--border,#eee); }
+    .faq-a { padding:12px 16px; line-height:1.7; display:none; }
+    .faq-item.open .faq-a { display:block; }
+    .faq-item.open .faq-toggle { transform:rotate(180deg); }
+    .faq-toggle { transition:transform .2s; }
+    #mindmap-container { width:100%; height:500px; border:1px solid var(--border,#ddd); border-radius:8px; overflow:hidden; }
+    #mindmap-container svg { width:100%; height:100%; }
+    .chat-messages { height:400px; overflow-y:auto; border:1px solid var(--border,#ddd); border-radius:8px; padding:16px; margin-bottom:12px; display:flex; flex-direction:column; gap:12px; background:var(--bg,#fff); }
+    .chat-bubble { max-width:80%; padding:10px 14px; border-radius:12px; line-height:1.6; font-size:14px; }
+    .chat-bubble.user { background:var(--primary,#4f46e5); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
+    .chat-bubble.assistant { background:var(--surface,#f0f0f0); color:var(--text,#333); align-self:flex-start; border-bottom-left-radius:4px; }
+    .chat-input-row { display:flex; gap:8px; }
+    .chat-input-row input { flex:1; padding:10px 14px; border:1px solid var(--border,#ddd); border-radius:8px; font-size:14px; }
+    .chat-input-row button { padding:10px 20px; }
+    .markdown-body { line-height:1.8; }
+    .markdown-body h1,h2,h3 { margin-top:16px; margin-bottom:8px; }
+    .markdown-body ul,ol { padding-left:24px; }
+    .markdown-body li { margin-bottom:4px; }
+    .regen-btn { margin-left:auto; }
+    .loading-text { color:var(--muted,#888); font-style:italic; padding:20px 0; text-align:center; }
+    .study-notes-body { line-height:1.8; }
+    .study-notes-body h2 { color:var(--primary,#4f46e5); border-bottom:2px solid var(--border,#eee); padding-bottom:6px; margin-top:24px; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/">🎬 Video Analyzer</a>
+  <span class="navbar-spacer"></span>
+  <a class="btn btn-ghost btn-sm" href="/">← 返回列表</a>
+</nav>
+
+<span id="video-id" data-id="{{ video_id }}" style="display:none"></span>
+
+<div class="container">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+    <h1 style="font-size:18px;font-weight:700" id="video-name">載入中...</h1>
+    <span id="kv-status"></span>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-primary" id="btn-queue" style="display:none">加入佇列</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="error-section" style="margin-bottom:16px;border-color:var(--danger,#ef4444)">
+    <div class="card-title" style="color:var(--danger,#ef4444)">❌ 錯誤訊息</div>
+    <pre id="error-box" style="font-size:12px;white-space:pre-wrap;color:var(--danger,#ef4444)"></pre>
+  </div>
+
+  <div class="detail-grid">
+    <div class="card">
+      <div class="card-title">📋 基本資訊</div>
+      <div class="kv-list">
+        <div class="kv-row"><div class="kv-key">狀態</div><div class="kv-val" id="kv-status-dup">—</div></div>
+        <div class="kv-row"><div class="kv-key">來源</div><div class="kv-val" id="kv-source">—</div></div>
+        <div class="kv-row"><div class="kv-key">大小</div><div class="kv-val" id="kv-size">—</div></div>
+        <div class="kv-row"><div class="kv-key">時長</div><div class="kv-val" id="kv-duration">—</div></div>
+        <div class="kv-row"><div class="kv-key">分類</div><div class="kv-val" id="kv-category">—</div></div>
+        <div class="kv-row"><div class="kv-key">登錄日期</div><div class="kv-val" id="kv-date">—</div></div>
+        <div class="kv-row"><div class="kv-key">路徑</div>
+          <div class="kv-val" id="kv-path" style="font-size:11px;color:var(--muted,#888)">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="task-section">
+      <div class="card-title">⚙️ 分析任務</div>
+      <div class="kv-list">
+        <div class="kv-row"><div class="kv-key">任務狀態</div><div class="kv-val" id="task-status">—</div></div>
+        <div class="kv-row"><div class="kv-key">開始時間</div><div class="kv-val" id="task-started">—</div></div>
+        <div class="kv-row"><div class="kv-key">完成時間</div><div class="kv-val" id="task-completed">—</div></div>
+        <div class="kv-row"><div class="kv-key">重試次數</div><div class="kv-val" id="task-retries">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NotebookLM Tabs (only shown when completed) -->
+  <div id="notebooklm-section" class="hidden" style="margin-top:20px">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">📝 摘要</button>
+      <button class="tab-btn" data-tab="mindmap" onclick="switchTab('mindmap')">🧠 心智圖</button>
+      <button class="tab-btn" data-tab="faq" onclick="switchTab('faq')">❓ FAQ</button>
+      <button class="tab-btn" data-tab="study-notes" onclick="switchTab('study-notes')">📚 學習筆記</button>
+      <button class="tab-btn" data-tab="qa-chat" onclick="switchTab('qa-chat')">💬 對話</button>
+      <button class="tab-btn" data-tab="transcript" onclick="switchTab('transcript')">📄 逐字稿</button>
+    </div>
+
+    <!-- Summary Tab -->
+    <div id="tab-summary" class="tab-panel active">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">📝 摘要</div>
+        <p id="summary-text" style="line-height:1.8;color:var(--text,#333)">—</p>
+      </div>
+      <div class="card">
+        <div class="card-title">🔑 重點</div>
+        <ul class="key-points" id="key-points-list"></ul>
+      </div>
+    </div>
+
+    <!-- Mindmap Tab -->
+    <div id="tab-mindmap" class="tab-panel">
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center">
+          <span>🧠 心智圖</span>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="regenerate('mindmap')">🔄 重新生成</button>
+        </div>
+        <div id="mindmap-loading" class="loading-text">載入中...</div>
+        <div id="mindmap-container" style="display:none">
+          <svg id="mindmap-svg"></svg>
+        </div>
+        <div id="mindmap-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
+        <details style="margin-top:12px">
+          <summary style="cursor:pointer;color:var(--muted,#888);font-size:13px">查看原始 Markdown</summary>
+          <pre id="mindmap-raw" style="font-size:12px;background:var(--surface,#f5f5f5);padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;margin-top:8px"></pre>
+        </details>
+      </div>
+    </div>
+
+    <!-- FAQ Tab -->
+    <div id="tab-faq" class="tab-panel">
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center">
+          <span>❓ FAQ</span>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="regenerate('faq')">🔄 重新生成</button>
+        </div>
+        <div id="faq-loading" class="loading-text">載入中...</div>
+        <div id="faq-list"></div>
+        <div id="faq-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
+      </div>
+    </div>
+
+    <!-- Study Notes Tab -->
+    <div id="tab-study-notes" class="tab-panel">
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center">
+          <span>📚 學習筆記</span>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="regenerate('study_notes')">🔄 重新生成</button>
+        </div>
+        <div id="study-notes-loading" class="loading-text">載入中...</div>
+        <div id="study-notes-content" class="study-notes-body"></div>
+        <div id="study-notes-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
+      </div>
+    </div>
+
+    <!-- Q&A Chat Tab -->
+    <div id="tab-qa-chat" class="tab-panel">
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center">
+          <span>💬 影片問答</span>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="clearChatHistory()">🗑️ 清除記錄</button>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" placeholder="輸入問題..." onkeydown="if(event.key==='Enter')sendMessage()">
+          <button class="btn btn-primary" onclick="sendMessage()" id="send-btn">送出</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transcript Tab -->
+    <div id="tab-transcript" class="tab-panel">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between">
+          <span>📄 逐字稿</span>
+          <button class="btn btn-sm btn-ghost" onclick="copyTranscript()">複製</button>
+        </div>
+        <div class="transcript-box" id="transcript-text"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/static/js/common.js"></script>
+<script src="/static/js/detail.js"></script>
+<script>
+function copyTranscript() {
+  const text = document.getElementById("transcript-text").textContent;
+  navigator.clipboard.writeText(text).then(() => toast("已複製到剪貼簿", "success"));
+}
+</script>
+</body>
+</html>
