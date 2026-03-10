@@ -1,7 +1,9 @@
 """從影片檔案提取音頻，供 Whisper 轉錄使用"""
+import re
 import subprocess
 import logging
 from pathlib import Path
+from typing import Callable
 import uuid
 
 from app.config import settings
@@ -9,12 +11,14 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def extract_audio(video_path: str | Path) -> Path:
+def extract_audio(video_path: str | Path, progress_callback: Callable[[int], None] | None = None) -> Path:
     """
     使用 FFmpeg 從影片提取音頻，輸出為 MP3 格式。
+    若提供 progress_callback，會即時回報提取進度（0-100）。
 
     Args:
         video_path: 影片檔案的路徑
+        progress_callback: 可選的進度回呼，接受 int (0-100)
 
     Returns:
         提取的音頻檔案路徑（位於 AUDIO_TEMP_DIR）
@@ -30,6 +34,8 @@ def extract_audio(video_path: str | Path) -> Path:
     audio_filename = f"{uuid.uuid4().hex}.mp3"
     audio_path = settings.AUDIO_TEMP_DIR / audio_filename
 
+    duration = get_video_duration(video_path) if progress_callback else None
+
     cmd = [
         "ffmpeg",
         "-i", str(video_path),
@@ -43,10 +49,21 @@ def extract_audio(video_path: str | Path) -> Path:
     ]
 
     logger.info(f"提取音頻: {video_path.name} -> {audio_path.name}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
 
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg 提取失敗: {result.stderr[-500:]}")
+    process = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, bufsize=1)
+
+    for line in process.stderr:
+        if progress_callback and duration and 'time=' in line:
+            m = re.search(r'time=(\d+):(\d+):(\d+\.\d+)', line)
+            if m:
+                h, mn, s = m.groups()
+                secs = int(h) * 3600 + int(mn) * 60 + float(s)
+                pct = min(int(secs / duration * 100), 99)
+                progress_callback(pct)
+
+    process.wait()
+    if process.returncode != 0:
+        raise RuntimeError(f"FFmpeg 提取失敗（returncode={process.returncode}）")
 
     logger.info(f"音頻提取完成: {audio_path.name} ({audio_path.stat().st_size / 1024:.1f} KB)")
     return audio_path

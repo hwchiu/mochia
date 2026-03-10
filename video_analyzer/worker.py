@@ -61,6 +61,15 @@ signal.signal(signal.SIGINT, _handle_shutdown)
 
 # ──────────────────────────── Core Logic ────────────────────────────
 
+def _set_progress(video: Video, db: Session, step: int, message: str, sub: int = 0) -> None:
+    """更新影片分析進度並立即寫入 DB，供前端輪詢顯示"""
+    video.progress_step = step
+    video.progress_message = message
+    video.progress_sub = sub
+    db.commit()
+    logger.info(f"  [{step}/4] {message}")
+
+
 def _process_task(task: TaskQueue, db: Session) -> None:
     """執行單一分析任務：音頻提取 → 轉錄 → 分析 → NotebookLM 功能"""
     video = db.query(Video).filter(Video.id == task.video_id).first()
@@ -74,13 +83,25 @@ def _process_task(task: TaskQueue, db: Session) -> None:
     logger.info(f"▶ 開始處理: {video.original_filename}")
 
     # Step 1: 提取音頻
-    logger.info("  [1/4] 提取音頻...")
-    audio_path = extract_audio(video_path)
+    def ffmpeg_cb(pct: int) -> None:
+        _set_progress(video, db, 1, f"提取音頻中... ({pct}%)", sub=pct)
+
+    _set_progress(video, db, 1, "提取音頻中...", sub=0)
+    audio_path = extract_audio(video_path, progress_callback=ffmpeg_cb)
+    _set_progress(video, db, 1, "音頻提取完成", sub=100)
 
     try:
         # Step 2: 語音轉文字
-        logger.info("  [2/4] Whisper 語音轉文字...")
-        transcript_text = transcribe(audio_path)
+        def whisper_cb(pct: int, chunk_idx: int, total_chunks: int) -> None:
+            if total_chunks > 1:
+                msg = f"語音轉文字中... (片段 {chunk_idx}/{total_chunks})"
+            else:
+                msg = "語音轉文字中..."
+            _set_progress(video, db, 2, msg, sub=pct)
+
+        file_size_mb = Path(audio_path).stat().st_size / 1024 / 1024
+        _set_progress(video, db, 2, f"語音轉文字中... ({file_size_mb:.1f} MB)", sub=0)
+        transcript_text = transcribe(audio_path, progress_callback=whisper_cb)
 
         # 儲存逐字稿
         existing_transcript = db.query(Transcript).filter(Transcript.video_id == task.video_id).first()
@@ -94,8 +115,9 @@ def _process_task(task: TaskQueue, db: Session) -> None:
             ))
 
         # Step 3: GPT 分析
-        logger.info("  [3/4] GPT 分析（摘要 + 分類）...")
+        _set_progress(video, db, 3, f"GPT 分析中... ({len(transcript_text)} 字)", sub=0)
         summary_text, key_points, category, confidence = analyze(transcript_text)
+        _set_progress(video, db, 3, f"GPT 分析完成 → {category}", sub=100)
 
         # 儲存摘要
         existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
@@ -124,9 +146,11 @@ def _process_task(task: TaskQueue, db: Session) -> None:
             ))
 
         # Step 4: 生成 NotebookLM 功能
-        logger.info("  [4/4] 生成心智圖、FAQ 與學習筆記...")
+        _set_progress(video, db, 4, "生成心智圖...", sub=0)
         mindmap = generate_mindmap(transcript_text)
+        _set_progress(video, db, 4, "生成 FAQ...", sub=33)
         faq_list = generate_faq(transcript_text)
+        _set_progress(video, db, 4, "生成學習筆記...", sub=66)
         study_notes = generate_study_notes(transcript_text)
 
         existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
@@ -137,6 +161,8 @@ def _process_task(task: TaskQueue, db: Session) -> None:
 
         # 更新影片狀態
         video.status = "completed"
+        video.progress_step = 4
+        video.progress_message = "分析完成"
         video.error_message = None
         task.status = "done"
         task.completed_at = datetime.utcnow()

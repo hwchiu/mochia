@@ -3,7 +3,7 @@ import uuid
 import json
 import pytest
 from datetime import datetime
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock, call, ANY
 from pathlib import Path
 
 from app.database import Video, TaskQueue, Transcript, Summary, Classification
@@ -172,7 +172,7 @@ class TestProcessTask:
 
         # 驗證呼叫順序
         mock_extract.assert_called_once()
-        mock_transcribe.assert_called_once_with(audio_file)
+        mock_transcribe.assert_called_once_with(audio_file, progress_callback=ANY)
         mock_analyze.assert_called_once_with("測試逐字稿")
         mock_cleanup.assert_called_once_with(audio_file)
 

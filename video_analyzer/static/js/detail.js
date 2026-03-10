@@ -31,7 +31,7 @@ async function loadDetail() {
     toast("載入影片資訊失敗: " + e.message, "error");
   }
 
-  // Task status
+  // Task status + progress
   try {
     const s = await api("GET", `/api/analysis/${videoId}/status`);
     if (s.task) {
@@ -41,6 +41,13 @@ async function loadDetail() {
       document.getElementById("task-completed").textContent = t.completed_at ? new Date(t.completed_at).toLocaleString("zh-TW") : "—";
       document.getElementById("task-retries").textContent = t.retry_count;
       document.getElementById("task-section").classList.remove("hidden");
+    }
+
+    // Render progress if processing/queued
+    if (["queued", "processing"].includes(s.video_status)) {
+      renderProgress(s.progress);
+    } else if (s.video_status === "completed") {
+      renderProgress({ step: 4, sub_percent: 100, message: "分析完成", percent: 100 });
     }
   } catch {}
 
@@ -74,6 +81,50 @@ async function loadDetail() {
       pollTimer = setTimeout(loadDetail, 5000);
     }
   }
+}
+
+function renderProgress(p) {
+  if (!p) return;
+  document.getElementById("progress-section").classList.remove("hidden");
+
+  const step = p.step || 0;
+  const sub = p.sub_percent || 0;
+
+  // Update each step indicator (1-4)
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`pstep-${i}`);
+    el.classList.remove("done", "active");
+    if (i < step) el.classList.add("done");
+    else if (i === step) el.classList.add("active");
+  }
+
+  // Update connectors (1-3)
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById(`pconn-${i}`);
+    el.classList.remove("done", "active");
+    if (i < step) el.classList.add("done");
+    else if (i === step) el.classList.add("active");
+  }
+
+  // Overall progress bar: step-level progress + sub-progress contribution
+  const overallPct = step === 0 ? 0 : Math.min(
+    Math.floor((step - 1) / 4 * 100) + Math.floor(sub / 4),
+    100
+  );
+  document.getElementById("progress-bar-fill").style.width = overallPct + "%";
+
+  // Sub-progress bar (only show when actively processing a step)
+  const subTrack = document.getElementById("progress-sub-track");
+  if (step > 0 && step <= 4 && sub < 100) {
+    subTrack.style.display = "block";
+    document.getElementById("progress-sub-fill").style.width = sub + "%";
+  } else {
+    subTrack.style.display = "none";
+  }
+
+  // Message and percent
+  document.getElementById("progress-message").textContent = p.message || "等待中...";
+  document.getElementById("progress-percent").textContent = overallPct + "%";
 }
 
 function switchTab(tabName) {

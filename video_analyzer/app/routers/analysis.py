@@ -46,7 +46,7 @@ def queue_video(video_id: str, priority: int = 5, db: Session = Depends(get_db))
 
 @router.get("/{video_id}/status")
 def get_status(video_id: str, db: Session = Depends(get_db)):
-    """取得影片分析狀態"""
+    """取得影片分析狀態與進度"""
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(404, "影片不存在")
@@ -55,9 +55,26 @@ def get_status(video_id: str, db: Session = Depends(get_db)):
         TaskQueue.created_at.desc()
     ).first()
 
+    step_names = {
+        0: "等待中",
+        1: "提取音頻",
+        2: "語音轉文字",
+        3: "GPT 分析",
+        4: "生成摘要功能",
+    }
+    step = video.progress_step or 0
+
     return {
         "video_id": video_id,
         "video_status": video.status,
+        "progress": {
+            "step": step,
+            "total_steps": 4,
+            "step_name": step_names.get(step, "等待中"),
+            "message": video.progress_message or "",
+            "percent": int(step / 4 * 100),
+            "sub_percent": video.progress_sub or 0,
+        },
         "task": {
             "id": task.id,
             "status": task.status,

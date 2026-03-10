@@ -92,6 +92,55 @@
         <div class="kv-row"><div class="kv-key">完成時間</div><div class="kv-val" id="task-completed">—</div></div>
         <div class="kv-row"><div class="kv-key">重試次數</div><div class="kv-val" id="task-retries">—</div></div>
       </div>
+
+      <!-- Progress Bar (shown while processing) -->
+      <div id="progress-section" class="hidden" style="margin-top:16px">
+        <div class="progress-steps">
+          <div class="progress-step" id="pstep-1">
+            <div class="pstep-icon">
+              <span class="pstep-emoji">🎵</span>
+              <span class="pstep-check" style="display:none">✓</span>
+            </div>
+            <div class="pstep-label">提取音頻</div>
+          </div>
+          <div class="progress-connector" id="pconn-1"></div>
+          <div class="progress-step" id="pstep-2">
+            <div class="pstep-icon">
+              <span class="pstep-emoji">🎙️</span>
+              <span class="pstep-check" style="display:none">✓</span>
+            </div>
+            <div class="pstep-label">語音轉文字</div>
+          </div>
+          <div class="progress-connector" id="pconn-2"></div>
+          <div class="progress-step" id="pstep-3">
+            <div class="pstep-icon">
+              <span class="pstep-emoji">🤖</span>
+              <span class="pstep-check" style="display:none">✓</span>
+            </div>
+            <div class="pstep-label">GPT 分析</div>
+          </div>
+          <div class="progress-connector" id="pconn-3"></div>
+          <div class="progress-step" id="pstep-4">
+            <div class="pstep-icon">
+              <span class="pstep-emoji">📚</span>
+              <span class="pstep-check" style="display:none">✓</span>
+            </div>
+            <div class="pstep-label">生成摘要功能</div>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progress-bar-fill" style="width:0%"></div>
+          </div>
+          <div class="progress-sub-track" id="progress-sub-track" style="display:none">
+            <div class="progress-sub-fill" id="progress-sub-fill" style="width:0%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:13px;color:#666">
+            <span id="progress-message">等待中...</span>
+            <span id="progress-percent">0%</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

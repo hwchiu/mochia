@@ -28,6 +28,9 @@ class Video(Base):
     file_size = Column(Integer)
     duration = Column(Float, nullable=True)
     status = Column(String, default="pending")  # pending | queued | processing | completed | failed
+    progress_step = Column(Integer, default=0)   # 0=等待 1=音頻 2=轉錄 3=GPT 4=NotebookLM
+    progress_message = Column(String, nullable=True)
+    progress_sub = Column(Integer, default=0)    # 0-100, within-step progress
     error_message = Column(String, nullable=True)
 
 
@@ -106,14 +109,27 @@ def _migrate_db():
     existing = {row[1] for row in cursor.fetchall()}
 
     new_columns = [
-        ("mindmap",     "TEXT"),
-        ("faq",         "TEXT"),
-        ("study_notes", "TEXT"),
+        ("mindmap",          "TEXT"),
+        ("faq",              "TEXT"),
+        ("study_notes",      "TEXT"),
     ]
     for col_name, col_type in new_columns:
         if col_name not in existing:
             cursor.execute(f"ALTER TABLE summaries ADD COLUMN {col_name} {col_type}")
             print(f"[migration] summaries.{col_name} 欄位已新增")
+
+    # videos 表新欄位
+    cursor.execute("PRAGMA table_info(videos)")
+    videos_cols = {row[1] for row in cursor.fetchall()}
+    video_columns = [
+        ("progress_step",    "INTEGER DEFAULT 0"),
+        ("progress_message", "TEXT"),
+        ("progress_sub",     "INTEGER DEFAULT 0"),
+    ]
+    for col_name, col_type in video_columns:
+        if col_name not in videos_cols:
+            cursor.execute(f"ALTER TABLE videos ADD COLUMN {col_name} {col_type}")
+            print(f"[migration] videos.{col_name} 欄位已新增")
 
     conn.commit()
     conn.close()

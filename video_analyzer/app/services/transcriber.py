@@ -90,7 +90,8 @@ def _transcribe_single(audio_path: Path, language: str) -> str:
     return response if isinstance(response, str) else response.text
 
 
-def transcribe(audio_path: str | Path, language: str = "zh") -> str:
+def transcribe(audio_path: str | Path, language: str = "zh",
+               progress_callback: "Callable[[int, int, int], None] | None" = None) -> str:
     """
     使用 Azure OpenAI Whisper 將音頻轉為文字。
     超過 25MB 的檔案會自動切割後分段轉錄再合併。
@@ -98,6 +99,7 @@ def transcribe(audio_path: str | Path, language: str = "zh") -> str:
     Args:
         audio_path: 音頻檔案路徑（MP3/WAV/M4A 等）
         language: 語言代碼，預設 "zh"（中文）
+        progress_callback: 可選進度回呼，簽名為 (percent, chunk_idx, total_chunks)
 
     Returns:
         轉錄文字
@@ -115,16 +117,25 @@ def transcribe(audio_path: str | Path, language: str = "zh") -> str:
     logger.info(f"開始轉錄: {audio_path.name} ({file_size_mb:.1f} MB)")
 
     chunks = _split_audio(audio_path)
-    chunk_dir = chunks[0].parent if len(chunks) > 1 else None
+    total = len(chunks)
+    chunk_dir = chunks[0].parent if total > 1 else None
 
     try:
-        if len(chunks) == 1:
+        if total == 1:
+            if progress_callback:
+                progress_callback(0, 1, 1)
             transcript = _transcribe_single(chunks[0], language)
+            if progress_callback:
+                progress_callback(100, 1, 1)
         else:
             parts: list[str] = []
             for idx, chunk in enumerate(chunks, 1):
-                logger.info(f"轉錄片段 {idx}/{len(chunks)}: {chunk.name}")
+                if progress_callback:
+                    progress_callback(int((idx - 1) / total * 100), idx, total)
+                logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
                 parts.append(_transcribe_single(chunk, language))
+            if progress_callback:
+                progress_callback(100, total, total)
             transcript = " ".join(parts)
     finally:
         # 清理 chunk 暫存目錄

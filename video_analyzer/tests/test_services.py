@@ -10,23 +10,24 @@ class TestAudioExtractor:
     def test_extract_audio_success(self, tmp_path, fake_video_file):
         """FFmpeg 執行成功時回傳音頻路徑"""
         with patch("app.services.audio_extractor.settings") as mock_settings, \
-             patch("subprocess.run") as mock_run:
+             patch("app.services.audio_extractor.subprocess.Popen") as mock_popen:
 
             audio_dir = tmp_path / "audio_temp"
             audio_dir.mkdir()
             mock_settings.AUDIO_TEMP_DIR = audio_dir
 
-            mock_run.return_value = MagicMock(returncode=0, stderr="")
-
-            # 讓 extract_audio 產生真實檔案
             from app.services.audio_extractor import extract_audio
             with patch("app.services.audio_extractor.settings", mock_settings):
-                # 模擬 FFmpeg 產生輸出檔案
-                def fake_run(cmd, **kwargs):
+                # 模擬 FFmpeg Popen 產生輸出檔案
+                def fake_popen(cmd, **kwargs):
                     output_path = cmd[-1]
                     Path(output_path).write_bytes(b"\x00" * 100)
-                    return MagicMock(returncode=0, stderr="")
-                mock_run.side_effect = fake_run
+                    mock_proc = MagicMock()
+                    mock_proc.stderr = iter([])  # no stderr lines
+                    mock_proc.returncode = 0
+                    mock_proc.wait.return_value = 0
+                    return mock_proc
+                mock_popen.side_effect = fake_popen
 
                 result = extract_audio(fake_video_file)
                 assert result.exists()
@@ -41,12 +42,17 @@ class TestAudioExtractor:
     def test_extract_audio_ffmpeg_fails(self, fake_video_file, tmp_path):
         """FFmpeg 失敗時拋出 RuntimeError"""
         with patch("app.services.audio_extractor.settings") as mock_settings, \
-             patch("subprocess.run") as mock_run:
+             patch("app.services.audio_extractor.subprocess.Popen") as mock_popen:
 
             audio_dir = tmp_path / "audio_temp"
             audio_dir.mkdir()
             mock_settings.AUDIO_TEMP_DIR = audio_dir
-            mock_run.return_value = MagicMock(returncode=1, stderr="FFmpeg error: codec not found")
+
+            mock_proc = MagicMock()
+            mock_proc.stderr = iter([])
+            mock_proc.returncode = 1
+            mock_proc.wait.return_value = 1
+            mock_popen.return_value = mock_proc
 
             from app.services.audio_extractor import extract_audio
             with pytest.raises(RuntimeError, match="FFmpeg 提取失敗"):
