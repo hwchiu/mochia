@@ -4,3 +4,49 @@ asyncio_mode = "auto"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "unit: pure unit tests (no I/O)",
+    "integration: tests that hit the test database",
+    "slow: tests that call real external APIs",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*", "venv/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+# ─── Ruff linter ──────────────────────────────────────────────
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = ["venv", ".venv", "__pycache__", "*.egg-info"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in default args (FastAPI Depends pattern)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ─── Bandit security scanner ──────────────────────────────────
+[tool.bandit]
+exclude_dirs = ["tests", "venv"]
+skips = [
+    "B101",  # assert statements (fine in tests)
+    "B603",  # subprocess without shell=True is safe
+    "B607",  # partial executable path (osascript is macOS-only, known safe)
+]
+

@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
 
 from app.config import settings
 from app.database import init_db
@@ -31,21 +33,16 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     # 頁面路由（HTML）
-    from fastapi import Request
-    from fastapi.responses import HTMLResponse
     templates_dir = Path(__file__).parent.parent / "templates"
+    templates = Jinja2Templates(directory=str(templates_dir))
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        from fastapi.templating import Jinja2Templates
-        tmpl = Jinja2Templates(directory=str(templates_dir))
-        return tmpl.TemplateResponse("index.html", {"request": request})
+        return templates.TemplateResponse("index.html", {"request": request})
 
     @app.get("/video/{video_id}", response_class=HTMLResponse)
     async def video_detail(request: Request, video_id: str):
-        from fastapi.templating import Jinja2Templates
-        tmpl = Jinja2Templates(directory=str(templates_dir))
-        return tmpl.TemplateResponse("detail.html", {"request": request, "video_id": video_id})
+        return templates.TemplateResponse("detail.html", {"request": request, "video_id": video_id})
 
     return app
 

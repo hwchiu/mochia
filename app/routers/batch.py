@@ -1,4 +1,5 @@
 """批量操作 API：目錄掃描、全部加入佇列、佇列統計"""
+import subprocess
 import uuid
 import logging
 from pathlib import Path
@@ -192,7 +193,6 @@ def retry_failed(db: Session = Depends(get_db)):
 @router.get("/pick-directory")
 def pick_directory():
     """打開原生 macOS 資料夾選擇器，回傳選擇的路徑"""
-    import subprocess
     try:
         result = subprocess.run(
             ["osascript", "-e",

@@ -8,7 +8,14 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db, Video, TaskQueue, Transcript, Summary, Classification, ChatMessage
-from app.services.analyzer import generate_mindmap, generate_faq, generate_study_notes, ask_question
+from app.services.analyzer import (
+    analyze,
+    ask_question,
+    generate_faq,
+    generate_mindmap,
+    generate_study_notes,
+    suggest_labels as _suggest_labels,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -147,7 +154,6 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     classification = db.query(Classification).filter(Classification.video_id == video_id).first()
 
-    import json
     return {
         "video_id": video_id,
         "transcript": transcript.content if transcript else None,
@@ -326,7 +332,6 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     if not transcript or not transcript.content:
         raise HTTPException(409, "逐字稿不存在，請先完成語音辨識")
 
-    from app.services.analyzer import analyze
     summary_text, key_points, category, confidence = analyze(transcript.content)
 
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
@@ -375,6 +380,5 @@ def suggest_labels(video_id: str, db: Session = Depends(get_db)):
     if not summary or not summary.summary:
         raise HTTPException(409, "尚無摘要，請先完成分析")
 
-    from app.services.analyzer import suggest_labels as _suggest
-    labels = _suggest(summary.summary)
+    labels = _suggest_labels(summary.summary)
     return {"video_id": video_id, "suggestions": labels}
