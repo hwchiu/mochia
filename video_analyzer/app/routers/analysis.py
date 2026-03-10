@@ -362,3 +362,19 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
         "category": category,
         "confidence": confidence,
     }
+
+
+@router.post("/{video_id}/suggest-labels")
+def suggest_labels(video_id: str, db: Session = Depends(get_db)):
+    """用 GPT 根據摘要自動建議 3-5 個標籤"""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(404, "影片不存在")
+
+    summary = db.query(Summary).filter(Summary.video_id == video_id).first()
+    if not summary or not summary.summary:
+        raise HTTPException(409, "尚無摘要，請先完成分析")
+
+    from app.services.analyzer import suggest_labels as _suggest
+    labels = _suggest(summary.summary)
+    return {"video_id": video_id, "suggestions": labels}

@@ -94,6 +94,26 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Label(Base):
+    """自定義標籤"""
+    __tablename__ = "labels"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, unique=True, index=True)
+    color = Column(String, default="#3b82f6")    # hex color
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class VideoLabel(Base):
+    """影片與標籤的多對多關聯"""
+    __tablename__ = "video_labels"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True)
+    label_id = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def _migrate_db():
     """
     為現有資料庫補齊新增的欄位（ALTER TABLE）。

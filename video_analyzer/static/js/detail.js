@@ -30,6 +30,9 @@ async function loadDetail() {
     document.getElementById("btn-retry").style.display = canRetry ? "" : "none";
     document.getElementById("btn-queue").onclick = () => queueVideo(videoId);
     document.getElementById("btn-retry").onclick = () => retryVideo(videoId);
+
+    // Load labels
+    loadVideoLabels(videoId);
   } catch (e) {
     toast("載入影片資訊失敗: " + e.message, "error");
   }
@@ -399,5 +402,128 @@ async function queueVideo(vid) {
   }
 }
 
-window.addEventListener("load", loadDetail);
+window.addEventListener("load", () => { loadDetail(); loadAllLabels(); });
 window.addEventListener("beforeunload", () => { if (pollTimer) clearTimeout(pollTimer); });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Label 管理
+// ═══════════════════════════════════════════════════════════════════════════════
+let _allLabels = [];  // 全部標籤庫（用於 autocomplete）
+
+async function loadVideoLabels(videoId) {
+  try {
+    const labels = await api("GET", `/api/labels/videos/${videoId}`);
+    renderVideoLabels(labels);
+  } catch (e) {
+    console.error("loadVideoLabels error", e);
+  }
+}
+
+function renderVideoLabels(labels) {
+  const el = document.getElementById("video-labels-list");
+  if (!labels.length) {
+    el.innerHTML = `<span style="color:var(--muted,#888);font-size:12px">無標籤</span>`;
+    return;
+  }
+  el.innerHTML = labels.map(l => `
+    <span class="label-tag" style="background:${l.color}20;color:${l.color};border-color:${l.color}40;display:inline-flex;align-items:center;gap:4px">
+      ${escHtml(l.name)}
+      <button onclick="removeLabel('${l.id}')" style="border:none;background:none;cursor:pointer;color:${l.color};padding:0;font-size:13px;line-height:1">×</button>
+    </span>
+  `).join("");
+}
+
+async function addLabelFromInput() {
+  const input = document.getElementById("label-input");
+  const name = input.value.trim();
+  if (!name) return;
+  const videoId = new URLSearchParams(window.location.search).get("id") ||
+                  window.location.pathname.split("/").pop();
+  try {
+    const r = await api("POST", `/api/labels/videos/${videoId}`, { name });
+    input.value = "";
+    document.getElementById("label-autocomplete").classList.add("hidden");
+    await loadVideoLabels(videoId);
+    await loadAllLabels();  // 刷新 autocomplete 庫
+  } catch (e) {
+    toast("新增標籤失敗: " + e.message, "error");
+  }
+}
+
+async function removeLabel(labelId) {
+  const videoId = new URLSearchParams(window.location.search).get("id") ||
+                  window.location.pathname.split("/").pop();
+  try {
+    await api("DELETE", `/api/labels/videos/${videoId}/${labelId}`);
+    await loadVideoLabels(videoId);
+  } catch (e) {
+    toast("移除標籤失敗: " + e.message, "error");
+  }
+}
+
+async function suggestLabels() {
+  const videoId = new URLSearchParams(window.location.search).get("id") ||
+                  window.location.pathname.split("/").pop();
+  const btn = document.getElementById("btn-suggest-labels");
+  btn.disabled = true; btn.textContent = "建議中...";
+  try {
+    const r = await api("POST", `/api/analysis/${videoId}/suggest-labels`);
+    const suggestions = r.suggestions || [];
+    if (!suggestions.length) { toast("GPT 未能生成建議", "info"); return; }
+
+    // 顯示建議讓使用者選
+    const existing = [...document.querySelectorAll("#video-labels-list .label-tag")]
+      .map(el => el.textContent.trim().replace("×", "").trim());
+
+    const newSuggestions = suggestions.filter(s => !existing.includes(s));
+    if (!newSuggestions.length) { toast("建議標籤都已存在", "info"); return; }
+
+    // 快速套用所有建議
+    for (const name of newSuggestions) {
+      await api("POST", `/api/labels/videos/${videoId}`, { name });
+    }
+    await loadVideoLabels(videoId);
+    await loadAllLabels();
+    toast(`已套用 ${newSuggestions.length} 個建議標籤：${newSuggestions.join("、")}`, "success");
+  } catch (e) {
+    toast("GPT 建議失敗: " + e.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "✨ GPT 建議";
+  }
+}
+
+async function loadAllLabels() {
+  try {
+    _allLabels = await api("GET", "/api/labels/");
+  } catch {}
+}
+
+function showLabelSuggestions(query) {
+  const box = document.getElementById("label-autocomplete");
+  const q = query.trim().toLowerCase();
+  if (!q) { box.classList.add("hidden"); return; }
+  const matches = _allLabels.filter(l => l.name.toLowerCase().includes(q) && l.name !== q).slice(0, 6);
+  if (!matches.length) { box.classList.add("hidden"); return; }
+  box.innerHTML = matches.map(l =>
+    `<div class="autocomplete-item" onclick="selectLabelSuggestion('${escHtml(l.name)}')">`
+    + `<span class="label-dot" style="background:${l.color}"></span>${escHtml(l.name)}</div>`
+  ).join("");
+  box.classList.remove("hidden");
+}
+
+function selectLabelSuggestion(name) {
+  document.getElementById("label-input").value = name;
+  document.getElementById("label-autocomplete").classList.add("hidden");
+  addLabelFromInput();
+}
+
+function handleLabelKeydown(e) {
+  if (e.key === "Enter") { e.preventDefault(); addLabelFromInput(); }
+  if (e.key === "Escape") document.getElementById("label-autocomplete").classList.add("hidden");
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// 標籤和全部標籤庫在 window.load 時一起初始化（見下方）

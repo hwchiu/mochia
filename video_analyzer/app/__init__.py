@@ -5,7 +5,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.database import init_db
-from app.routers import videos, analysis, batch
+from app.routers import videos, analysis, batch, labels
 
 
 def create_app() -> FastAPI:
@@ -23,6 +23,7 @@ def create_app() -> FastAPI:
     app.include_router(videos.router)
     app.include_router(analysis.router)
     app.include_router(batch.router)
+    app.include_router(labels.router)
 
     # 靜態檔案
     static_dir = Path(__file__).parent.parent / "static"

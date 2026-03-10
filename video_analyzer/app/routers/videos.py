@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Video, TaskQueue
+from app.database import get_db, Video, TaskQueue, Label, VideoLabel
 from app.config import settings
 from app.services.audio_extractor import get_video_duration
 
@@ -68,19 +68,43 @@ async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_d
 def list_videos(
     status: Optional[str] = None,
     source: Optional[str] = None,
+    labels: Optional[str] = None,   # comma-separated label names, AND logic
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
-    """列出所有影片，支援狀態和來源篩選"""
+    """列出所有影片，支援狀態、來源和標籤篩選（AND 邏輯）"""
     query = db.query(Video)
     if status:
         query = query.filter(Video.status == status)
     if source:
         query = query.filter(Video.source == source)
+    if labels:
+        label_names = [n.strip() for n in labels.split(",") if n.strip()]
+        for name in label_names:
+            lbl = db.query(Label).filter(Label.name == name).first()
+            if lbl:
+                sub = db.query(VideoLabel.video_id).filter(VideoLabel.label_id == lbl.id).subquery()
+                query = query.filter(Video.id.in_(sub))
+            else:
+                # 如果標籤不存在，沒有影片能匹配
+                query = query.filter(Video.id == None)  # noqa: E711
     total = query.count()
     videos = query.order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
-    return {"total": total, "items": [_video_to_dict(v) for v in videos]}
+
+    # 為每部影片附帶標籤資訊
+    items = []
+    for v in videos:
+        d = _video_to_dict(v)
+        vl_rows = db.query(VideoLabel).filter(VideoLabel.video_id == v.id).all()
+        d["labels"] = []
+        for row in vl_rows:
+            lbl = db.query(Label).filter(Label.id == row.label_id).first()
+            if lbl:
+                d["labels"].append({"id": lbl.id, "name": lbl.name, "color": lbl.color})
+        items.append(d)
+
+    return {"total": total, "items": items}
 
 
 @router.get("/{video_id}")

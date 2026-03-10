@@ -283,3 +283,27 @@ def ask_question(transcript: str, question: str, chat_history: List[Dict]) -> st
     answer = response.choices[0].message.content.strip()
     logger.info("ask_question 完成")
     return answer
+
+
+def suggest_labels(summary: str) -> List[str]:
+    """根據影片摘要，用 GPT 建議 3-5 個繁體中文標籤"""
+    system_prompt = """你是一個影片內容標籤分類專家。
+根據使用者提供的影片摘要，建議 3 到 5 個簡短的繁體中文標籤。
+
+標籤要求：
+- 每個標籤 2-6 個字
+- 反映影片的核心主題、關鍵概念或應用領域
+- 避免太模糊的標籤（如「知識」、「介紹」）
+- 請用 JSON 陣列格式回傳，例如：["標籤1", "標籤2", "標籤3"]
+- 只回傳 JSON 陣列，不要有其他文字"""
+
+    raw = _chat(system_prompt, f"影片摘要：\n{summary[:1500]}")
+    try:
+        # 嘗試解析 JSON
+        start = raw.find("[")
+        end = raw.rfind("]") + 1
+        labels = json.loads(raw[start:end])
+        return [str(l).strip() for l in labels if str(l).strip()][:5]
+    except Exception:
+        logger.warning(f"suggest_labels JSON 解析失敗: {raw}")
+        return []

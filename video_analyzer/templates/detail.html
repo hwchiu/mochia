@@ -89,6 +89,23 @@
       </div>
     </div>
 
+    <!-- Labels Card -->
+    <div class="card" id="labels-card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        🏷️ 標籤
+        <button class="btn btn-ghost btn-xs" onclick="suggestLabels()" id="btn-suggest-labels">✨ GPT 建議</button>
+      </div>
+      <div id="video-labels-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:22px">
+        <span style="color:var(--muted);font-size:12px">無標籤</span>
+      </div>
+      <div style="display:flex;gap:6px;position:relative">
+        <input type="text" id="label-input" placeholder="新增標籤..." style="flex:1;font-size:12px;padding:5px 10px" autocomplete="off"
+               oninput="showLabelSuggestions(this.value)" onkeydown="handleLabelKeydown(event)">
+        <button class="btn btn-primary btn-sm" onclick="addLabelFromInput()">＋</button>
+        <div id="label-autocomplete" class="label-autocomplete-box hidden"></div>
+      </div>
+    </div>
+
     <div class="card hidden" id="task-section">
       <div class="card-title">⚙️ 分析任務</div>
       <div class="kv-list">

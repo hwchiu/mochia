@@ -6,105 +6,174 @@
   <title>Video Analyzer - 影片分析系統</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
+<body class="app-layout">
 
-<nav class="navbar">
-  <a class="navbar-brand" href="/">🎬 Video Analyzer</a>
-  <span class="navbar-spacer"></span>
-  <button class="btn btn-ghost btn-sm" id="btn-scan">📁 掃描目錄</button>
-</nav>
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">🎬 Video Analyzer</div>
 
-<div class="container">
+  <nav class="sidebar-nav">
+    <a class="nav-item active" data-section="analysis" href="#">
+      <span class="nav-icon">🔬</span> 分析中心
+    </a>
+    <a class="nav-item" data-section="review" href="#">
+      <span class="nav-icon">📚</span> 複習中心
+    </a>
+    <a class="nav-item" data-section="labels" href="#">
+      <span class="nav-icon">🏷️</span> 標籤管理
+    </a>
+  </nav>
 
-  <!-- Stats -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-value" id="stat-total">—</div>
-      <div class="stat-label">總計</div>
+  <div class="sidebar-stats">
+    <div class="sidebar-stat-title">系統狀態</div>
+    <div class="sidebar-stat-row">
+      <span>總計</span>
+      <span id="sb-stat-total">—</span>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--muted)" id="stat-pending">—</div>
-      <div class="stat-label">待處理</div>
+    <div class="sidebar-stat-row">
+      <span>完成</span>
+      <span id="sb-stat-completed" style="color:var(--success)">—</span>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--info)" id="stat-queued">—</div>
-      <div class="stat-label">佇列中</div>
+    <div class="sidebar-stat-row">
+      <span>佇列中</span>
+      <span id="sb-stat-queued" style="color:var(--info)">—</span>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--warning)" id="stat-processing">—</div>
-      <div class="stat-label">分析中</div>
+    <div class="sidebar-stat-row">
+      <span>分析中</span>
+      <span id="sb-stat-processing" style="color:var(--warning)">—</span>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--success)" id="stat-completed">—</div>
-      <div class="stat-label">完成</div>
+    <div class="sidebar-stat-row">
+      <span>待處理</span>
+      <span id="sb-stat-pending" style="color:var(--muted)">—</span>
     </div>
-    <div class="stat-card">
-      <div class="stat-value" style="color:var(--danger)" id="stat-failed">—</div>
-      <div class="stat-label">失敗</div>
+    <div class="sidebar-stat-row">
+      <span>失敗</span>
+      <span id="sb-stat-failed" style="color:var(--danger)">—</span>
     </div>
   </div>
 
-  <!-- Progress -->
-  <div class="card" style="margin-bottom:20px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:13px;color:var(--muted)" id="queue-info">載入中...</span>
-      <span style="font-size:13px;font-weight:600" id="progress-pct">0%</span>
-    </div>
-    <div class="progress-bar-wrap">
-      <div class="progress-bar" id="progress-bar" style="width:0%"></div>
-    </div>
+  <div class="sidebar-footer">
+    <button class="btn btn-ghost btn-sm" id="btn-scan" style="width:100%">📁 掃描目錄</button>
   </div>
+</aside>
 
-  <!-- Actions -->
-  <div class="card" style="margin-bottom:20px">
-    <div class="form-row">
-      <button class="btn btn-primary" id="btn-queue-all">🚀 全部加入佇列</button>
-      <button class="btn btn-ghost" id="btn-queue-selected">📋 加入已選</button>
-      <button class="btn btn-ghost" id="btn-retry-failed">🔄 重試失敗</button>
-      <button class="btn btn-ghost" id="btn-cancel-queue" style="margin-left:auto;color:var(--danger)">⏹ 取消佇列</button>
-    </div>
-  </div>
+<!-- ── Main Content ── -->
+<main class="main-content">
 
-  <!-- Filter & Table -->
-  <div class="card">
-    <div class="form-row" style="margin-bottom:14px">
-      <select id="filter-status">
-        <option value="">所有狀態</option>
-        <option value="pending">待處理</option>
-        <option value="queued">佇列中</option>
-        <option value="processing">分析中</option>
-        <option value="completed">完成</option>
-        <option value="failed">失敗</option>
-      </select>
-      <select id="filter-source">
-        <option value="">所有來源</option>
-        <option value="local_scan">本地掃描</option>
-        <option value="uploaded">手動上傳</option>
-      </select>
+  <!-- ══ 分析中心 ══ -->
+  <section id="section-analysis" class="app-section active">
+    <div class="section-header">
+      <h2>🔬 分析中心</h2>
+      <span class="section-desc">管理影片分析任務</span>
     </div>
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th><input type="checkbox" id="select-all"></th>
-            <th>檔名</th>
-            <th>狀態</th>
-            <th>大小</th>
-            <th>時長</th>
-            <th>來源</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="video-tbody"></tbody>
-      </table>
+    <!-- Progress -->
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px;color:var(--muted)" id="queue-info">載入中...</span>
+        <span style="font-size:13px;font-weight:600" id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+      </div>
     </div>
-    <div class="pagination" id="pagination"></div>
-  </div>
 
-</div>
+    <!-- Actions -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="form-row">
+        <button class="btn btn-primary" id="btn-queue-all">🚀 全部加入佇列</button>
+        <button class="btn btn-ghost" id="btn-queue-selected">📋 加入已選</button>
+        <button class="btn btn-ghost" id="btn-retry-failed">🔄 重試失敗</button>
+        <button class="btn btn-ghost" id="btn-cancel-queue" style="margin-left:auto;color:var(--danger)">⏹ 取消佇列</button>
+      </div>
+    </div>
 
-<!-- Scan Modal -->
+    <!-- Filter & Table -->
+    <div class="card">
+      <div class="form-row" style="margin-bottom:14px">
+        <select id="filter-status">
+          <option value="">所有狀態</option>
+          <option value="pending">待處理</option>
+          <option value="queued">佇列中</option>
+          <option value="processing">分析中</option>
+          <option value="completed">完成</option>
+          <option value="failed">失敗</option>
+        </select>
+        <select id="filter-source">
+          <option value="">所有來源</option>
+          <option value="local_scan">本地掃描</option>
+          <option value="uploaded">手動上傳</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all"></th>
+              <th>檔名</th>
+              <th>狀態</th>
+              <th>大小</th>
+              <th>時長</th>
+              <th>來源</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="video-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </section>
+
+  <!-- ══ 複習中心 ══ -->
+  <section id="section-review" class="app-section hidden">
+    <div class="section-header">
+      <h2>📚 複習中心</h2>
+      <span class="section-desc">瀏覽已分析影片，依標籤篩選</span>
+    </div>
+    <div class="review-layout">
+      <!-- Label filter panel -->
+      <aside class="label-filter-panel">
+        <div class="label-filter-title">
+          🏷️ 標籤篩選
+          <button class="btn btn-ghost btn-xs" id="btn-clear-filter" style="float:right">清除</button>
+        </div>
+        <div id="label-filter-list">
+          <div style="color:var(--muted);font-size:13px;padding:8px 0">載入中...</div>
+        </div>
+      </aside>
+      <!-- Cards -->
+      <div class="review-cards-area">
+        <div class="form-row" style="margin-bottom:16px">
+          <input type="text" id="review-search" placeholder="🔍 搜尋影片名稱..." style="flex:1;max-width:360px">
+        </div>
+        <div id="review-cards-grid"></div>
+        <div class="pagination" id="review-pagination"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 標籤管理 ══ -->
+  <section id="section-labels" class="app-section hidden">
+    <div class="section-header">
+      <h2>🏷️ 標籤管理</h2>
+      <span class="section-desc">建立與刪除自定義標籤</span>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="form-row">
+        <input type="text" id="new-label-input" placeholder="新標籤名稱" style="max-width:240px">
+        <button class="btn btn-primary" id="btn-create-label">＋ 建立標籤</button>
+      </div>
+    </div>
+    <div class="card">
+      <div id="labels-grid"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Scan Modal ── -->
 <div class="overlay hidden" id="scan-overlay">
   <div class="modal">
     <h3>📁 掃描本地目錄</h3>
