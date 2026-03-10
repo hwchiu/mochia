@@ -173,23 +173,6 @@
 
 </main>
 
-<!-- ── Scan Modal ── -->
-<div class="overlay hidden" id="scan-overlay">
-  <div class="modal">
-    <h3>📁 掃描本地目錄</h3>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
-      輸入本機目錄路徑，系統會遞迴掃描所有支援的影片格式並登錄至資料庫（不複製檔案）。
-    </p>
-    <div class="form-col">
-      <input type="text" id="scan-path" placeholder="/Volumes/MyDisk/Videos 或 /Users/me/Movies">
-    </div>
-    <div class="actions">
-      <button class="btn btn-ghost" id="scan-cancel">取消</button>
-      <button class="btn btn-primary" id="scan-confirm">開始掃描</button>
-    </div>
-  </div>
-</div>
-
 <div id="toast-container"></div>
 
 <script src="/static/js/common.js"></script>

@@ -187,3 +187,24 @@ def retry_failed(db: Session = Depends(get_db)):
         retried += 1
     db.commit()
     return {"message": f"已重設 {retried} 個失敗任務", "retried": retried}
+
+
+@router.get("/pick-directory")
+def pick_directory():
+    """打開原生 macOS 資料夾選擇器，回傳選擇的路徑"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["osascript", "-e",
+             'POSIX path of (choose folder with prompt "選擇影片目錄")'],
+            capture_output=True, text=True, timeout=60
+        )
+        if result.returncode != 0:
+            # 使用者按了取消
+            return {"cancelled": True, "path": None}
+        path = result.stdout.strip()
+        return {"cancelled": False, "path": path}
+    except subprocess.TimeoutExpired:
+        return {"cancelled": True, "path": None}
+    except Exception as e:
+        raise HTTPException(500, f"無法開啟目錄選擇器: {e}")

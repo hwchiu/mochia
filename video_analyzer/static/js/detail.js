@@ -185,8 +185,11 @@ async function loadMindmap() {
 }
 
 let _mindmapInstance = null;
+let _mindmapMarkdown = "";   // store raw markdown for fullscreen re-render
+let _mindmapFullscreenInstance = null;
 
 function renderMindmap(markdown) {
+  _mindmapMarkdown = markdown;
   try {
     if (!window.markmap) {
       document.getElementById("mindmap-error").textContent = "Markmap 庫載入失敗，請檢查網路連線";
@@ -216,6 +219,68 @@ function renderMindmap(markdown) {
 
 function resetMindmapZoom() {
   if (_mindmapInstance) _mindmapInstance.fit();
+}
+
+function openMindmapFullscreen() {
+  if (!_mindmapMarkdown) { toast("心智圖尚未載入", "info"); return; }
+  const overlay = document.getElementById("mindmap-fullscreen-overlay");
+  overlay.classList.remove("hidden");
+
+  // Re-render in fullscreen SVG
+  const { Transformer, Markmap } = window.markmap;
+  const transformer = new Transformer();
+  const { root } = transformer.transform(_mindmapMarkdown);
+  const svg = document.getElementById("mindmap-fullscreen-svg");
+  svg.innerHTML = "";
+  if (_mindmapFullscreenInstance) { try { _mindmapFullscreenInstance.destroy(); } catch(_) {} }
+  _mindmapFullscreenInstance = Markmap.create(svg, { zoom: true, pan: true, duration: 200 });
+  _mindmapFullscreenInstance.setData(root);
+  setTimeout(() => _mindmapFullscreenInstance.fit(), 150);
+}
+
+function closeFullscreen() {
+  document.getElementById("mindmap-fullscreen-overlay").classList.add("hidden");
+}
+
+function downloadMindmap() {
+  const svgEl = document.getElementById(
+    document.getElementById("mindmap-fullscreen-overlay").classList.contains("hidden")
+      ? "mindmap-svg" : "mindmap-fullscreen-svg"
+  );
+  if (!svgEl || !svgEl.innerHTML) { toast("心智圖尚未載入", "info"); return; }
+
+  // Compute actual SVG bounding box
+  const bbox = svgEl.getBBox ? svgEl.getBBox() : null;
+  const w = (bbox && bbox.width > 0) ? bbox.width + 40 : svgEl.clientWidth || 1200;
+  const h = (bbox && bbox.height > 0) ? bbox.height + 40 : svgEl.clientHeight || 800;
+
+  // Clone SVG and set explicit size
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute("width", w);
+  clone.setAttribute("height", h);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+  const svgData = new XMLSerializer().serializeToString(clone);
+  const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgData);
+
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    const scale = 2;  // retina quality
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const link = document.createElement("a");
+    link.download = "mindmap.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+  img.onerror = () => toast("下載失敗，請嘗試放大後再試", "error");
+  img.src = svgUrl;
 }
 
 async function loadFAQ() {
@@ -404,6 +469,7 @@ async function queueVideo(vid) {
 
 window.addEventListener("load", () => { loadDetail(); loadAllLabels(); });
 window.addEventListener("beforeunload", () => { if (pollTimer) clearTimeout(pollTimer); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeFullscreen(); });
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Label 管理
@@ -414,8 +480,31 @@ async function loadVideoLabels(videoId) {
   try {
     const labels = await api("GET", `/api/labels/videos/${videoId}`);
     renderVideoLabels(labels);
+    // Auto-suggest if completed and no labels yet
+    if (!labels.length) {
+      const v = await api("GET", `/api/videos/${videoId}`);
+      if (v.status === "completed") {
+        autoSuggestLabels(videoId);
+      }
+    }
   } catch (e) {
     console.error("loadVideoLabels error", e);
+  }
+}
+
+async function autoSuggestLabels(videoId) {
+  try {
+    const r = await api("POST", `/api/analysis/${videoId}/suggest-labels`);
+    const suggestions = r.suggestions || [];
+    if (!suggestions.length) return;
+    for (const name of suggestions) {
+      await api("POST", `/api/labels/videos/${videoId}`, { name });
+    }
+    await loadVideoLabels(videoId);
+    await loadAllLabels();
+  } catch (e) {
+    // 靜默失敗（摘要可能還不存在）
+    console.debug("autoSuggestLabels:", e.message);
   }
 }
 

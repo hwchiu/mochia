@@ -577,3 +577,8 @@ body.app-layout {
   transition: background .1s;
 }
 .autocomplete-item:hover { background: var(--bg); }
+
+/* ─── Detail page main-content padding ─── */
+.main-content > span[style*="display:none"] + * {
+  /* first visible child after hidden video-id span */
+}

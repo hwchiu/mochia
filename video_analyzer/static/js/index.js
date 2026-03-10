@@ -164,27 +164,23 @@ async function queueOne(id) {
   } catch (e) { toast("操作失敗: " + e.message, "error"); }
 }
 
-// ─── Scan modal ───
-document.getElementById("btn-scan").addEventListener("click", () => {
-  document.getElementById("scan-overlay").classList.remove("hidden");
-});
-document.getElementById("scan-cancel").addEventListener("click", () => {
-  document.getElementById("scan-overlay").classList.add("hidden");
-});
-document.getElementById("scan-confirm").addEventListener("click", async () => {
-  const path = document.getElementById("scan-path").value.trim();
-  if (!path) { toast("請輸入目錄路徑", "info"); return; }
-  const btn = document.getElementById("scan-confirm");
-  btn.disabled = true; btn.textContent = "掃描中...";
+// ─── Scan (native folder picker) ───
+document.getElementById("btn-scan").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-scan");
+  btn.disabled = true; btn.textContent = "請選擇目錄...";
   try {
-    const d = await api("POST", `/api/batch/scan?path=${encodeURIComponent(path)}`);
+    const picked = await api("GET", "/api/batch/pick-directory");
+    if (picked.cancelled || !picked.path) {
+      return;  // 使用者取消，靜默忽略
+    }
+    btn.textContent = "掃描中...";
+    const d = await api("POST", `/api/batch/scan?path=${encodeURIComponent(picked.path)}`);
     toast(`掃描完成：新登錄 ${d.registered} 支，跳過 ${d.skipped} 支`, "success");
-    document.getElementById("scan-overlay").classList.add("hidden");
     loadStats(); loadVideos();
   } catch (e) {
     toast("掃描失敗: " + e.message, "error");
   } finally {
-    btn.disabled = false; btn.textContent = "開始掃描";
+    btn.disabled = false; btn.textContent = "📁 掃描目錄";
   }
 });
 
@@ -379,3 +375,7 @@ function startPoll() {
 loadStats();
 loadVideos();
 startPoll();
+
+// 從 URL ?section= 恢復選中的頁面（從 detail 頁返回時）
+const _initSection = new URLSearchParams(window.location.search).get("section");
+if (_initSection) showSection(_initSection);
