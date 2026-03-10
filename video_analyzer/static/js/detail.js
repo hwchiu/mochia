@@ -24,9 +24,12 @@ async function loadDetail() {
       document.getElementById("error-section").classList.add("hidden");
     }
 
-    const canQueue = ["pending", "failed"].includes(v.status);
+    const canQueue = ["pending"].includes(v.status);
+    const canRetry = v.status === "failed";
     document.getElementById("btn-queue").style.display = canQueue ? "" : "none";
+    document.getElementById("btn-retry").style.display = canRetry ? "" : "none";
     document.getElementById("btn-queue").onclick = () => queueVideo(videoId);
+    document.getElementById("btn-retry").onclick = () => retryVideo(videoId);
   } catch (e) {
     toast("載入影片資訊失敗: " + e.message, "error");
   }
@@ -348,6 +351,16 @@ async function regenerate(type) {
     else if (type === "study_notes") { tabLoaded["study-notes"] = false; loadStudyNotes(); }
   } catch (e) {
     toast("重新生成失敗: " + e.message, "error");
+  }
+}
+
+async function retryVideo(vid) {
+  try {
+    await api("POST", `/api/analysis/${vid}/retry`);
+    toast("已重新加入分析佇列", "success");
+    setTimeout(loadDetail, 1000);
+  } catch (e) {
+    toast("重試失敗: " + e.message, "error");
   }
 }
 

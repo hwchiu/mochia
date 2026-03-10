@@ -127,7 +127,7 @@ class TestAnalysisAPI:
 
     def test_get_results_not_completed(self, client, sample_video):
         r = client.get(f"/api/analysis/{sample_video.id}/results")
-        assert r.status_code == 400
+        assert r.status_code == 409
 
     def test_get_results_completed(self, client, completed_video):
         r = client.get(f"/api/analysis/{completed_video.id}/results")

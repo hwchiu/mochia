@@ -44,6 +44,44 @@ def queue_video(video_id: str, priority: int = 5, db: Session = Depends(get_db))
     return {"message": "已加入佇列", "task_id": task.id}
 
 
+@router.post("/{video_id}/retry")
+def retry_video(video_id: str, db: Session = Depends(get_db)):
+    """重試失敗的影片分析（重設重試次數）"""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(404, "影片不存在")
+
+    # 找到最新的失敗任務，重設它
+    task = db.query(TaskQueue).filter(
+        TaskQueue.video_id == video_id,
+        TaskQueue.status == "failed",
+    ).order_by(TaskQueue.created_at.desc()).first()
+
+    if task:
+        task.status = "pending"
+        task.retry_count = 0
+        task.error_message = None
+        task.started_at = None
+        task.completed_at = None
+    else:
+        # 沒有失敗任務就建立新的
+        task = TaskQueue(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            priority=5,
+            status="pending",
+        )
+        db.add(task)
+
+    video.status = "queued"
+    video.error_message = None
+    video.progress_step = 0
+    video.progress_message = None
+    video.progress_sub = 0
+    db.commit()
+    return {"message": "已重新加入佇列", "task_id": task.id}
+
+
 @router.get("/{video_id}/status")
 def get_status(video_id: str, db: Session = Depends(get_db)):
     """取得影片分析狀態與進度"""
@@ -94,7 +132,7 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(404, "影片不存在")
     if video.status != "completed":
-        raise HTTPException(400, f"影片尚未分析完成，目前狀態: {video.status}")
+        raise HTTPException(409, f"影片尚未分析完成，目前狀態: {video.status}")
 
     transcript = db.query(Transcript).filter(Transcript.video_id == video_id).first()
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
@@ -118,7 +156,7 @@ def get_mindmap(video_id: str, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(404, "影片不存在")
     if video.status != "completed":
-        raise HTTPException(400, "分析尚未完成")
+        raise HTTPException(409, "分析尚未完成")
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if not summary or summary.mindmap is None:
         raise HTTPException(404, "尚未生成")
@@ -132,7 +170,7 @@ def get_faq(video_id: str, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(404, "影片不存在")
     if video.status != "completed":
-        raise HTTPException(400, "分析尚未完成")
+        raise HTTPException(409, "分析尚未完成")
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if not summary or summary.faq is None:
         raise HTTPException(404, "尚未生成")
@@ -146,7 +184,7 @@ def get_study_notes(video_id: str, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(404, "影片不存在")
     if video.status != "completed":
-        raise HTTPException(400, "分析尚未完成")
+        raise HTTPException(409, "分析尚未完成")
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if not summary or summary.study_notes is None:
         raise HTTPException(404, "尚未生成")
@@ -160,7 +198,7 @@ def ask_video_question(video_id: str, req: AskRequest, db: Session = Depends(get
     if not video:
         raise HTTPException(404, "影片不存在")
     if video.status != "completed":
-        raise HTTPException(400, "分析尚未完成")
+        raise HTTPException(409, "分析尚未完成")
     transcript = db.query(Transcript).filter(Transcript.video_id == video_id).first()
     if not transcript:
         raise HTTPException(400, "逐字稿不存在")
@@ -246,7 +284,7 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
     if not video:
         raise HTTPException(404, "影片不存在")
     if video.status != "completed":
-        raise HTTPException(400, "分析尚未完成")
+        raise HTTPException(409, "分析尚未完成")
 
     transcript = db.query(Transcript).filter(Transcript.video_id == video_id).first()
     if not transcript:

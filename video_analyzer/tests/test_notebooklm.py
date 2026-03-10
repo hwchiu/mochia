@@ -182,7 +182,7 @@ class TestNotebookLMAPI:
     def test_get_mindmap_not_completed(self, client, sample_video):
         """分析未完成時返回 400"""
         resp = client.get(f"/api/analysis/{sample_video.id}/mindmap")
-        assert resp.status_code == 400
+        assert resp.status_code == 409
         assert "尚未完成" in resp.json()["detail"]
 
     def test_get_mindmap_not_generated(self, client, completed_video):
@@ -206,7 +206,7 @@ class TestNotebookLMAPI:
     def test_get_faq_not_completed(self, client, sample_video):
         """分析未完成時返回 400"""
         resp = client.get(f"/api/analysis/{sample_video.id}/faq")
-        assert resp.status_code == 400
+        assert resp.status_code == 409
 
     def test_get_faq_not_generated(self, client, completed_video):
         """FAQ 未生成時返回 404"""
@@ -224,7 +224,7 @@ class TestNotebookLMAPI:
     def test_get_study_notes_not_completed(self, client, sample_video):
         """分析未完成時返回 400"""
         resp = client.get(f"/api/analysis/{sample_video.id}/study-notes")
-        assert resp.status_code == 400
+        assert resp.status_code == 409
 
     def test_get_study_notes_not_generated(self, client, completed_video):
         """學習筆記未生成時返回 404"""
@@ -249,7 +249,7 @@ class TestNotebookLMAPI:
             f"/api/analysis/{sample_video.id}/ask",
             json={"question": "問題"}
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 409
 
     def test_ask_question_no_transcript(self, client, db_session):
         """沒有逐字稿時返回 400"""
@@ -369,4 +369,4 @@ class TestNotebookLMAPI:
     def test_regenerate_not_completed(self, client, sample_video):
         """未完成的影片不能重新生成"""
         resp = client.post(f"/api/analysis/{sample_video.id}/regenerate/mindmap")
-        assert resp.status_code == 400
+        assert resp.status_code == 409
