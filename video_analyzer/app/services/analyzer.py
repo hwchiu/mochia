@@ -37,7 +37,7 @@ def _chat(system_prompt: str, user_content: str) -> str:
             {"role": "user", "content": user_content},
         ],
         temperature=0.3,
-        max_tokens=2000,
+        max_completion_tokens=2000,  # 新一代模型（o1/o3/gpt-5系列）使用此參數
     )
     return response.choices[0].message.content.strip()
 
