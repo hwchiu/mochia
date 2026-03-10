@@ -149,7 +149,6 @@ function switchTab(tabName) {
     tabLoaded[tabName] = true;
     if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
-    else if (tabName === "study-notes") loadStudyNotes();
     else if (tabName === "qa-chat") { /* chat history already loaded */ }
   }
 }
@@ -178,6 +177,8 @@ async function loadMindmap() {
   }
 }
 
+let _mindmapInstance = null;
+
 function renderMindmap(markdown) {
   try {
     if (!window.markmap) {
@@ -186,20 +187,28 @@ function renderMindmap(markdown) {
       document.getElementById("mindmap-container").style.display = "none";
       return;
     }
-    const { Transformer } = window.markmap;
-    const { Markmap } = window.markmap;
+    const { Transformer, Markmap } = window.markmap;
     const transformer = new Transformer();
     const { root } = transformer.transform(markdown);
     const svg = document.getElementById("mindmap-svg");
     svg.innerHTML = "";
-    const mm = Markmap.create(svg);
-    mm.setData(root);
-    mm.fit();
+    if (_mindmapInstance) { try { _mindmapInstance.destroy(); } catch(_) {} }
+    _mindmapInstance = Markmap.create(svg, {
+      zoom: true,      // 滾輪縮放
+      pan: true,       // 拖曳移動
+      duration: 300,
+    });
+    _mindmapInstance.setData(root);
+    setTimeout(() => _mindmapInstance.fit(), 100);
   } catch (e) {
     document.getElementById("mindmap-error").textContent = "心智圖渲染失敗: " + e.message;
     document.getElementById("mindmap-error").classList.remove("hidden");
     document.getElementById("mindmap-container").style.display = "none";
   }
+}
+
+function resetMindmapZoom() {
+  if (_mindmapInstance) _mindmapInstance.fit();
 }
 
 async function loadFAQ() {
@@ -236,30 +245,6 @@ async function loadFAQ() {
 
 function toggleFAQ(i) {
   document.getElementById("faq-" + i).classList.toggle("open");
-}
-
-async function loadStudyNotes() {
-  const loadingEl = document.getElementById("study-notes-loading");
-  const contentEl = document.getElementById("study-notes-content");
-  const errorEl = document.getElementById("study-notes-error");
-
-  loadingEl.style.display = "block";
-  contentEl.innerHTML = "";
-  errorEl.classList.add("hidden");
-
-  try {
-    const data = await api("GET", `/api/analysis/${videoId}/study-notes`);
-    loadingEl.style.display = "none";
-    if (window.marked) {
-      contentEl.innerHTML = marked.parse(data.study_notes);
-    } else {
-      contentEl.textContent = data.study_notes;
-    }
-  } catch (e) {
-    loadingEl.style.display = "none";
-    errorEl.textContent = e.message.includes("尚未生成") ? "學習筆記尚未生成，請點擊「重新生成」" : ("載入失敗: " + e.message);
-    errorEl.classList.remove("hidden");
-  }
 }
 
 async function loadChatHistory() {
@@ -336,7 +321,7 @@ async function clearChatHistory() {
 }
 
 async function regenerate(type) {
-  const labels = { mindmap: "心智圖", faq: "FAQ", study_notes: "學習筆記" };
+  const labels = { mindmap: "心智圖", faq: "FAQ" };
   if (!confirm(`確定要重新生成 ${labels[type] || type} 嗎？這需要一些時間。`)) return;
 
   toast(`正在重新生成 ${labels[type] || type}...`, "info");
@@ -348,7 +333,6 @@ async function regenerate(type) {
     // Reload the relevant tab
     if (type === "mindmap") { tabLoaded["mindmap"] = false; loadMindmap(); }
     else if (type === "faq") { tabLoaded["faq"] = false; loadFAQ(); }
-    else if (type === "study_notes") { tabLoaded["study-notes"] = false; loadStudyNotes(); }
   } catch (e) {
     toast("重新生成失敗: " + e.message, "error");
   }

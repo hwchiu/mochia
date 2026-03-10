@@ -25,7 +25,8 @@
     .faq-item.open .faq-a { display:block; }
     .faq-item.open .faq-toggle { transform:rotate(180deg); }
     .faq-toggle { transition:transform .2s; }
-    #mindmap-container { width:100%; height:500px; border:1px solid var(--border,#ddd); border-radius:8px; overflow:hidden; }
+    #mindmap-container { width:100%; height:600px; border:1px solid var(--border,#ddd); border-radius:8px; overflow:hidden; cursor:grab; background:#fafafa; }
+    #mindmap-container.grabbing { cursor:grabbing; }
     #mindmap-container svg { width:100%; height:100%; }
     .chat-messages { height:400px; overflow-y:auto; border:1px solid var(--border,#ddd); border-radius:8px; padding:16px; margin-bottom:12px; display:flex; flex-direction:column; gap:12px; background:var(--bg,#fff); }
     .chat-bubble { max-width:80%; padding:10px 14px; border-radius:12px; line-height:1.6; font-size:14px; }
@@ -40,8 +41,6 @@
     .markdown-body li { margin-bottom:4px; }
     .regen-btn { margin-left:auto; }
     .loading-text { color:var(--muted,#888); font-style:italic; padding:20px 0; text-align:center; }
-    .study-notes-body { line-height:1.8; }
-    .study-notes-body h2 { color:var(--primary,#4f46e5); border-bottom:2px solid var(--border,#eee); padding-bottom:6px; margin-top:24px; }
   </style>
 </head>
 <body>
@@ -151,7 +150,6 @@
       <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">📝 摘要</button>
       <button class="tab-btn" data-tab="mindmap" onclick="switchTab('mindmap')">🧠 心智圖</button>
       <button class="tab-btn" data-tab="faq" onclick="switchTab('faq')">❓ FAQ</button>
-      <button class="tab-btn" data-tab="study-notes" onclick="switchTab('study-notes')">📚 學習筆記</button>
       <button class="tab-btn" data-tab="qa-chat" onclick="switchTab('qa-chat')">💬 對話</button>
       <button class="tab-btn" data-tab="transcript" onclick="switchTab('transcript')">📄 逐字稿</button>
     </div>
@@ -171,12 +169,14 @@
     <!-- Mindmap Tab -->
     <div id="tab-mindmap" class="tab-panel">
       <div class="card">
-        <div class="card-title" style="display:flex;align-items:center">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px">
           <span>🧠 心智圖</span>
+          <button class="btn btn-sm btn-ghost" onclick="resetMindmapZoom()" title="重置縮放">⟳ 重置</button>
           <button class="btn btn-sm btn-ghost regen-btn" onclick="regenerate('mindmap')">🔄 重新生成</button>
+          <span style="margin-left:auto;font-size:12px;color:var(--muted,#888)">滾輪縮放・拖曳移動</span>
         </div>
         <div id="mindmap-loading" class="loading-text">載入中...</div>
-        <div id="mindmap-container" style="display:none">
+        <div id="mindmap-container" style="display:none;position:relative">
           <svg id="mindmap-svg"></svg>
         </div>
         <div id="mindmap-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
@@ -197,19 +197,6 @@
         <div id="faq-loading" class="loading-text">載入中...</div>
         <div id="faq-list"></div>
         <div id="faq-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
-      </div>
-    </div>
-
-    <!-- Study Notes Tab -->
-    <div id="tab-study-notes" class="tab-panel">
-      <div class="card">
-        <div class="card-title" style="display:flex;align-items:center">
-          <span>📚 學習筆記</span>
-          <button class="btn btn-sm btn-ghost regen-btn" onclick="regenerate('study_notes')">🔄 重新生成</button>
-        </div>
-        <div id="study-notes-loading" class="loading-text">載入中...</div>
-        <div id="study-notes-content" class="study-notes-body"></div>
-        <div id="study-notes-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
       </div>
     </div>
 
