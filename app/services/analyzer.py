@@ -28,7 +28,7 @@ def _get_client() -> AzureOpenAI:
     return _client
 
 
-def _chat(system_prompt: str, user_content: str) -> str:
+def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
     client = _get_client()
     response = client.chat.completions.create(
         model=settings.AZURE_OPENAI_DEPLOYMENT,
@@ -36,7 +36,7 @@ def _chat(system_prompt: str, user_content: str) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ],
-        max_completion_tokens=2000,  # 新一代模型（o1/o3/gpt-5系列）使用此參數
+        max_completion_tokens=max_tokens,  # 新一代模型（o1/o3/gpt-5系列）使用此參數
     )
     return response.choices[0].message.content.strip()
 
@@ -79,11 +79,11 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
 
 請回傳以下 JSON 格式（所有欄位必填）：
 {{
-  "summary": "影片內容摘要（200字以內，繁體中文）",
+  "summary": "影片內容完整摘要（繁體中文）",
   "key_points": [
     {{
-      "theme": "主題名稱（4-10字）",
-      "points": ["具體說明或重點敘述（1-2句話）", "..."]
+      "theme": "主題名稱（4-12字）",
+      "points": ["具體說明或重點敘述", "..."]
     }}
   ],
   "category": "從以下類別選擇最符合的一個",
@@ -94,15 +94,20 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
 {categories_str}
 
 注意：
-- summary 限 200 字以內，繁體中文
-- key_points 列出 3-5 個主題，每個主題下有 2-4 條敘述說明，讓讀者快速複習影片內容
-- 主題名稱要精準概括該段落的核心概念
-- 每條敘述要具體、有內容，不要太短
+- summary 要詳盡完整，至少 400 字，最多 800 字，繁體中文
+  * 第一段：概述影片整體主題與核心論點（2-3句）
+  * 中間段落：依序介紹影片各個重要段落的內容與觀點
+  * 最後一段：總結影片的實用價值或核心結論（1-2句）
+- key_points 列出 5-8 個主題，涵蓋影片所有重要段落
+  * 主題名稱要精準概括該段落的核心概念
+  * 每個主題下至少 3-5 條敘述說明
+  * 每條敘述要完整具體，至少 2-3 句話，包含概念說明、背景脈絡或實際應用
+  * 讓讀者光看重點就能完整複習整部影片的內容
 - category 必須完全符合可選類別之一
 - confidence 為 0-1 之間的浮點數"""
 
     logger.info("開始 GPT 分析（摘要 + 重點 + 分類）")
-    raw = _chat(system_prompt, user_content)
+    raw = _chat(system_prompt, user_content, max_tokens=4000)
 
     # 清除可能的 markdown code block
     raw = raw.strip()

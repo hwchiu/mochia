@@ -44,7 +44,7 @@ sleep 1
 
 # ── 啟動 Web Server ──
 echo "🚀 啟動 Web Server..."
-nohup python main.py > "$SCRIPT_DIR/logs/web.log" 2>&1 &
+nohup "$VENV/bin/python" main.py > "$SCRIPT_DIR/logs/web.log" 2>&1 &
 echo $! > "$PID_WEB"
 echo "   Web Server PID: $(cat $PID_WEB)"
 echo "   Log: logs/web.log"
@@ -53,7 +53,7 @@ sleep 2
 
 # ── 啟動 Worker ──
 echo "🚀 啟動 Worker..."
-nohup python worker.py > "$SCRIPT_DIR/logs/worker.log" 2>&1 &
+nohup "$VENV/bin/python" worker.py > "$SCRIPT_DIR/logs/worker.log" 2>&1 &
 echo $! > "$PID_WORKER"
 echo "   Worker PID: $(cat $PID_WORKER)"
 echo "   Log: logs/worker.log"
