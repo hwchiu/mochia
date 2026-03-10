@@ -22,9 +22,8 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DEPLOYMENT: str = "gpt-35-turbo"
     AZURE_OPENAI_API_VERSION: str = "2024-02-01"
 
-    # OpenAI Whisper 配置
-    OPENAI_API_KEY: str = ""
-    WHISPER_MODEL: str = "whisper-1"
+    # Azure OpenAI Whisper 配置（語音轉文字）
+    AZURE_OPENAI_WHISPER_DEPLOYMENT: str = "whisper"
 
     # Worker 設定
     WORKER_CONCURRENCY: int = 1          # 同時處理任務數（避免 API 超頻）

@@ -83,16 +83,18 @@ class TestAudioExtractor:
 
 class TestTranscriber:
     def test_transcribe_success(self, fake_audio_file):
-        """Whisper API 成功呼叫時回傳文字"""
+        """Azure Whisper API 成功呼叫時回傳文字"""
         with patch("app.services.transcriber.settings") as mock_settings, \
              patch("app.services.transcriber._client", None), \
-             patch("app.services.transcriber.OpenAI") as MockOpenAI:
+             patch("app.services.transcriber.AzureOpenAI") as MockAzureOpenAI:
 
-            mock_settings.OPENAI_API_KEY = "test-key"
-            mock_settings.WHISPER_MODEL = "whisper-1"
+            mock_settings.AZURE_OPENAI_API_KEY = "test-key"
+            mock_settings.AZURE_OPENAI_ENDPOINT = "https://test.openai.azure.com/"
+            mock_settings.AZURE_OPENAI_API_VERSION = "2024-02-01"
+            mock_settings.AZURE_OPENAI_WHISPER_DEPLOYMENT = "whisper"
 
             mock_client = MagicMock()
-            MockOpenAI.return_value = mock_client
+            MockAzureOpenAI.return_value = mock_client
             mock_client.audio.transcriptions.create.return_value = "測試逐字稿內容"
 
             from app.services import transcriber
@@ -112,12 +114,13 @@ class TestTranscriber:
         """未設定 API Key 時拋出 ValueError"""
         with patch("app.services.transcriber.settings") as mock_settings, \
              patch("app.services.transcriber._client", None):
-            mock_settings.OPENAI_API_KEY = ""
+            mock_settings.AZURE_OPENAI_API_KEY = ""
+            mock_settings.AZURE_OPENAI_ENDPOINT = ""
 
             from app.services import transcriber
             transcriber._client = None
 
-            with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+            with pytest.raises(ValueError, match="AZURE_OPENAI_API_KEY"):
                 transcriber.transcribe(fake_audio_file)
 
 
