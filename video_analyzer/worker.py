@@ -118,6 +118,11 @@ def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: 
 
     video.status = "completed"
     video.error_message = None
+    # 把此影片所有殘留的 pending/processing 任務一併關閉，確保狀態一致
+    db.query(TaskQueue).filter(
+        TaskQueue.video_id == task.video_id,
+        TaskQueue.status.in_(["pending", "processing"]),
+    ).update({"status": "cancelled"}, synchronize_session=False)
     task.status = "done"
     task.completed_at = datetime.utcnow()
     db.commit()

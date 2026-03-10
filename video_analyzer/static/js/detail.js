@@ -42,7 +42,11 @@ async function loadDetail() {
 
     if (s.task) {
       const t = s.task;
-      document.getElementById("task-status").innerHTML = badge(t.status === "done" ? "completed" : t.status);
+      // 影片已完成時，忽略殘留的 pending/cancelled 任務，顯示為完成
+      const displayStatus = s.video_status === "completed"
+        ? (["done", "completed"].includes(t.status) ? t.status : "done")
+        : t.status;
+      document.getElementById("task-status").innerHTML = badge(displayStatus === "done" ? "completed" : displayStatus);
       document.getElementById("task-started").textContent = t.started_at ? new Date(t.started_at).toLocaleString("zh-TW") : "—";
       document.getElementById("task-completed").textContent = t.completed_at ? new Date(t.completed_at).toLocaleString("zh-TW") : "—";
       document.getElementById("task-retries").textContent = t.retry_count;
@@ -65,13 +69,13 @@ async function loadDetail() {
     // Load summary tab by default
     if (results.summary) document.getElementById("summary-text").textContent = results.summary;
     if (results.key_points && results.key_points.length) {
-      const ul = document.getElementById("key-points-list");
-      ul.innerHTML = results.key_points.map(p => `<li>${p}</li>`).join("");
+      renderKeyPoints(results.key_points);
     }
     if (results.category) document.getElementById("kv-category").textContent = results.category;
     if (results.transcript) {
       document.getElementById("transcript-text").textContent = results.transcript;
     }
+    document.getElementById("btn-reanalyze").style.display = "";
 
     tabLoaded["summary"] = true;
     tabLoaded["transcript"] = true;
@@ -335,6 +339,43 @@ async function regenerate(type) {
     else if (type === "faq") { tabLoaded["faq"] = false; loadFAQ(); }
   } catch (e) {
     toast("重新生成失敗: " + e.message, "error");
+  }
+}
+
+function renderKeyPoints(keyPoints) {
+  const container = document.getElementById("key-points-list");
+  if (!keyPoints || !keyPoints.length) { container.innerHTML = ""; return; }
+
+  // 相容新格式 [{theme, points}] 和舊格式 ["string"]
+  if (typeof keyPoints[0] === "string") {
+    container.innerHTML = `<div class="kp-theme"><ul>${keyPoints.map(p => `<li>${p}</li>`).join("")}</ul></div>`;
+    return;
+  }
+  container.innerHTML = keyPoints.map(kp => `
+    <div class="kp-theme">
+      <div class="kp-theme-title">${kp.theme || ""}</div>
+      <ul>${(kp.points || []).map(p => `<li>${p}</li>`).join("")}</ul>
+    </div>
+  `).join("");
+}
+
+async function reanalyze() {
+  if (!confirm("重新執行 GPT 分析？逐字稿不會重新辨識，僅更新摘要、重點和分類。")) return;
+  const btn = document.getElementById("btn-reanalyze");
+  btn.disabled = true;
+  btn.textContent = "分析中...";
+  toast("重新分析中，請稍候...", "info");
+  try {
+    const data = await api("POST", `/api/analysis/${videoId}/reanalyze`);
+    document.getElementById("summary-text").textContent = data.summary;
+    renderKeyPoints(data.key_points);
+    document.getElementById("kv-category").textContent = data.category;
+    toast("重新分析完成！", "success");
+  } catch (e) {
+    toast("重新分析失敗: " + e.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🔄 重新分析";
   }
 }
 

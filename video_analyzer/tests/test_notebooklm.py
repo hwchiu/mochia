@@ -353,13 +353,9 @@ class TestNotebookLMAPI:
         assert "faq" in data
 
     def test_regenerate_study_notes(self, client, completed_video_full):
-        """重新生成學習筆記"""
-        new_notes = "## 核心概念\n新內容"
-        with patch("app.routers.analysis.generate_study_notes", return_value=new_notes):
-            resp = client.post(f"/api/analysis/{completed_video_full.id}/regenerate/study_notes")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "study_notes" in data
+        """study_notes 已移除，應返回 400"""
+        resp = client.post(f"/api/analysis/{completed_video_full.id}/regenerate/study_notes")
+        assert resp.status_code == 400
 
     def test_regenerate_invalid_type(self, client, completed_video_full):
         """無效的 content_type 應返回 400"""

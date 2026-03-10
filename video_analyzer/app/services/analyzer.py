@@ -80,7 +80,12 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
 請回傳以下 JSON 格式（所有欄位必填）：
 {{
   "summary": "影片內容摘要（200字以內，繁體中文）",
-  "key_points": ["重點1", "重點2", "重點3", "重點4", "重點5"],
+  "key_points": [
+    {{
+      "theme": "主題名稱（4-10字）",
+      "points": ["具體說明或重點敘述（1-2句話）", "..."]
+    }}
+  ],
   "category": "從以下類別選擇最符合的一個",
   "confidence": 0.85
 }}
@@ -89,8 +94,10 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
 {categories_str}
 
 注意：
-- summary 限 200 字以內
-- key_points 列出 3-7 個重點
+- summary 限 200 字以內，繁體中文
+- key_points 列出 3-5 個主題，每個主題下有 2-4 條敘述說明，讓讀者快速複習影片內容
+- 主題名稱要精準概括該段落的核心概念
+- 每條敘述要具體、有內容，不要太短
 - category 必須完全符合可選類別之一
 - confidence 為 0-1 之間的浮點數"""
 
@@ -106,7 +113,14 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
     result = json.loads(raw)
 
     summary = result.get("summary", "")
-    key_points = result.get("key_points", [])
+    raw_kp = result.get("key_points", [])
+
+    # 相容舊格式（字串陣列）自動轉換為新格式
+    if raw_kp and isinstance(raw_kp[0], str):
+        key_points = [{"theme": "重點整理", "points": raw_kp}]
+    else:
+        key_points = raw_kp
+
     category = result.get("category", "未分類 (Uncategorized)")
     confidence = float(result.get("confidence", 0.5))
 

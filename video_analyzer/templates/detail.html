@@ -41,6 +41,11 @@
     .markdown-body li { margin-bottom:4px; }
     .regen-btn { margin-left:auto; }
     .loading-text { color:var(--muted,#888); font-style:italic; padding:20px 0; text-align:center; }
+    .kp-theme { margin-bottom:18px; }
+    .kp-theme-title { font-weight:700; color:var(--primary,#4f46e5); font-size:15px; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+    .kp-theme-title::before { content:"▍"; color:var(--primary,#4f46e5); }
+    .kp-theme ul { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:6px; }
+    .kp-theme li { padding:6px 12px 6px 16px; border-left:2px solid var(--border,#e5e7eb); color:var(--text,#333); font-size:14px; line-height:1.7; }
   </style>
 </head>
 <body>
@@ -157,12 +162,15 @@
     <!-- Summary Tab -->
     <div id="tab-summary" class="tab-panel active">
       <div class="card" style="margin-bottom:16px">
-        <div class="card-title">📝 摘要</div>
+        <div class="card-title" style="display:flex;align-items:center">
+          <span>📝 摘要</span>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="reanalyze()" id="btn-reanalyze" style="display:none">🔄 重新分析</button>
+        </div>
         <p id="summary-text" style="line-height:1.8;color:var(--text,#333)">—</p>
       </div>
       <div class="card">
-        <div class="card-title">🔑 重點</div>
-        <ul class="key-points" id="key-points-list"></ul>
+        <div class="card-title">🔑 重點整理</div>
+        <div id="key-points-list"></div>
       </div>
     </div>
 

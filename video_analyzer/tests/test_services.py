@@ -205,7 +205,7 @@ class TestAnalyzer:
         """GPT 回傳正確 JSON 時解析成功"""
         result_json = json.dumps({
             "summary": "這是一部占星學入門影片",
-            "key_points": ["星座介紹", "行星關係", "實占技巧"],
+            "key_points": [{"theme": "星座基礎", "points": ["星座介紹", "行星關係"]}, {"theme": "應用技巧", "points": ["實占技巧"]}, {"theme": "其他", "points": ["延伸閱讀"]}],
             "category": "占星學 (Astrology)",
             "confidence": 0.88,
         }, ensure_ascii=False)

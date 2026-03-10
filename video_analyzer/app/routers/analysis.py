@@ -89,9 +89,18 @@ def get_status(video_id: str, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(404, "影片不存在")
 
-    task = db.query(TaskQueue).filter(TaskQueue.video_id == video_id).order_by(
-        TaskQueue.created_at.desc()
-    ).first()
+    # 優先取 done 任務；若沒有再取最新的（避免已完成影片顯示殘留 pending 任務）
+    task = (
+        db.query(TaskQueue)
+        .filter(TaskQueue.video_id == video_id, TaskQueue.status == "done")
+        .order_by(TaskQueue.created_at.desc())
+        .first()
+    ) or (
+        db.query(TaskQueue)
+        .filter(TaskQueue.video_id == video_id)
+        .order_by(TaskQueue.created_at.desc())
+        .first()
+    )
 
     step_names = {
         0: "等待中",
@@ -276,7 +285,7 @@ def delete_chat_history(video_id: str, db: Session = Depends(get_db)):
 @router.post("/{video_id}/regenerate/{content_type}")
 def regenerate_content(video_id: str, content_type: str, db: Session = Depends(get_db)):
     """重新生成內容"""
-    valid_types = {"mindmap", "faq", "study_notes"}
+    valid_types = {"mindmap", "faq"}
     if content_type not in valid_types:
         raise HTTPException(400, f"無效的內容類型，支援: {', '.join(valid_types)}")
 
@@ -304,8 +313,52 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
         summary.faq = json.dumps(result, ensure_ascii=False)
         db.commit()
         return {"video_id": video_id, "faq": result}
-    elif content_type == "study_notes":
-        result = generate_study_notes(transcript.content)
-        summary.study_notes = result
-        db.commit()
-        return {"video_id": video_id, "study_notes": result}
+
+
+@router.post("/{video_id}/reanalyze")
+def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
+    """重新執行 GPT 分析（摘要+重點+分類），保留逐字稿不重跑 Whisper"""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(404, "影片不存在")
+
+    transcript = db.query(Transcript).filter(Transcript.video_id == video_id).first()
+    if not transcript or not transcript.content:
+        raise HTTPException(409, "逐字稿不存在，請先完成語音辨識")
+
+    from app.services.analyzer import analyze
+    summary_text, key_points, category, confidence = analyze(transcript.content)
+
+    summary = db.query(Summary).filter(Summary.video_id == video_id).first()
+    if summary:
+        summary.summary = summary_text
+        summary.key_points = json.dumps(key_points, ensure_ascii=False)
+    else:
+        db.add(Summary(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            summary=summary_text,
+            key_points=json.dumps(key_points, ensure_ascii=False),
+        ))
+
+    existing_cls = db.query(Classification).filter(Classification.video_id == video_id).first()
+    if existing_cls:
+        existing_cls.category = category
+        existing_cls.confidence = confidence
+    else:
+        db.add(Classification(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            category=category,
+            confidence=confidence,
+        ))
+
+    video.status = "completed"
+    db.commit()
+    return {
+        "message": "重新分析完成",
+        "summary": summary_text,
+        "key_points": key_points,
+        "category": category,
+        "confidence": confidence,
+    }
