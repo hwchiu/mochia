@@ -266,7 +266,7 @@ def ask_question(transcript: str, question: str, chat_history: List[Dict]) -> st
         model=settings.AZURE_OPENAI_DEPLOYMENT,
         messages=messages,
         temperature=0.7,
-        max_tokens=1000,
+        max_completion_tokens=1000,
     )
     answer = response.choices[0].message.content.strip()
     logger.info("ask_question 完成")
