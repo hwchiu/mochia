@@ -1,15 +1,15 @@
 """批量操作 API：目錄掃描、全部加入佇列、佇列統計"""
+
+import logging
 import subprocess
 import uuid
-import logging
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Video, TaskQueue
 from app.config import settings
+from app.database import TaskQueue, Video, get_db
 from app.services.audio_extractor import get_video_duration
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ def scan_directory(
 @router.post("/queue-all")
 def queue_all_pending(
     priority: int = 5,
-    source: Optional[str] = None,
+    source: str | None = None,
     db: Session = Depends(get_db),
 ):
     """將所有 pending 狀態的影片加入分析佇列"""
@@ -100,10 +100,14 @@ def queue_all_pending(
 
     for video in videos:
         # 避免重複加入
-        existing = db.query(TaskQueue).filter(
-            TaskQueue.video_id == video.id,
-            TaskQueue.status.in_(["pending", "processing"]),
-        ).first()
+        existing = (
+            db.query(TaskQueue)
+            .filter(
+                TaskQueue.video_id == video.id,
+                TaskQueue.status.in_(["pending", "processing"]),
+            )
+            .first()
+        )
         if existing:
             continue
 
@@ -152,18 +156,18 @@ def get_queue_status(db: Session = Depends(get_db)):
         task_stats[status] = db.query(TaskQueue).filter(TaskQueue.status == status).count()
 
     # 目前正在處理的任務
-    processing_tasks = db.query(TaskQueue).filter(
-        TaskQueue.status == "processing"
-    ).all()
+    processing_tasks = db.query(TaskQueue).filter(TaskQueue.status == "processing").all()
     processing_info = []
     for t in processing_tasks:
         video = db.query(Video).filter(Video.id == t.video_id).first()
-        processing_info.append({
-            "task_id": t.id,
-            "video_id": t.video_id,
-            "video_name": video.original_filename if video else "unknown",
-            "started_at": t.started_at.isoformat() if t.started_at else None,
-        })
+        processing_info.append(
+            {
+                "task_id": t.id,
+                "video_id": t.video_id,
+                "video_name": video.original_filename if video else "unknown",
+                "started_at": t.started_at.isoformat() if t.started_at else None,
+            }
+        )
 
     return {
         "videos": video_stats,
@@ -195,9 +199,10 @@ def pick_directory():
     """打開原生 macOS 資料夾選擇器，回傳選擇的路徑"""
     try:
         result = subprocess.run(
-            ["osascript", "-e",
-             'POSIX path of (choose folder with prompt "選擇影片目錄")'],
-            capture_output=True, text=True, timeout=60
+            ["osascript", "-e", 'POSIX path of (choose folder with prompt "選擇影片目錄")'],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         if result.returncode != 0:
             # 使用者按了取消
@@ -207,4 +212,4 @@ def pick_directory():
     except subprocess.TimeoutExpired:
         return {"cancelled": True, "path": None}
     except Exception as e:
-        raise HTTPException(500, f"無法開啟目錄選擇器: {e}")
+        raise HTTPException(500, f"無法開啟目錄選擇器: {e}") from e

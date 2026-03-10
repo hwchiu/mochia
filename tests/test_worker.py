@@ -1,12 +1,14 @@
 """Worker 邏輯測試"""
-import uuid
-import json
-import pytest
-from datetime import datetime
-from unittest.mock import patch, MagicMock, call, ANY
-from pathlib import Path
 
-from app.database import Video, TaskQueue, Transcript, Summary, Classification
+import json
+import uuid
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import ANY, patch
+
+import pytest
+
+from app.database import Classification, Summary, TaskQueue, Transcript, Video
 
 
 class TestWorkerRecovery:
@@ -23,8 +25,10 @@ class TestWorkerRecovery:
         db_session.commit()
 
         import sys
+
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from worker import _recover_interrupted_tasks
+
         _recover_interrupted_tasks(db_session)
 
         db_session.refresh(task)
@@ -44,6 +48,7 @@ class TestWorkerRecovery:
         db_session.commit()
 
         from worker import _recover_interrupted_tasks
+
         _recover_interrupted_tasks(db_session)
 
         db_session.refresh(task)
@@ -55,9 +60,14 @@ class TestWorkerPickTask:
         """應取出優先級最高（數值最小）的任務"""
         vids = []
         for i, pri in enumerate([8, 1, 5]):
-            v = Video(id=uuid.uuid4().hex, filename=f"v{i}.mp4",
-                      original_filename=f"v{i}.mp4", file_path=f"/p/v{i}.mp4",
-                      source="local_scan", file_size=100)
+            v = Video(
+                id=uuid.uuid4().hex,
+                filename=f"v{i}.mp4",
+                original_filename=f"v{i}.mp4",
+                file_path=f"/p/v{i}.mp4",
+                source="local_scan",
+                file_size=100,
+            )
             db_session.add(v)
             vids.append((v.id, pri))
         db_session.commit()
@@ -67,25 +77,30 @@ class TestWorkerPickTask:
         db_session.commit()
 
         from worker import _pick_next_task
+
         task = _pick_next_task(db_session)
         assert task.priority == 1
 
     def test_pick_returns_none_when_empty(self, db_session):
         """佇列空時回傳 None"""
         from worker import _pick_next_task
+
         assert _pick_next_task(db_session) is None
 
     def test_pick_ignores_non_pending(self, db_session, sample_video):
         """不取出 processing/done/failed 的任務"""
         for status in ["processing", "done", "failed", "cancelled"]:
-            db_session.add(TaskQueue(
-                id=uuid.uuid4().hex,
-                video_id=sample_video.id,
-                status=status,
-            ))
+            db_session.add(
+                TaskQueue(
+                    id=uuid.uuid4().hex,
+                    video_id=sample_video.id,
+                    status=status,
+                )
+            )
         db_session.commit()
 
         from worker import _pick_next_task
+
         assert _pick_next_task(db_session) is None
 
 
@@ -103,6 +118,7 @@ class TestWorkerHandleFailure:
         db_session.commit()
 
         from worker import _handle_failure
+
         _handle_failure(task, sample_video, Exception("test error"), db_session)
 
         db_session.refresh(task)
@@ -123,6 +139,7 @@ class TestWorkerHandleFailure:
         db_session.commit()
 
         from worker import _handle_failure
+
         _handle_failure(task, sample_video, Exception("final failure"), db_session)
 
         db_session.refresh(task)
@@ -159,15 +176,20 @@ class TestProcessTask:
         audio_file = tmp_path / "temp.mp3"
         audio_file.write_bytes(b"\x00" * 50)
 
-        with patch("worker.extract_audio", return_value=audio_file) as mock_extract, \
-             patch("worker.transcribe", return_value="測試逐字稿") as mock_transcribe, \
-             patch("worker.analyze", return_value=("摘要", ["重點一", "重點二"], "占星學 (Astrology)", 0.9)) as mock_analyze, \
-             patch("worker.generate_mindmap", return_value="# 測試\n## 分支"), \
-             patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]), \
-             patch("worker.generate_study_notes", return_value="## 核心概念\n測試"), \
-             patch("worker.cleanup_audio") as mock_cleanup:
-
+        with (
+            patch("worker.extract_audio", return_value=audio_file) as mock_extract,
+            patch("worker.transcribe", return_value="測試逐字稿") as mock_transcribe,
+            patch(
+                "worker.analyze",
+                return_value=("摘要", ["重點一", "重點二"], "占星學 (Astrology)", 0.9),
+            ) as mock_analyze,
+            patch("worker.generate_mindmap", return_value="# 測試\n## 分支"),
+            patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]),
+            patch("worker.generate_study_notes", return_value="## 核心概念\n測試"),
+            patch("worker.cleanup_audio") as mock_cleanup,
+        ):
             from worker import _process_task
+
             _process_task(task, db_session)
 
         # 驗證呼叫順序
@@ -208,6 +230,7 @@ class TestProcessTask:
         db_session.commit()
 
         from worker import _process_task
+
         with pytest.raises(FileNotFoundError):
             _process_task(task, db_session)
 
@@ -219,18 +242,24 @@ class TestProcessTask:
         audio_file.write_bytes(b"\x00" * 50)
 
         video = Video(
-            id=uuid.uuid4().hex, filename="err.mp4", original_filename="err.mp4",
-            file_path=str(video_file), source="local_scan", file_size=50,
+            id=uuid.uuid4().hex,
+            filename="err.mp4",
+            original_filename="err.mp4",
+            file_path=str(video_file),
+            source="local_scan",
+            file_size=50,
         )
         task = TaskQueue(id=uuid.uuid4().hex, video_id=video.id)
         db_session.add_all([video, task])
         db_session.commit()
 
-        with patch("worker.extract_audio", return_value=audio_file), \
-             patch("worker.transcribe", side_effect=Exception("API error")), \
-             patch("worker.cleanup_audio") as mock_cleanup:
-
+        with (
+            patch("worker.extract_audio", return_value=audio_file),
+            patch("worker.transcribe", side_effect=Exception("API error")),
+            patch("worker.cleanup_audio") as mock_cleanup,
+        ):
             from worker import _process_task
+
             with pytest.raises(Exception, match="API error"):
                 _process_task(task, db_session)
 
@@ -244,30 +273,44 @@ class TestProcessTask:
         audio_file.write_bytes(b"\x00" * 50)
 
         video = Video(
-            id=uuid.uuid4().hex, filename="rerun.mp4", original_filename="rerun.mp4",
-            file_path=str(video_file), source="local_scan", file_size=100,
+            id=uuid.uuid4().hex,
+            filename="rerun.mp4",
+            original_filename="rerun.mp4",
+            file_path=str(video_file),
+            source="local_scan",
+            file_size=100,
         )
         db_session.add(video)
         db_session.flush()
 
         # 先建立舊結果
         db_session.add(Transcript(id=uuid.uuid4().hex, video_id=video.id, content="舊逐字稿"))
-        db_session.add(Summary(id=uuid.uuid4().hex, video_id=video.id,
-                                summary="舊摘要", key_points="[]"))
-        db_session.add(Classification(id=uuid.uuid4().hex, video_id=video.id,
-                                       category="未分類 (Uncategorized)", confidence=0.1))
+        db_session.add(
+            Summary(id=uuid.uuid4().hex, video_id=video.id, summary="舊摘要", key_points="[]")
+        )
+        db_session.add(
+            Classification(
+                id=uuid.uuid4().hex,
+                video_id=video.id,
+                category="未分類 (Uncategorized)",
+                confidence=0.1,
+            )
+        )
         task = TaskQueue(id=uuid.uuid4().hex, video_id=video.id)
         db_session.add(task)
         db_session.commit()
 
-        with patch("worker.extract_audio", return_value=audio_file), \
-             patch("worker.transcribe", return_value="新逐字稿"), \
-             patch("worker.analyze", return_value=("新摘要", ["新重點"], "風水 (Feng Shui)", 0.95)), \
-             patch("worker.generate_mindmap", return_value="# 新\n## 分支"), \
-             patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]), \
-             patch("worker.generate_study_notes", return_value="## 核心概念\n新內容"), \
-             patch("worker.cleanup_audio"):
+        with (
+            patch("worker.extract_audio", return_value=audio_file),
+            patch("worker.transcribe", return_value="新逐字稿"),
+            patch("worker.analyze", return_value=("新摘要", ["新重點"], "風水 (Feng Shui)", 0.95)),
+            patch("worker.generate_mindmap", return_value="# 新\n## 分支"),
+            patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]),
+            patch("worker.generate_study_notes", return_value="## 核心概念\n新內容"),
+            patch("worker.cleanup_audio"),
+        ):
             from worker import _process_task
+
             _process_task(task, db_session)
 
         # 確認只有一筆記錄（更新而非新增）

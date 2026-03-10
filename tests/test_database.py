@@ -1,10 +1,12 @@
 """資料庫模型測試"""
-import uuid
+
 import json
-import pytest
+import uuid
 from datetime import datetime
 
-from app.database import Video, TaskQueue, Transcript, Summary, Classification
+import pytest
+
+from app.database import Classification, Summary, TaskQueue, Transcript, Video
 
 
 class TestVideoModel:
@@ -63,10 +65,23 @@ class TestVideoModel:
     def test_unique_filename_constraint(self, db_session):
         """相同 filename 不能重複"""
         from sqlalchemy.exc import IntegrityError
-        v1 = Video(id=uuid.uuid4().hex, filename="dup.mp4", original_filename="dup.mp4",
-                   file_path="/a/dup.mp4", source="local_scan", file_size=1)
-        v2 = Video(id=uuid.uuid4().hex, filename="dup.mp4", original_filename="dup.mp4",
-                   file_path="/b/dup.mp4", source="local_scan", file_size=1)
+
+        v1 = Video(
+            id=uuid.uuid4().hex,
+            filename="dup.mp4",
+            original_filename="dup.mp4",
+            file_path="/a/dup.mp4",
+            source="local_scan",
+            file_size=1,
+        )
+        v2 = Video(
+            id=uuid.uuid4().hex,
+            filename="dup.mp4",
+            original_filename="dup.mp4",
+            file_path="/b/dup.mp4",
+            source="local_scan",
+            file_size=1,
+        )
         db_session.add(v1)
         db_session.commit()
         db_session.add(v2)
@@ -95,10 +110,22 @@ class TestTaskQueueModel:
 
     def test_task_priority_ordering(self, db_session, sample_video):
         """高優先級任務排在前面（priority 值小）"""
-        vid2 = Video(id=uuid.uuid4().hex, filename="vid2.mp4", original_filename="vid2.mp4",
-                     file_path="/p/vid2.mp4", source="local_scan", file_size=1)
-        vid3 = Video(id=uuid.uuid4().hex, filename="vid3.mp4", original_filename="vid3.mp4",
-                     file_path="/p/vid3.mp4", source="local_scan", file_size=1)
+        vid2 = Video(
+            id=uuid.uuid4().hex,
+            filename="vid2.mp4",
+            original_filename="vid2.mp4",
+            file_path="/p/vid2.mp4",
+            source="local_scan",
+            file_size=1,
+        )
+        vid3 = Video(
+            id=uuid.uuid4().hex,
+            filename="vid3.mp4",
+            original_filename="vid3.mp4",
+            file_path="/p/vid3.mp4",
+            source="local_scan",
+            file_size=1,
+        )
         db_session.add_all([vid2, vid3])
         db_session.commit()
 
@@ -107,9 +134,7 @@ class TestTaskQueueModel:
         db_session.add_all([task_low, task_high])
         db_session.commit()
 
-        ordered = db_session.query(TaskQueue).order_by(
-            TaskQueue.priority.asc()
-        ).all()
+        ordered = db_session.query(TaskQueue).order_by(TaskQueue.priority.asc()).all()
         assert ordered[0].priority == 1
 
     def test_task_status_update(self, db_session, sample_video):

@@ -1,21 +1,31 @@
 """標籤管理 API"""
-import uuid
+
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Label, VideoLabel, Video
+from app.database import Label, Video, VideoLabel, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/labels", tags=["labels"])
 
 # 12-色調色盤，自動循環分配
 _PALETTE = [
-    "#ef4444", "#f97316", "#eab308", "#22c55e",
-    "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899",
-    "#06b6d4", "#84cc16", "#f59e0b", "#6366f1",
+    "#ef4444",
+    "#f97316",
+    "#eab308",
+    "#22c55e",
+    "#14b8a6",
+    "#3b82f6",
+    "#8b5cf6",
+    "#ec4899",
+    "#06b6d4",
+    "#84cc16",
+    "#f59e0b",
+    "#6366f1",
 ]
 
 
@@ -37,13 +47,15 @@ def list_labels(db: Session = Depends(get_db)):
     result = []
     for lbl in labels:
         count = db.query(VideoLabel).filter(VideoLabel.label_id == lbl.id).count()
-        result.append({
-            "id": lbl.id,
-            "name": lbl.name,
-            "color": lbl.color,
-            "video_count": count,
-            "created_at": lbl.created_at.isoformat() if lbl.created_at else None,
-        })
+        result.append(
+            {
+                "id": lbl.id,
+                "name": lbl.name,
+                "color": lbl.color,
+                "video_count": count,
+                "created_at": lbl.created_at.isoformat() if lbl.created_at else None,
+            }
+        )
     return result
 
 
@@ -113,10 +125,14 @@ def add_video_label(video_id: str, body: LabelCreate, db: Session = Depends(get_
         db.flush()
 
     # 避免重複
-    already = db.query(VideoLabel).filter(
-        VideoLabel.video_id == video_id,
-        VideoLabel.label_id == lbl.id,
-    ).first()
+    already = (
+        db.query(VideoLabel)
+        .filter(
+            VideoLabel.video_id == video_id,
+            VideoLabel.label_id == lbl.id,
+        )
+        .first()
+    )
     if already:
         return {"id": lbl.id, "name": lbl.name, "color": lbl.color, "added": False}
 
@@ -129,10 +145,14 @@ def add_video_label(video_id: str, body: LabelCreate, db: Session = Depends(get_
 @router.delete("/videos/{video_id}/{label_id}", status_code=204)
 def remove_video_label(video_id: str, label_id: str, db: Session = Depends(get_db)):
     """從影片移除標籤"""
-    row = db.query(VideoLabel).filter(
-        VideoLabel.video_id == video_id,
-        VideoLabel.label_id == label_id,
-    ).first()
+    row = (
+        db.query(VideoLabel)
+        .filter(
+            VideoLabel.video_id == video_id,
+            VideoLabel.label_id == label_id,
+        )
+        .first()
+    )
     if not row:
         raise HTTPException(404, "關聯不存在")
     db.delete(row)

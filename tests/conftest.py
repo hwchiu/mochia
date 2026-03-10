@@ -3,22 +3,30 @@
 - 使用獨立的 in-memory SQLite，避免污染開發資料庫
 - 每個測試函數都獲得乾淨的資料庫狀態
 """
-import pytest
-import uuid
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-from datetime import datetime
 
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.database import Base, get_db, Video, TaskQueue, Transcript, Summary, Classification, ChatMessage
-
+from app.database import (
+    Base,
+    ChatMessage,
+    Classification,
+    Summary,
+    Transcript,
+    Video,
+    get_db,
+)
 
 # ─── 測試用 In-memory DB ───────────────────────────────────────
 # StaticPool：所有連線共用同一個 SQLite in-memory 連線，避免每次連線都是空的 DB
+
 
 @pytest.fixture(scope="function")
 def db_engine():
@@ -43,6 +51,7 @@ def db_session(db_engine):
 
 class _NonClosingSession:
     """包裝 Session，避免 CLI finally 塊呼叫 close() 導致測試中物件失效"""
+
     def __init__(self, session):
         self._session = session
 
@@ -60,6 +69,7 @@ def db_session_nc(db_session):
 
 
 # ─── FastAPI TestClient（注入測試 DB）────────────────────────
+
 
 @pytest.fixture(scope="function")
 def client(db_engine):
@@ -81,6 +91,7 @@ def client(db_engine):
 
 
 # ─── 輔助 Fixtures ────────────────────────────────────────────
+
 
 @pytest.fixture
 def sample_video(db_session) -> Video:
@@ -105,6 +116,7 @@ def sample_video(db_session) -> Video:
 def completed_video(db_session) -> Video:
     """建立一個已完成分析的測試影片（含逐字稿、摘要、分類）"""
     import json
+
     vid_id = uuid.uuid4().hex
 
     video = Video(
@@ -161,11 +173,15 @@ def fake_audio_file(tmp_path) -> Path:
 def completed_video_full(db_session) -> Video:
     """建立含有所有 NotebookLM 欄位的完整測試影片"""
     import json
+
     vid_id = uuid.uuid4().hex
-    faq_data = json.dumps([
-        {"question": "什麼是占星學？", "answer": "研究天體對人的影響。"},
-        {"question": "有幾個星座？", "answer": "十二個。"},
-    ], ensure_ascii=False)
+    faq_data = json.dumps(
+        [
+            {"question": "什麼是占星學？", "answer": "研究天體對人的影響。"},
+            {"question": "有幾個星座？", "answer": "十二個。"},
+        ],
+        ensure_ascii=False,
+    )
 
     video = Video(
         id=vid_id,

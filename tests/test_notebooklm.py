@@ -1,18 +1,14 @@
 """NotebookLM 功能測試：心智圖、FAQ、學習筆記、問答"""
+
 import json
 import uuid
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.database import Base, ChatMessage, Summary, Transcript, Video, Classification
-
+from app.database import ChatMessage, Video
 
 # ─── Analyzer service tests ─────────────────────────────────────
+
 
 class TestAnalyzerNotebookLM:
     """測試 analyzer.py 中的 NotebookLM 相關函數"""
@@ -29,7 +25,9 @@ class TestAnalyzerNotebookLM:
         """generate_mindmap 應返回以 # 開頭的 Markdown 字串"""
         from app.services.analyzer import generate_mindmap
 
-        mindmap_md = "# 占星學基礎\n## 星座\n### 火象星座\n### 土象星座\n## 行星\n### 太陽\n### 月亮"
+        mindmap_md = (
+            "# 占星學基礎\n## 星座\n### 火象星座\n### 土象星座\n## 行星\n### 太陽\n### 月亮"
+        )
         mock_client = self._mock_client(mindmap_md)
 
         with patch("app.services.analyzer._get_client", return_value=mock_client):
@@ -43,13 +41,18 @@ class TestAnalyzerNotebookLM:
         """generate_faq 應返回 list of dict"""
         from app.services.analyzer import generate_faq
 
-        faq_data = json.dumps([
-            {"question": "什麼是占星學？", "answer": "占星學是研究天體位置與人類事務關係的學問。"},
-            {"question": "星座有幾種？", "answer": "傳統上有12個星座。"},
-            {"question": "如何看本命盤？", "answer": "需要出生日期、時間和地點。"},
-            {"question": "水星逆行有什麼影響？", "answer": "通常與溝通和交通問題有關。"},
-            {"question": "上升星座是什麼？", "answer": "是出生時東方地平線上的星座。"},
-        ])
+        faq_data = json.dumps(
+            [
+                {
+                    "question": "什麼是占星學？",
+                    "answer": "占星學是研究天體位置與人類事務關係的學問。",
+                },
+                {"question": "星座有幾種？", "answer": "傳統上有12個星座。"},
+                {"question": "如何看本命盤？", "answer": "需要出生日期、時間和地點。"},
+                {"question": "水星逆行有什麼影響？", "answer": "通常與溝通和交通問題有關。"},
+                {"question": "上升星座是什麼？", "answer": "是出生時東方地平線上的星座。"},
+            ]
+        )
         mock_client = self._mock_client(faq_data)
 
         with patch("app.services.analyzer._get_client", return_value=mock_client):
@@ -109,9 +112,7 @@ class TestAnalyzerNotebookLM:
 
         with patch("app.services.analyzer._get_client", return_value=mock_client):
             result = ask_question(
-                transcript="這是關於占星學的逐字稿",
-                question="什麼是太陽星座？",
-                chat_history=[]
+                transcript="這是關於占星學的逐字稿", question="什麼是太陽星座？", chat_history=[]
             )
 
         assert isinstance(result, str)
@@ -130,9 +131,7 @@ class TestAnalyzerNotebookLM:
 
         with patch("app.services.analyzer._get_client", return_value=mock_client):
             result = ask_question(
-                transcript="占星學逐字稿",
-                question="那月亮星座呢？",
-                chat_history=history
+                transcript="占星學逐字稿", question="那月亮星座呢？", chat_history=history
             )
 
         # Verify that create was called with messages including history
@@ -144,14 +143,14 @@ class TestAnalyzerNotebookLM:
 
     def test_generate_mindmap_truncates_long_transcript(self):
         """長逐字稿應被截斷"""
-        from app.services.analyzer import generate_mindmap, MAX_TRANSCRIPT_CHARS
+        from app.services.analyzer import MAX_TRANSCRIPT_CHARS, generate_mindmap
 
         mock_client = self._mock_client("# Test\n## Branch1\n### Item1")
 
         long_transcript = "測試內容 " * (MAX_TRANSCRIPT_CHARS // 5)
 
         with patch("app.services.analyzer._get_client", return_value=mock_client):
-            result = generate_mindmap(long_transcript)
+            generate_mindmap(long_transcript)
 
         # Verify the user message was truncated
         call_args = mock_client.chat.completions.create.call_args
@@ -161,6 +160,7 @@ class TestAnalyzerNotebookLM:
 
 
 # ─── API endpoint tests ─────────────────────────────────────────
+
 
 class TestNotebookLMAPI:
     """測試 NotebookLM 相關 API 端點"""
@@ -235,8 +235,7 @@ class TestNotebookLMAPI:
         """成功提問並獲取回答，且對話記錄被儲存"""
         with patch("app.routers.analysis.ask_question", return_value="太陽星座代表您的核心個性。"):
             resp = client.post(
-                f"/api/analysis/{completed_video.id}/ask",
-                json={"question": "什麼是太陽星座？"}
+                f"/api/analysis/{completed_video.id}/ask", json={"question": "什麼是太陽星座？"}
             )
         assert resp.status_code == 200
         data = resp.json()
@@ -245,10 +244,7 @@ class TestNotebookLMAPI:
 
     def test_ask_question_not_completed(self, client, sample_video):
         """分析未完成時返回 400"""
-        resp = client.post(
-            f"/api/analysis/{sample_video.id}/ask",
-            json={"question": "問題"}
-        )
+        resp = client.post(f"/api/analysis/{sample_video.id}/ask", json={"question": "問題"})
         assert resp.status_code == 409
 
     def test_ask_question_no_transcript(self, client, db_session):
@@ -267,24 +263,18 @@ class TestNotebookLMAPI:
         db_session.add(video)
         db_session.commit()
 
-        resp = client.post(
-            f"/api/analysis/{vid_id}/ask",
-            json={"question": "問題"}
-        )
+        resp = client.post(f"/api/analysis/{vid_id}/ask", json={"question": "問題"})
         assert resp.status_code == 400
 
     def test_ask_question_saves_messages(self, client, completed_video, db_session):
         """提問後應在資料庫中儲存對話記錄"""
         with patch("app.routers.analysis.ask_question", return_value="這是回答。"):
-            client.post(
-                f"/api/analysis/{completed_video.id}/ask",
-                json={"question": "測試問題"}
-            )
+            client.post(f"/api/analysis/{completed_video.id}/ask", json={"question": "測試問題"})
 
         db_session.expire_all()
-        messages = db_session.query(ChatMessage).filter(
-            ChatMessage.video_id == completed_video.id
-        ).all()
+        messages = (
+            db_session.query(ChatMessage).filter(ChatMessage.video_id == completed_video.id).all()
+        )
         assert len(messages) == 2
         assert messages[0].role == "user"
         assert messages[0].content == "測試問題"
@@ -295,12 +285,27 @@ class TestNotebookLMAPI:
         """應返回對話歷史（按時間順序）"""
         vid_id = completed_video.id
         msgs = [
-            ChatMessage(id=uuid.uuid4().hex, video_id=vid_id, role="user", content="問題1",
-                       created_at=datetime(2024, 1, 1, 10, 0, 0)),
-            ChatMessage(id=uuid.uuid4().hex, video_id=vid_id, role="assistant", content="回答1",
-                       created_at=datetime(2024, 1, 1, 10, 0, 1)),
-            ChatMessage(id=uuid.uuid4().hex, video_id=vid_id, role="user", content="問題2",
-                       created_at=datetime(2024, 1, 1, 10, 0, 2)),
+            ChatMessage(
+                id=uuid.uuid4().hex,
+                video_id=vid_id,
+                role="user",
+                content="問題1",
+                created_at=datetime(2024, 1, 1, 10, 0, 0),
+            ),
+            ChatMessage(
+                id=uuid.uuid4().hex,
+                video_id=vid_id,
+                role="assistant",
+                content="回答1",
+                created_at=datetime(2024, 1, 1, 10, 0, 1),
+            ),
+            ChatMessage(
+                id=uuid.uuid4().hex,
+                video_id=vid_id,
+                role="user",
+                content="問題2",
+                created_at=datetime(2024, 1, 1, 10, 0, 2),
+            ),
         ]
         for m in msgs:
             db_session.add(m)
@@ -318,10 +323,9 @@ class TestNotebookLMAPI:
         """清除對話歷史"""
         vid_id = completed_video.id
         for i in range(3):
-            db_session.add(ChatMessage(
-                id=uuid.uuid4().hex, video_id=vid_id,
-                role="user", content=f"問題{i}"
-            ))
+            db_session.add(
+                ChatMessage(id=uuid.uuid4().hex, video_id=vid_id, role="user", content=f"問題{i}")
+            )
         db_session.commit()
 
         resp = client.delete(f"/api/analysis/{vid_id}/chat-history")

@@ -1,6 +1,7 @@
-from pydantic_settings import BaseSettings
 from pathlib import Path
-from typing import List
+
+from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
     APP_NAME: str = "Video Analyzer"
@@ -44,19 +45,28 @@ class Settings(BaseSettings):
         return self.AZURE_OPENAI_WHISPER_API_VERSION or self.AZURE_OPENAI_API_VERSION
 
     # Worker 設定
-    WORKER_CONCURRENCY: int = 1          # 同時處理任務數（避免 API 超頻）
-    WORKER_POLL_INTERVAL: int = 5        # 輪詢間隔（秒）
-    WORKER_TASK_DELAY: int = 2           # 任務間延遲（秒）
-    WORKER_MAX_RETRIES: int = 3          # 最大重試次數
-    WORKER_RETRY_DELAY: int = 30         # 重試延遲（秒）
+    WORKER_CONCURRENCY: int = 1  # 同時處理任務數（避免 API 超頻）
+    WORKER_POLL_INTERVAL: int = 5  # 輪詢間隔（秒）
+    WORKER_TASK_DELAY: int = 2  # 任務間延遲（秒）
+    WORKER_MAX_RETRIES: int = 3  # 最大重試次數
+    WORKER_RETRY_DELAY: int = 30  # 重試延遲（秒）
 
     # 掃描支援的影片格式
-    SUPPORTED_VIDEO_EXTENSIONS: List[str] = [
-        ".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv", ".flv", ".webm", ".ts", ".mts"
+    SUPPORTED_VIDEO_EXTENSIONS: list[str] = [
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".m4v",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".ts",
+        ".mts",
     ]
 
     # 預設分類類別
-    CATEGORIES: List[str] = [
+    CATEGORIES: list[str] = [
         "占星學 (Astrology)",
         "風水 (Feng Shui)",
         "奇門遁甲 (Qimen Dunjia)",
@@ -64,11 +74,12 @@ class Settings(BaseSettings):
         "實踐技巧 (Practical Techniques)",
         "案例分析 (Case Studies)",
         "綜合討論 (General Discussion)",
-        "未分類 (Uncategorized)"
+        "未分類 (Uncategorized)",
     ]
 
     class Config:
         env_file = ".env"
+
 
 settings = Settings()
 

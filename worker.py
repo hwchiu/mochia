@@ -11,6 +11,7 @@
     kill <PID>                    # Graceful shutdown（完成當前任務再結束）
     kill -9 <PID>                 # 強制停止
 """
+
 import json
 import logging
 import os
@@ -27,10 +28,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import SessionLocal, Video, TaskQueue, Transcript, Summary, Classification
-from app.services.audio_extractor import extract_audio, cleanup_audio
+from app.database import Classification, SessionLocal, Summary, TaskQueue, Transcript, Video
+from app.services.analyzer import analyze, generate_faq, generate_mindmap, generate_study_notes
+from app.services.audio_extractor import cleanup_audio, extract_audio
 from app.services.transcriber import transcribe
-from app.services.analyzer import analyze, generate_mindmap, generate_faq, generate_study_notes
 
 # ──────────────────────────── Logging ────────────────────────────
 
@@ -61,6 +62,7 @@ signal.signal(signal.SIGINT, _handle_shutdown)
 
 # ──────────────────────────── Core Logic ────────────────────────────
 
+
 def _set_progress(video: Video, db: Session, step: int, message: str, sub: int = 0) -> None:
     """更新影片分析進度並立即寫入 DB，供前端輪詢顯示"""
     video.progress_step = step
@@ -82,24 +84,28 @@ def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: 
         existing_summary.summary = summary_text
         existing_summary.key_points = json.dumps(key_points, ensure_ascii=False)
     else:
-        db.add(Summary(
-            id=uuid.uuid4().hex,
-            video_id=task.video_id,
-            summary=summary_text,
-            key_points=json.dumps(key_points, ensure_ascii=False),
-        ))
+        db.add(
+            Summary(
+                id=uuid.uuid4().hex,
+                video_id=task.video_id,
+                summary=summary_text,
+                key_points=json.dumps(key_points, ensure_ascii=False),
+            )
+        )
 
     existing_cls = db.query(Classification).filter(Classification.video_id == task.video_id).first()
     if existing_cls:
         existing_cls.category = category
         existing_cls.confidence = confidence
     else:
-        db.add(Classification(
-            id=uuid.uuid4().hex,
-            video_id=task.video_id,
-            category=category,
-            confidence=confidence,
-        ))
+        db.add(
+            Classification(
+                id=uuid.uuid4().hex,
+                video_id=task.video_id,
+                category=category,
+                confidence=confidence,
+            )
+        )
 
     # Step 4: 生成 NotebookLM 功能
     _set_progress(video, db, 4, "生成心智圖...", sub=0)
@@ -145,7 +151,9 @@ def _process_task(task: TaskQueue, db: Session) -> None:
     # ── 智慧斷點續跑：若逐字稿已存在，跳過耗時的音頻提取與 Whisper 步驟 ──
     existing_transcript = db.query(Transcript).filter(Transcript.video_id == task.video_id).first()
     if existing_transcript and existing_transcript.content:
-        logger.info(f"  ✓ 逐字稿已存在 ({len(existing_transcript.content)} 字)，跳過步驟 1-2，從 GPT 分析繼續")
+        logger.info(
+            f"  ✓ 逐字稿已存在 ({len(existing_transcript.content)} 字)，跳過步驟 1-2，從 GPT 分析繼續"
+        )
         _set_progress(video, db, 2, "逐字稿已存在，跳過語音辨識", sub=100)
         transcript_text = existing_transcript.content
         _run_gpt_steps(video, task, db, transcript_text)
@@ -177,15 +185,19 @@ def _process_task(task: TaskQueue, db: Session) -> None:
         transcript_text = transcribe(audio_path, progress_callback=whisper_cb)
 
         # 儲存逐字稿
-        existing_transcript = db.query(Transcript).filter(Transcript.video_id == task.video_id).first()
+        existing_transcript = (
+            db.query(Transcript).filter(Transcript.video_id == task.video_id).first()
+        )
         if existing_transcript:
             existing_transcript.content = transcript_text
         else:
-            db.add(Transcript(
-                id=uuid.uuid4().hex,
-                video_id=task.video_id,
-                content=transcript_text,
-            ))
+            db.add(
+                Transcript(
+                    id=uuid.uuid4().hex,
+                    video_id=task.video_id,
+                    content=transcript_text,
+                )
+            )
         db.commit()
 
         # Step 3+4: GPT 分析 + NotebookLM（抽出為獨立函數，方便重試時直接跳到這裡）
@@ -238,6 +250,7 @@ def _recover_interrupted_tasks(db: Session) -> None:
 
 
 # ──────────────────────────── Main Loop ────────────────────────────
+
 
 def run_worker():
     logger.info("=" * 50)

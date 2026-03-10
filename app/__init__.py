@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.database import init_db
-from app.routers import videos, analysis, batch, labels
+from app.routers import analysis, batch, labels, videos
 
 
 def create_app() -> FastAPI:
@@ -48,4 +48,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-

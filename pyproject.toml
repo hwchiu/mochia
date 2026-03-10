@@ -46,6 +46,8 @@ known-first-party = ["app"]
 exclude_dirs = ["tests", "venv"]
 skips = [
     "B101",  # assert statements (fine in tests)
+    "B104",  # binding to 0.0.0.0 is intentional (HOST is configurable via env var)
+    "B404",  # subprocess import is needed for FFmpeg/ffprobe (calls are safe, no shell=True)
     "B603",  # subprocess without shell=True is safe
     "B607",  # partial executable path (osascript is macOS-only, known safe)
 ]

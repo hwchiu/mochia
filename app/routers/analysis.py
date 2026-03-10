@@ -1,19 +1,21 @@
 """分析狀態與結果查詢 API"""
+
 import json
-import uuid
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Video, TaskQueue, Transcript, Summary, Classification, ChatMessage
+from app.database import ChatMessage, Classification, Summary, TaskQueue, Transcript, Video, get_db
 from app.services.analyzer import (
     analyze,
     ask_question,
     generate_faq,
     generate_mindmap,
-    generate_study_notes,
+)
+from app.services.analyzer import (
     suggest_labels as _suggest_labels,
 )
 
@@ -32,10 +34,14 @@ def queue_video(video_id: str, priority: int = 5, db: Session = Depends(get_db))
     if not video:
         raise HTTPException(404, "影片不存在")
 
-    existing = db.query(TaskQueue).filter(
-        TaskQueue.video_id == video_id,
-        TaskQueue.status.in_(["pending", "processing"]),
-    ).first()
+    existing = (
+        db.query(TaskQueue)
+        .filter(
+            TaskQueue.video_id == video_id,
+            TaskQueue.status.in_(["pending", "processing"]),
+        )
+        .first()
+    )
     if existing:
         return {"message": "已在佇列中", "task_id": existing.id}
 
@@ -59,10 +65,15 @@ def retry_video(video_id: str, db: Session = Depends(get_db)):
         raise HTTPException(404, "影片不存在")
 
     # 找到最新的失敗任務，重設它
-    task = db.query(TaskQueue).filter(
-        TaskQueue.video_id == video_id,
-        TaskQueue.status == "failed",
-    ).order_by(TaskQueue.created_at.desc()).first()
+    task = (
+        db.query(TaskQueue)
+        .filter(
+            TaskQueue.video_id == video_id,
+            TaskQueue.status == "failed",
+        )
+        .order_by(TaskQueue.created_at.desc())
+        .first()
+    )
 
     if task:
         task.status = "pending"
@@ -137,7 +148,9 @@ def get_status(video_id: str, db: Session = Depends(get_db)):
             "created_at": task.created_at.isoformat() if task.created_at else None,
             "started_at": task.started_at.isoformat() if task.started_at else None,
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-        } if task else None,
+        }
+        if task
+        else None,
     }
 
 
@@ -234,19 +247,23 @@ def ask_video_question(video_id: str, req: AskRequest, db: Session = Depends(get
     answer = ask_question(transcript.content, question, chat_history)
 
     # Save user message
-    db.add(ChatMessage(
-        id=uuid.uuid4().hex,
-        video_id=video_id,
-        role="user",
-        content=question,
-    ))
+    db.add(
+        ChatMessage(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            role="user",
+            content=question,
+        )
+    )
     # Save assistant response
-    db.add(ChatMessage(
-        id=uuid.uuid4().hex,
-        video_id=video_id,
-        role="assistant",
-        content=answer,
-    ))
+    db.add(
+        ChatMessage(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            role="assistant",
+            content=answer,
+        )
+    )
     db.commit()
 
     return {"answer": answer}
@@ -310,15 +327,15 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
         raise HTTPException(404, "摘要記錄不存在")
 
     if content_type == "mindmap":
-        result = generate_mindmap(transcript.content)
-        summary.mindmap = result
+        mindmap_result = generate_mindmap(transcript.content)
+        summary.mindmap = mindmap_result
         db.commit()
-        return {"video_id": video_id, "mindmap": result}
+        return {"video_id": video_id, "mindmap": mindmap_result}
     elif content_type == "faq":
-        result = generate_faq(transcript.content)
-        summary.faq = json.dumps(result, ensure_ascii=False)
+        faq_result = generate_faq(transcript.content)
+        summary.faq = json.dumps(faq_result, ensure_ascii=False)
         db.commit()
-        return {"video_id": video_id, "faq": result}
+        return {"video_id": video_id, "faq": faq_result}
 
 
 @router.post("/{video_id}/reanalyze")
@@ -339,24 +356,28 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
         summary.summary = summary_text
         summary.key_points = json.dumps(key_points, ensure_ascii=False)
     else:
-        db.add(Summary(
-            id=uuid.uuid4().hex,
-            video_id=video_id,
-            summary=summary_text,
-            key_points=json.dumps(key_points, ensure_ascii=False),
-        ))
+        db.add(
+            Summary(
+                id=uuid.uuid4().hex,
+                video_id=video_id,
+                summary=summary_text,
+                key_points=json.dumps(key_points, ensure_ascii=False),
+            )
+        )
 
     existing_cls = db.query(Classification).filter(Classification.video_id == video_id).first()
     if existing_cls:
         existing_cls.category = category
         existing_cls.confidence = confidence
     else:
-        db.add(Classification(
-            id=uuid.uuid4().hex,
-            video_id=video_id,
-            category=category,
-            confidence=confidence,
-        ))
+        db.add(
+            Classification(
+                id=uuid.uuid4().hex,
+                video_id=video_id,
+                category=category,
+                confidence=confidence,
+            )
+        )
 
     video.status = "completed"
     db.commit()
