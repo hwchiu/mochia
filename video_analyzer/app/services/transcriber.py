@@ -14,11 +14,11 @@ _client: AzureOpenAI | None = None
 def _get_client() -> AzureOpenAI:
     global _client
     if _client is None:
-        if not settings.AZURE_OPENAI_API_KEY or not settings.AZURE_OPENAI_ENDPOINT:
+        if not settings.whisper_api_key or not settings.whisper_endpoint:
             raise ValueError("AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定，請在 .env 中配置")
         _client = AzureOpenAI(
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+            api_key=settings.whisper_api_key,
+            azure_endpoint=settings.whisper_endpoint,
             api_version=settings.AZURE_OPENAI_API_VERSION,
         )
     return _client

@@ -116,6 +116,10 @@ class TestTranscriber:
              patch("app.services.transcriber._client", None):
             mock_settings.AZURE_OPENAI_API_KEY = ""
             mock_settings.AZURE_OPENAI_ENDPOINT = ""
+            mock_settings.AZURE_OPENAI_WHISPER_API_KEY = ""
+            mock_settings.AZURE_OPENAI_WHISPER_ENDPOINT = ""
+            mock_settings.whisper_api_key = ""
+            mock_settings.whisper_endpoint = ""
 
             from app.services import transcriber
             transcriber._client = None

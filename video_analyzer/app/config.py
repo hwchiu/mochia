@@ -23,7 +23,19 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_VERSION: str = "2024-02-01"
 
     # Azure OpenAI Whisper 配置（語音轉文字）
+    # 若 Whisper 部署在不同資源，填入專屬的 Key/Endpoint；
+    # 若留空，則自動沿用上方的 AZURE_OPENAI_API_KEY / AZURE_OPENAI_ENDPOINT
     AZURE_OPENAI_WHISPER_DEPLOYMENT: str = "whisper"
+    AZURE_OPENAI_WHISPER_API_KEY: str = ""
+    AZURE_OPENAI_WHISPER_ENDPOINT: str = ""
+
+    @property
+    def whisper_api_key(self) -> str:
+        return self.AZURE_OPENAI_WHISPER_API_KEY or self.AZURE_OPENAI_API_KEY
+
+    @property
+    def whisper_endpoint(self) -> str:
+        return self.AZURE_OPENAI_WHISPER_ENDPOINT or self.AZURE_OPENAI_ENDPOINT
 
     # Worker 設定
     WORKER_CONCURRENCY: int = 1          # 同時處理任務數（避免 API 超頻）
