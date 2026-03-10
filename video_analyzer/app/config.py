@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_WHISPER_DEPLOYMENT: str = "whisper"
     AZURE_OPENAI_WHISPER_API_KEY: str = ""
     AZURE_OPENAI_WHISPER_ENDPOINT: str = ""
+    AZURE_OPENAI_WHISPER_API_VERSION: str = ""  # 留空則沿用 AZURE_OPENAI_API_VERSION
     WHISPER_TIMEOUT: int = 600  # Whisper API 逾時秒數（預設 10 分鐘）
 
     @property
@@ -37,6 +38,10 @@ class Settings(BaseSettings):
     @property
     def whisper_endpoint(self) -> str:
         return self.AZURE_OPENAI_WHISPER_ENDPOINT or self.AZURE_OPENAI_ENDPOINT
+
+    @property
+    def whisper_api_version(self) -> str:
+        return self.AZURE_OPENAI_WHISPER_API_VERSION or self.AZURE_OPENAI_API_VERSION
 
     # Worker 設定
     WORKER_CONCURRENCY: int = 1          # 同時處理任務數（避免 API 超頻）

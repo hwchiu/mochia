@@ -25,7 +25,7 @@ def _get_client() -> AzureOpenAI:
         _client = AzureOpenAI(
             api_key=settings.whisper_api_key,
             azure_endpoint=settings.whisper_endpoint,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
+            api_version=settings.whisper_api_version,
             timeout=settings.WHISPER_TIMEOUT,
         )
     return _client
