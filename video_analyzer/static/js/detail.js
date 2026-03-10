@@ -31,9 +31,12 @@ async function loadDetail() {
     toast("載入影片資訊失敗: " + e.message, "error");
   }
 
-  // Task status + progress
+  // Task status + progress — track video_status from API for polling
+  let videoStatus = "pending";
   try {
     const s = await api("GET", `/api/analysis/${videoId}/status`);
+    videoStatus = s.video_status;
+
     if (s.task) {
       const t = s.task;
       document.getElementById("task-status").innerHTML = badge(t.status === "done" ? "completed" : t.status);
@@ -74,11 +77,10 @@ async function loadDetail() {
     loadChatHistory();
 
   } catch (e) {
-    // Not completed yet, poll
-    const statusEl = document.getElementById("kv-status").textContent;
-    const inProgress = statusEl.includes("queued") || statusEl.includes("processing");
-    if (inProgress) {
-      pollTimer = setTimeout(loadDetail, 5000);
+    // Not completed yet — use videoStatus from API (not badge DOM text which is in Chinese)
+    if (["queued", "processing"].includes(videoStatus)) {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(loadDetail, 3000);
     }
   }
 }
