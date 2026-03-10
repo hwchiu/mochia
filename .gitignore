@@ -7,14 +7,15 @@ __pycache__/
 venv/
 .venv/
 *.egg-info/
+.pytest_cache/
 
 # Environment
 .env
 
 # Data & Uploads (do NOT commit)
-video_analyzer/data/
-video_analyzer/uploads/
-video_analyzer/logs/
+data/
+uploads/
+logs/
 
 # macOS
 .DS_Store

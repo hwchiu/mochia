@@ -19,7 +19,7 @@ import uuid
 from pathlib import Path
 from datetime import datetime
 
-# 確保從 video_analyzer 目錄執行
+# 確保從專案根目錄執行
 sys.path.insert(0, str(Path(__file__).parent))
 
 from sqlalchemy.orm import Session
