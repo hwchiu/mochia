@@ -91,8 +91,37 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+def _migrate_db():
+    """
+    為現有資料庫補齊新增的欄位（ALTER TABLE）。
+    SQLAlchemy create_all 只建新表，不會修改已存在的表結構。
+    """
+    import sqlite3
+    db_path = str(settings.DATA_DIR / "video_analyzer.db")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # 取得 summaries 現有欄位
+    cursor.execute("PRAGMA table_info(summaries)")
+    existing = {row[1] for row in cursor.fetchall()}
+
+    new_columns = [
+        ("mindmap",     "TEXT"),
+        ("faq",         "TEXT"),
+        ("study_notes", "TEXT"),
+    ]
+    for col_name, col_type in new_columns:
+        if col_name not in existing:
+            cursor.execute(f"ALTER TABLE summaries ADD COLUMN {col_name} {col_type}")
+            print(f"[migration] summaries.{col_name} 欄位已新增")
+
+    conn.commit()
+    conn.close()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _migrate_db()
 
 
 def get_db():

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_WHISPER_DEPLOYMENT: str = "whisper"
     AZURE_OPENAI_WHISPER_API_KEY: str = ""
     AZURE_OPENAI_WHISPER_ENDPOINT: str = ""
+    WHISPER_TIMEOUT: int = 600  # Whisper API 逾時秒數（預設 10 分鐘）
 
     @property
     def whisper_api_key(self) -> str:
