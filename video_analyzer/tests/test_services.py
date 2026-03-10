@@ -127,6 +127,63 @@ class TestTranscriber:
             with pytest.raises(ValueError, match="AZURE_OPENAI_API_KEY"):
                 transcriber.transcribe(fake_audio_file)
 
+    def test_split_audio_small_file(self, fake_audio_file):
+        """小於 24MB 的檔案不切割，直接回傳原路徑"""
+        from app.services.transcriber import _split_audio, WHISPER_MAX_BYTES
+        # fake_audio_file 很小，不需切割
+        result = _split_audio(fake_audio_file)
+        assert result == [fake_audio_file]
+
+    def test_split_audio_large_file(self, tmp_path):
+        """超過 24MB 的音頻應被切割為多個 chunk"""
+        from app.services import transcriber
+
+        # 建立一個假的 "大" 音頻檔案（邏輯上超限）
+        large_audio = tmp_path / "large.mp3"
+        large_audio.write_bytes(b"\x00" * 100)
+
+        with patch("app.services.transcriber.WHISPER_MAX_BYTES", 50), \
+             patch("app.services.transcriber._get_audio_duration", return_value=120.0), \
+             patch("subprocess.run") as mock_run:
+
+            def fake_ffmpeg(cmd, **kwargs):
+                # 模擬 FFmpeg 產生 chunk 檔案
+                output = Path(cmd[-1])
+                output.parent.mkdir(exist_ok=True)
+                output.write_bytes(b"\x00" * 10)
+                return MagicMock(returncode=0)
+
+            mock_run.side_effect = fake_ffmpeg
+            chunks = transcriber._split_audio(large_audio)
+
+        assert len(chunks) > 1
+
+    def test_transcribe_large_file_chunks_merged(self, tmp_path):
+        """大檔案切割後各段轉錄結果應合併為一段文字"""
+        from app.services import transcriber
+
+        large_audio = tmp_path / "large.mp3"
+        large_audio.write_bytes(b"\x00" * 100)
+
+        chunk1 = tmp_path / "chunk_000.mp3"
+        chunk2 = tmp_path / "chunk_001.mp3"
+        chunk1.write_bytes(b"\x00" * 10)
+        chunk2.write_bytes(b"\x00" * 10)
+
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.side_effect = ["第一段文字", "第二段文字"]
+
+        with patch("app.services.transcriber.WHISPER_MAX_BYTES", 50), \
+             patch.object(transcriber, "_split_audio", return_value=[chunk1, chunk2]), \
+             patch.object(transcriber, "_get_client", return_value=mock_client), \
+             patch("app.services.transcriber.settings") as mock_settings:
+
+            mock_settings.AZURE_OPENAI_WHISPER_DEPLOYMENT = "whisper"
+            result = transcriber.transcribe(large_audio)
+
+        assert "第一段文字" in result
+        assert "第二段文字" in result
+
 
 class TestAnalyzer:
     def _make_mock_response(self, content: str):

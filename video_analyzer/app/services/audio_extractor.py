@@ -35,7 +35,7 @@ def extract_audio(video_path: str | Path) -> Path:
         "-i", str(video_path),
         "-vn",                    # 不處理影像
         "-acodec", "libmp3lame",
-        "-ab", "64k",             # 64kbps 足夠語音識別，降低檔案大小
+        "-ab", "32k",             # 32kbps 足夠語音識別，支援更長影片不超 25MB 限制
         "-ar", "16000",           # 16kHz 採樣率（Whisper 最佳化）
         "-ac", "1",               # 單聲道
         "-y",                     # 覆蓋輸出檔案
