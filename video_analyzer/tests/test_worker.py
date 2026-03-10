@@ -275,5 +275,8 @@ class TestProcessTask:
         assert db_session.query(Summary).filter_by(video_id=video.id).count() == 1
         assert db_session.query(Classification).filter_by(video_id=video.id).count() == 1
 
+        # 逐字稿已存在時，智慧跳過 Whisper，保留舊逐字稿，但摘要/分類更新
         transcript = db_session.query(Transcript).filter_by(video_id=video.id).first()
-        assert transcript.content == "新逐字稿"
+        assert transcript.content == "舊逐字稿"  # Whisper 被跳過，內容不變
+        summary = db_session.query(Summary).filter_by(video_id=video.id).first()
+        assert summary.summary == "新摘要"  # GPT 重跑，摘要更新

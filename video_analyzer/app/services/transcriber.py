@@ -3,7 +3,10 @@ import logging
 import math
 import subprocess
 import tempfile
+import threading
+import time
 from pathlib import Path
+from typing import Callable
 
 from openai import AzureOpenAI
 
@@ -77,6 +80,56 @@ def _split_audio(audio_path: Path) -> list[Path]:
     return chunks
 
 
+def _transcribe_with_heartbeat(
+    audio_path: Path,
+    language: str,
+    progress_callback: "Callable[[int, int, int], None]",
+    chunk_idx: int,
+    total_chunks: int,
+) -> str:
+    """
+    呼叫 Whisper API，同時用背景執行緒每 5 秒發送一次心跳進度更新。
+    因為 Whisper 不支援 streaming，用時間估算進度（上限 90%，完成後推到 100%）。
+    """
+    file_size_mb = audio_path.stat().st_size / 1024 / 1024
+    # 32kbps MP3：1 MB ≈ 4 分鐘音頻；Whisper 通常耗時約音頻長度的 5-10%
+    estimated_audio_sec = file_size_mb * 1024 * 8 / 32
+    estimated_wait_sec = max(20.0, estimated_audio_sec * 0.08)
+
+    result_holder: list[str] = []
+    error_holder: list[Exception] = []
+    stop_event = threading.Event()
+    start_time = time.time()
+
+    def heartbeat():
+        while not stop_event.is_set():
+            stop_event.wait(timeout=5)
+            if stop_event.is_set():
+                break
+            elapsed = time.time() - start_time
+            # 最高推到 90%，留最後 10% 給完成
+            sub_pct = min(90, int(elapsed / estimated_wait_sec * 85))
+            base = int((chunk_idx - 1) / total_chunks * 100)
+            chunk_share = int(sub_pct / total_chunks)
+            progress_callback(base + chunk_share, chunk_idx, total_chunks)
+
+    t = threading.Thread(target=heartbeat, daemon=True)
+    t.start()
+
+    try:
+        text = _transcribe_single(audio_path, language)
+        result_holder.append(text)
+    except Exception as e:
+        error_holder.append(e)
+    finally:
+        stop_event.set()
+        t.join(timeout=3)
+
+    if error_holder:
+        raise error_holder[0]
+    return result_holder[0]
+
+
 def _transcribe_single(audio_path: Path, language: str) -> str:
     """對單一音頻檔案呼叫 Whisper API"""
     client = _get_client()
@@ -124,7 +177,9 @@ def transcribe(audio_path: str | Path, language: str = "zh",
         if total == 1:
             if progress_callback:
                 progress_callback(0, 1, 1)
-            transcript = _transcribe_single(chunks[0], language)
+                transcript = _transcribe_with_heartbeat(chunks[0], language, progress_callback, 1, 1)
+            else:
+                transcript = _transcribe_single(chunks[0], language)
             if progress_callback:
                 progress_callback(100, 1, 1)
         else:
@@ -132,8 +187,11 @@ def transcribe(audio_path: str | Path, language: str = "zh",
             for idx, chunk in enumerate(chunks, 1):
                 if progress_callback:
                     progress_callback(int((idx - 1) / total * 100), idx, total)
-                logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
-                parts.append(_transcribe_single(chunk, language))
+                    logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
+                    parts.append(_transcribe_with_heartbeat(chunk, language, progress_callback, idx, total))
+                else:
+                    logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
+                    parts.append(_transcribe_single(chunk, language))
             if progress_callback:
                 progress_callback(100, total, total)
             transcript = " ".join(parts)

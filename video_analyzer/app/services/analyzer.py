@@ -36,7 +36,6 @@ def _chat(system_prompt: str, user_content: str) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ],
-        temperature=0.3,
         max_completion_tokens=2000,  # 新一代模型（o1/o3/gpt-5系列）使用此參數
     )
     return response.choices[0].message.content.strip()
@@ -265,7 +264,6 @@ def ask_question(transcript: str, question: str, chat_history: List[Dict]) -> st
     response = client.chat.completions.create(
         model=settings.AZURE_OPENAI_DEPLOYMENT,
         messages=messages,
-        temperature=0.7,
         max_completion_tokens=1000,
     )
     answer = response.choices[0].message.content.strip()
