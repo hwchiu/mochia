@@ -247,17 +247,16 @@ td.name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-spa
 .transcript-body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
-  max-height: 600px;
+  padding: 24px 28px;
+  max-height: 70vh;
   overflow-y: auto;
-  font-size: 14px;
-  line-height: 2;
+  font-size: 15px;
+  line-height: 2.1;
   background: var(--bg);
 }
 .transcript-body p {
-  margin: 0 0 16px 0;
+  margin: 0 0 20px 0;
   color: var(--text);
-  text-indent: 2em;
 }
 .transcript-body p:last-child { margin-bottom: 0; }
 

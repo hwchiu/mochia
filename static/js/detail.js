@@ -454,13 +454,25 @@ function renderKeyPoints(keyPoints) {
 
 function renderTranscript(text) {
   if (!text) return;
-  // 將逐字稿按句號斷開，每 4 句一段，提升可讀性
-  const sentenceEnd = /([。！？!?]+)/g;
-  const sentences = text.replace(sentenceEnd, "$1\n").split("\n").map(s => s.trim()).filter(Boolean);
+
+  // Whisper 口語輸出以空格隔開語詞，幾乎沒有句號
+  // 策略：按空格分詞後累積，遇到句號/問號/感嘆號立刻換段；
+  //       否則每累積約 100 字（一個自然呼吸長度）就換段
+  const PARA_CHARS = 100;
+  const phrases = text.split(/\s+/).filter(Boolean);
   const paragraphs = [];
-  for (let i = 0; i < sentences.length; i += 4) {
-    paragraphs.push(sentences.slice(i, i + 4).join(""));
+  let buf = "";
+
+  for (const phrase of phrases) {
+    buf += (buf ? " " : "") + phrase;
+    const hasSentenceEnd = /[。！？!?]$/.test(phrase);
+    if ((hasSentenceEnd && buf.length >= 40) || buf.length >= PARA_CHARS) {
+      paragraphs.push(buf);
+      buf = "";
+    }
   }
+  if (buf) paragraphs.push(buf);
+
   const el = document.getElementById("transcript-text");
   el.innerHTML = paragraphs.map(p => `<p>${p}</p>`).join("");
 }

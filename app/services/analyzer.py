@@ -94,10 +94,11 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
 {categories_str}
 
 注意：
-- summary 要詳盡完整，至少 400 字，最多 800 字，繁體中文
-  * 第一段：概述影片整體主題與核心論點（2-3句）
-  * 中間段落：依序介紹影片各個重要段落的內容與觀點
-  * 最後一段：總結影片的實用價值或核心結論（1-2句）
+- summary 要詳盡完整，至少 600 字，最多 1200 字，繁體中文
+  * 第一段：概述影片整體主題、講師立場與核心論點（3-4句）
+  * 中間多個段落：依序詳細介紹影片各重要段落的內容、概念說明與觀點（每段落至少3-4句）
+  * 最後一段：總結影片整體的實用價值、學習重點與核心結論（2-3句）
+  * 段落與段落之間要有明確的邏輯銜接
 - key_points 列出 5-8 個主題，涵蓋影片所有重要段落
   * 主題名稱要精準概括該段落的核心概念
   * 每個主題下至少 3-5 條敘述說明
@@ -107,7 +108,7 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
 - confidence 為 0-1 之間的浮點數"""
 
     logger.info("開始 GPT 分析（摘要 + 重點 + 分類）")
-    raw = _chat(system_prompt, user_content, max_tokens=4000)
+    raw = _chat(system_prompt, user_content, max_tokens=5000)
 
     # 清除可能的 markdown code block
     raw = raw.strip()
