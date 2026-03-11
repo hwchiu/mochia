@@ -7,6 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import Label, Video, VideoLabel, get_db
@@ -46,15 +47,23 @@ class LabelCreate(BaseModel):
 def list_labels(db: Session = Depends(get_db)):
     """列出所有標籤，附帶每個標籤的影片數"""
     labels = db.query(Label).order_by(Label.name).all()
+
+    # Single aggregation query instead of N per-label queries
+    count_rows = (
+        db.query(VideoLabel.label_id, func.count(VideoLabel.id).label("cnt"))
+        .group_by(VideoLabel.label_id)
+        .all()
+    )
+    count_map = {row.label_id: row.cnt for row in count_rows}
+
     result = []
     for lbl in labels:
-        count = db.query(VideoLabel).filter(VideoLabel.label_id == lbl.id).count()
         result.append(
             {
                 "id": lbl.id,
                 "name": lbl.name,
                 "color": lbl.color,
-                "video_count": count,
+                "video_count": count_map.get(lbl.id, 0),
                 "created_at": lbl.created_at.isoformat() if lbl.created_at else None,
             }
         )
