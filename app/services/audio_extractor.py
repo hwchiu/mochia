@@ -1,4 +1,5 @@
 """從影片檔案提取音頻，供 Whisper 轉錄使用"""
+from __future__ import annotations
 import re
 import subprocess
 import logging

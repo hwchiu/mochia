@@ -11,6 +11,7 @@
     kill <PID>                    # Graceful shutdown（完成當前任務再結束）
     kill -9 <PID>                 # 強制停止
 """
+from __future__ import annotations
 import json
 import logging
 import os

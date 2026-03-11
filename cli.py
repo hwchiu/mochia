@@ -13,6 +13,7 @@ Video Analyzer CLI
     python cli.py list [--status S]    列出影片
     python cli.py worker               啟動 Worker（等同 python worker.py）
 """
+from __future__ import annotations
 import argparse
 import sys
 import uuid

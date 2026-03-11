@@ -1,4 +1,5 @@
 """使用 Azure OpenAI Whisper 進行語音轉文字"""
+from __future__ import annotations
 import logging
 import math
 import subprocess

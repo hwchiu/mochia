@@ -1,4 +1,5 @@
 """標籤管理 API"""
+from __future__ import annotations
 import uuid
 import logging
 

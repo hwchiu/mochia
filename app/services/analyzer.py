@@ -1,4 +1,5 @@
 """使用 Azure OpenAI GPT 進行影片內容分析：摘要、重點提取、分類"""
+from __future__ import annotations
 import json
 import logging
 from typing import Tuple, List, Dict
