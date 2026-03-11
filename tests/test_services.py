@@ -310,3 +310,156 @@ class TestAnalyzer:
             messages = call_args.kwargs["messages"]
             user_msg = messages[1]["content"]
             assert "省略" in user_msg
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# suggest_labels() 單元測試
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestSuggestLabels:
+    def _chat(self, response_text):
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content=response_text))]
+        )
+        return mock_client
+
+    def test_suggest_labels_returns_list(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat('["占星學", "命盤解析", "風水"]')
+            from app.services.analyzer import suggest_labels
+            result = suggest_labels("這是一部占星學課程")
+        assert isinstance(result, list)
+        assert len(result) >= 1
+
+    def test_suggest_labels_returns_max_5(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat('["A","B","C","D","E","F","G"]')
+            from app.services.analyzer import suggest_labels
+            result = suggest_labels("摘要")
+        assert len(result) <= 5
+
+    def test_suggest_labels_json_error_returns_empty(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat("這不是 JSON")
+            from app.services.analyzer import suggest_labels
+            result = suggest_labels("摘要")
+        assert result == []
+
+    def test_suggest_labels_extracts_json_from_text(self):
+        """GPT 有時在 JSON 前後加了說明文字"""
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat('以下是標籤：["風水", "奇門遁甲"]，希望對您有幫助。')
+            from app.services.analyzer import suggest_labels
+            result = suggest_labels("摘要")
+        assert "風水" in result
+        assert "奇門遁甲" in result
+
+    def test_suggest_labels_strips_whitespace(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat('[" 占星學 ", " 風水 "]')
+            from app.services.analyzer import suggest_labels
+            result = suggest_labels("摘要")
+        assert all(label == label.strip() for label in result)
+
+    def test_suggest_labels_truncates_long_summary(self):
+        """超過 1500 字的摘要應截斷"""
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_client = self._chat('["標籤1"]')
+            mock_get.return_value = mock_client
+            from app.services.analyzer import suggest_labels
+            long_summary = "長摘要" * 1000
+            suggest_labels(long_summary)
+        # 驗證被截斷（prompt 不含超長文字）
+        call_args = mock_client.chat.completions.create.call_args
+        messages = call_args.kwargs.get("messages") or call_args.args[0]
+        if isinstance(messages, list):
+            user_text = " ".join(str(m.get("content","")) for m in messages)
+            assert len(user_text) < len(long_summary)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# extract_case_analysis() 單元測試
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestExtractCaseAnalysis:
+    def _chat(self, response_text):
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content=response_text))]
+        )
+        return mock_client
+
+    def test_no_case_analysis_returns_empty_string(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat("NO_CASE_ANALYSIS")
+            from app.services.analyzer import extract_case_analysis
+            result = extract_case_analysis("這是沒有案例分析的逐字稿")
+        assert result == ""
+
+    def test_empty_response_returns_empty_string(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat("")
+            from app.services.analyzer import extract_case_analysis
+            result = extract_case_analysis("逐字稿")
+        assert result == ""
+
+    def test_whitespace_only_returns_empty(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat("   ")
+            from app.services.analyzer import extract_case_analysis
+            result = extract_case_analysis("逐字稿")
+        assert result == ""
+
+    def test_with_case_analysis_returns_content(self):
+        case_md = "## 案例1\n背景：...\n分析：...\n結論：..."
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat(case_md)
+            from app.services.analyzer import extract_case_analysis
+            result = extract_case_analysis("包含案例的逐字稿")
+        assert result == case_md
+
+    def test_long_transcript_triggers_truncation(self):
+        """超過 MAX_TRANSCRIPT_CHARS 的逐字稿應被截斷送出"""
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings, \
+             patch("app.services.analyzer.MAX_TRANSCRIPT_CHARS", 100):
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_client = self._chat("## 案例1\n內容")
+            mock_get.return_value = mock_client
+            from app.services.analyzer import extract_case_analysis
+            long_text = "X" * 500
+            extract_case_analysis(long_text)
+        call_args = mock_client.chat.completions.create.call_args
+        messages = call_args.kwargs.get("messages") or call_args.args[0]
+        user_text = messages[1]["content"] if isinstance(messages, list) else ""
+        assert "省略" in user_text
+
+    def test_result_is_stripped(self):
+        with patch("app.services.analyzer._get_client") as mock_get, \
+             patch("app.services.analyzer.settings") as mock_settings:
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_get.return_value = self._chat("  ## 案例1\n內容  ")
+            from app.services.analyzer import extract_case_analysis
+            result = extract_case_analysis("逐字稿")
+        assert result == result.strip()
