@@ -186,6 +186,7 @@
       <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">📝 摘要</button>
       <button class="tab-btn" data-tab="mindmap" onclick="switchTab('mindmap')">🧠 心智圖</button>
       <button class="tab-btn" data-tab="faq" onclick="switchTab('faq')">❓ FAQ</button>
+      <button class="tab-btn" data-tab="case-analysis" onclick="switchTab('case-analysis')">🔍 案例分析</button>
       <button class="tab-btn" data-tab="qa-chat" onclick="switchTab('qa-chat')">💬 對話</button>
       <button class="tab-btn" data-tab="transcript" onclick="switchTab('transcript')">📄 逐字稿</button>
     </div>
@@ -256,6 +257,16 @@
       </div>
     </div>
 
+    <!-- Case Analysis Tab -->
+    <div id="tab-case-analysis" class="tab-panel">
+      <div class="card">
+        <div class="card-title">🔍 案例分析</div>
+        <div id="case-analysis-content" class="markdown-body case-analysis-body">
+          <p class="loading-text">載入中...</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Transcript Tab -->
     <div id="tab-transcript" class="tab-panel">
       <div class="card">
@@ -263,7 +274,7 @@
           <span>📄 逐字稿</span>
           <button class="btn btn-sm btn-ghost" onclick="copyTranscript()">複製</button>
         </div>
-        <div class="transcript-box" id="transcript-text"></div>
+        <div class="transcript-body" id="transcript-text"></div>
       </div>
     </div>
   </div>

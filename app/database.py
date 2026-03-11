@@ -54,6 +54,7 @@ class Summary(Base):
     mindmap = Column(Text, nullable=True)       # Markmap Markdown 格式
     faq = Column(Text, nullable=True)           # JSON 陣列 [{question, answer}]
     study_notes = Column(Text, nullable=True)   # Markdown 格式的學習筆記
+    case_analysis = Column(Text, nullable=True) # 案例分析（Markdown 格式，若影片無案例則 None）
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -132,6 +133,7 @@ def _migrate_db():
         ("mindmap",          "TEXT"),
         ("faq",              "TEXT"),
         ("study_notes",      "TEXT"),
+        ("case_analysis",    "TEXT"),
     ]
     for col_name, col_type in new_columns:
         if col_name not in existing:

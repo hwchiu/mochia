@@ -11,6 +11,7 @@ from app.database import get_db, Video, TaskQueue, Transcript, Summary, Classifi
 from app.services.analyzer import (
     analyze,
     ask_question,
+    extract_case_analysis,
     generate_faq,
     generate_mindmap,
     generate_study_notes,
@@ -161,6 +162,7 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
         "key_points": json.loads(summary.key_points) if summary and summary.key_points else [],
         "category": classification.category if classification else None,
         "confidence": classification.confidence if classification else None,
+        "case_analysis": summary.case_analysis if summary else None,
     }
 
 
@@ -333,17 +335,20 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
         raise HTTPException(409, "逐字稿不存在，請先完成語音辨識")
 
     summary_text, key_points, category, confidence = analyze(transcript.content)
+    case_analysis_text = extract_case_analysis(transcript.content)
 
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if summary:
         summary.summary = summary_text
         summary.key_points = json.dumps(key_points, ensure_ascii=False)
+        summary.case_analysis = case_analysis_text or None
     else:
         db.add(Summary(
             id=uuid.uuid4().hex,
             video_id=video_id,
             summary=summary_text,
             key_points=json.dumps(key_points, ensure_ascii=False),
+            case_analysis=case_analysis_text or None,
         ))
 
     existing_cls = db.query(Classification).filter(Classification.video_id == video_id).first()
@@ -366,6 +371,7 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
         "key_points": key_points,
         "category": category,
         "confidence": confidence,
+        "case_analysis": case_analysis_text or None,
     }
 
 
@@ -382,3 +388,19 @@ def suggest_labels(video_id: str, db: Session = Depends(get_db)):
 
     labels = _suggest_labels(summary.summary)
     return {"video_id": video_id, "suggestions": labels}
+
+
+@router.get("/{video_id}/case-analysis")
+def get_case_analysis(video_id: str, db: Session = Depends(get_db)):
+    """取得案例分析（若影片無案例則回傳空字串）"""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(404, "影片不存在")
+    if video.status != "completed":
+        raise HTTPException(409, "分析尚未完成")
+    summary = db.query(Summary).filter(Summary.video_id == video_id).first()
+    return {
+        "video_id": video_id,
+        "case_analysis": summary.case_analysis if summary else None,
+    }
+

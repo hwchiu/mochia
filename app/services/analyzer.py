@@ -312,3 +312,46 @@ def suggest_labels(summary: str) -> List[str]:
     except Exception:
         logger.warning(f"suggest_labels JSON 解析失敗: {raw}")
         return []
+
+
+def extract_case_analysis(transcript: str) -> str:
+    """
+    從逐字稿中偵測並擷取案例分析內容。
+
+    若影片包含案例分析、實例演示或具體案例，回傳詳細的 Markdown 格式紀錄。
+    若影片沒有案例分析內容，回傳空字串。
+    """
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        half = MAX_TRANSCRIPT_CHARS // 2
+        transcript_for_gpt = transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+    else:
+        transcript_for_gpt = transcript
+
+    system_prompt = """你是一位專業的玄學內容分析師。
+你的任務是從影片逐字稿中識別並詳細記錄所有「案例分析」內容。
+
+案例分析的定義：
+- 老師以具體的真實或假設案例（如某人的命盤、八字、風水格局、奇門布局等）進行分析演示
+- 包含具體的人物背景、問題情境、分析推論過程、以及結論
+
+輸出規範：
+- 若有案例，使用 Markdown 格式詳細記錄，每個案例以 ## 案例N 為標題
+- 每個案例包含：背景說明、分析要點（條列）、推論過程、結論
+- 盡量保留原始分析的細節，讓讀者能完整複習
+- 若逐字稿中完全沒有案例分析內容，只回傳：NO_CASE_ANALYSIS
+- 不要有任何其他說明文字，只輸出案例內容或 NO_CASE_ANALYSIS"""
+
+    user_content = f"""請從以下影片逐字稿中擷取所有案例分析內容：
+
+{transcript_for_gpt}"""
+
+    logger.info("開始擷取案例分析...")
+    raw = _chat(system_prompt, user_content, max_tokens=3000)
+    raw = raw.strip()
+
+    if raw == "NO_CASE_ANALYSIS" or not raw:
+        logger.info("影片無案例分析內容")
+        return ""
+
+    logger.info("案例分析擷取完成")
+    return raw

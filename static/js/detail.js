@@ -76,7 +76,12 @@ async function loadDetail() {
     }
     if (results.category) document.getElementById("kv-category").textContent = results.category;
     if (results.transcript) {
-      document.getElementById("transcript-text").textContent = results.transcript;
+      renderTranscript(results.transcript);
+    }
+    // 案例分析若已包含在 results 中直接渲染，否則等 tab 切換時再 lazy load
+    if (results.case_analysis !== undefined) {
+      renderCaseAnalysis(results.case_analysis);
+      tabLoaded["case-analysis"] = true;
     }
     document.getElementById("btn-reanalyze").style.display = "";
 
@@ -156,6 +161,7 @@ function switchTab(tabName) {
     tabLoaded[tabName] = true;
     if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
+    else if (tabName === "case-analysis") loadCaseAnalysis();
     else if (tabName === "qa-chat") { /* chat history already loaded */ }
   }
 }
@@ -410,25 +416,90 @@ async function regenerate(type) {
   }
 }
 
+// 12 色主題調色盤，對應 label 的顏色系統
+const _KP_COLORS = [
+  { bg: "#fef2f2", border: "#ef4444", title: "#b91c1c" },
+  { bg: "#fff7ed", border: "#f97316", title: "#c2410c" },
+  { bg: "#fefce8", border: "#eab308", title: "#a16207" },
+  { bg: "#f0fdf4", border: "#22c55e", title: "#15803d" },
+  { bg: "#f0fdfa", border: "#14b8a6", title: "#0f766e" },
+  { bg: "#eff6ff", border: "#3b82f6", title: "#1d4ed8" },
+  { bg: "#f5f3ff", border: "#8b5cf6", title: "#6d28d9" },
+  { bg: "#fdf4ff", border: "#d946ef", title: "#a21caf" },
+  { bg: "#ecfeff", border: "#06b6d4", title: "#0e7490" },
+  { bg: "#f7fee7", border: "#84cc16", title: "#4d7c0f" },
+  { bg: "#fffbeb", border: "#f59e0b", title: "#b45309" },
+  { bg: "#eef2ff", border: "#6366f1", title: "#4338ca" },
+];
+
 function renderKeyPoints(keyPoints) {
   const container = document.getElementById("key-points-list");
   if (!keyPoints || !keyPoints.length) { container.innerHTML = ""; return; }
 
   // 相容新格式 [{theme, points}] 和舊格式 ["string"]
   if (typeof keyPoints[0] === "string") {
-    container.innerHTML = `<div class="kp-theme"><ul>${keyPoints.map(p => `<li>${p}</li>`).join("")}</ul></div>`;
+    const c = _KP_COLORS[0];
+    container.innerHTML = `<div class="kp-theme" style="--kp-bg:${c.bg};--kp-border:${c.border};--kp-title:${c.title}"><ul>${keyPoints.map(p => `<li>${p}</li>`).join("")}</ul></div>`;
     return;
   }
-  container.innerHTML = keyPoints.map(kp => `
-    <div class="kp-theme">
+  container.innerHTML = keyPoints.map((kp, i) => {
+    const c = _KP_COLORS[i % _KP_COLORS.length];
+    return `
+    <div class="kp-theme" style="--kp-bg:${c.bg};--kp-border:${c.border};--kp-title:${c.title}">
       <div class="kp-theme-title">${kp.theme || ""}</div>
       <ul>${(kp.points || []).map(p => `<li>${p}</li>`).join("")}</ul>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
+}
+
+function renderTranscript(text) {
+  if (!text) return;
+  // 將逐字稿按句號斷開，每 4 句一段，提升可讀性
+  const sentenceEnd = /([。！？!?]+)/g;
+  const sentences = text.replace(sentenceEnd, "$1\n").split("\n").map(s => s.trim()).filter(Boolean);
+  const paragraphs = [];
+  for (let i = 0; i < sentences.length; i += 4) {
+    paragraphs.push(sentences.slice(i, i + 4).join(""));
+  }
+  const el = document.getElementById("transcript-text");
+  el.innerHTML = paragraphs.map(p => `<p>${p}</p>`).join("");
+}
+
+function renderCaseAnalysis(text) {
+  const el = document.getElementById("case-analysis-content");
+  if (!el) return;
+  if (!text) {
+    el.innerHTML = `<div class="no-case-analysis">
+      <span class="no-case-icon">📋</span>
+      <p>本影片未包含案例分析內容</p>
+    </div>`;
+    return;
+  }
+  // 用簡易 Markdown 渲染（h2/h3/li/粗體）
+  const html = text
+    .replace(/^## (.+)$/gm, '<h2 class="ca-h2">$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3 class="ca-h3">$1</h3>')
+    .replace(/^\*\*(.+?)\*\*(.*)$/gm, '<p><strong>$1</strong>$2</p>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+    .replace(/^(?!<[hpul]).+$/gm, '<p>$&</p>')
+    .replace(/<\/ul>\n?<ul>/g, "");
+  el.innerHTML = html;
+}
+
+async function loadCaseAnalysis() {
+  const el = document.getElementById("case-analysis-content");
+  if (!el) return;
+  try {
+    const data = await api("GET", `/api/analysis/${videoId}/case-analysis`);
+    renderCaseAnalysis(data.case_analysis);
+  } catch (e) {
+    el.innerHTML = `<p style="color:var(--muted)">載入失敗：${e.message}</p>`;
+  }
 }
 
 async function reanalyze() {
-  if (!confirm("重新執行 GPT 分析？逐字稿不會重新辨識，僅更新摘要、重點和分類。")) return;
+  if (!confirm("重新執行 GPT 分析？逐字稿不會重新辨識，僅更新摘要、重點、分類和案例分析。")) return;
   const btn = document.getElementById("btn-reanalyze");
   btn.disabled = true;
   btn.textContent = "分析中...";
@@ -438,6 +509,8 @@ async function reanalyze() {
     document.getElementById("summary-text").textContent = data.summary;
     renderKeyPoints(data.key_points);
     document.getElementById("kv-category").textContent = data.category;
+    renderCaseAnalysis(data.case_analysis);
+    tabLoaded["case-analysis"] = true;
     toast("重新分析完成！", "success");
   } catch (e) {
     toast("重新分析失敗: " + e.message, "error");

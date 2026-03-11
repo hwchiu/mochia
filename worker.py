@@ -30,7 +30,7 @@ from app.config import settings
 from app.database import SessionLocal, Video, TaskQueue, Transcript, Summary, Classification
 from app.services.audio_extractor import extract_audio, cleanup_audio
 from app.services.transcriber import transcribe
-from app.services.analyzer import analyze, generate_mindmap, generate_faq, generate_study_notes
+from app.services.analyzer import analyze, generate_mindmap, generate_faq, generate_study_notes, extract_case_analysis
 
 # ──────────────────────────── Logging ────────────────────────────
 
@@ -104,16 +104,19 @@ def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: 
     # Step 4: 生成 NotebookLM 功能
     _set_progress(video, db, 4, "生成心智圖...", sub=0)
     mindmap = generate_mindmap(transcript_text)
-    _set_progress(video, db, 4, "生成 FAQ...", sub=33)
+    _set_progress(video, db, 4, "生成 FAQ...", sub=25)
     faq_list = generate_faq(transcript_text)
-    _set_progress(video, db, 4, "生成學習筆記...", sub=66)
+    _set_progress(video, db, 4, "生成學習筆記...", sub=50)
     study_notes = generate_study_notes(transcript_text)
+    _set_progress(video, db, 4, "擷取案例分析...", sub=75)
+    case_analysis = extract_case_analysis(transcript_text)
 
     existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
     if existing_summary:
         existing_summary.mindmap = mindmap
         existing_summary.faq = json.dumps(faq_list, ensure_ascii=False)
         existing_summary.study_notes = study_notes
+        existing_summary.case_analysis = case_analysis or None
     db.commit()
 
     video.status = "completed"
