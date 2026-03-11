@@ -17,6 +17,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _client: AzureOpenAI | None = None
+_client_lock = threading.Lock()
 
 # Whisper API 單次最大 25MB，保留 1MB 安全緩衝
 WHISPER_MAX_BYTES = 24 * 1024 * 1024
@@ -24,17 +25,18 @@ WHISPER_MAX_BYTES = 24 * 1024 * 1024
 
 def _get_client() -> AzureOpenAI:
     global _client
-    if _client is None:
-        if not settings.whisper_api_key or not settings.whisper_endpoint:
-            raise ValueError(
-                "AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定，請在 .env 中配置"
+    with _client_lock:
+        if _client is None:
+            if not settings.whisper_api_key or not settings.whisper_endpoint:
+                raise ValueError(
+                    "AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定，請在 .env 中配置"
+                )
+            _client = AzureOpenAI(
+                api_key=settings.whisper_api_key,
+                azure_endpoint=settings.whisper_endpoint,
+                api_version=settings.whisper_api_version,
+                timeout=settings.WHISPER_TIMEOUT,
             )
-        _client = AzureOpenAI(
-            api_key=settings.whisper_api_key,
-            azure_endpoint=settings.whisper_endpoint,
-            api_version=settings.whisper_api_version,
-            timeout=settings.WHISPER_TIMEOUT,
-        )
     return _client
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 
 from openai import AzureOpenAI
 
@@ -12,6 +13,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _client: AzureOpenAI | None = None
+_client_lock = threading.Lock()
 
 # Whisper API 單次最大 25MB；超過此長度的逐字稿需截斷再送 GPT
 MAX_TRANSCRIPT_CHARS = 12000
@@ -19,14 +21,15 @@ MAX_TRANSCRIPT_CHARS = 12000
 
 def _get_client() -> AzureOpenAI:
     global _client
-    if _client is None:
-        if not settings.AZURE_OPENAI_API_KEY or not settings.AZURE_OPENAI_ENDPOINT:
-            raise ValueError("AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定")
-        _client = AzureOpenAI(
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-        )
+    with _client_lock:
+        if _client is None:
+            if not settings.AZURE_OPENAI_API_KEY or not settings.AZURE_OPENAI_ENDPOINT:
+                raise ValueError("AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定")
+            _client = AzureOpenAI(
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+            )
     return _client
 
 
