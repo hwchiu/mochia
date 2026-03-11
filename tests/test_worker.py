@@ -186,6 +186,7 @@ class TestProcessTask:
             patch("worker.generate_mindmap", return_value="# 測試\n## 分支"),
             patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]),
             patch("worker.generate_study_notes", return_value="## 核心概念\n測試"),
+            patch("worker.extract_case_analysis", return_value=""),
             patch("worker.cleanup_audio") as mock_cleanup,
         ):
             from worker import _process_task
@@ -307,6 +308,7 @@ class TestProcessTask:
             patch("worker.generate_mindmap", return_value="# 新\n## 分支"),
             patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]),
             patch("worker.generate_study_notes", return_value="## 核心概念\n新內容"),
+            patch("worker.extract_case_analysis", return_value=""),
             patch("worker.cleanup_audio"),
         ):
             from worker import _process_task
