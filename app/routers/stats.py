@@ -1,14 +1,12 @@
 """學習統計儀表板 API"""
-import json
+
 import logging
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.database import (
-    get_db, Video, Transcript, Summary, Classification, ReviewRecord, VideoLabel, Label
-)
+from app.database import Classification, Label, ReviewRecord, Video, VideoLabel, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -27,10 +25,14 @@ def get_overview(db: Session = Depends(get_db)):
     reviewed = db.query(Video).filter(Video.status == "completed", Video.review_count > 0).count()
     never_reviewed = completed - reviewed
 
-    due_today = db.query(Video).filter(
-        Video.status == "completed",
-        (Video.sr_next_review_at <= now) | (Video.sr_next_review_at.is_(None)),
-    ).count()
+    due_today = (
+        db.query(Video)
+        .filter(
+            Video.status == "completed",
+            (Video.sr_next_review_at <= now) | (Video.sr_next_review_at.is_(None)),
+        )
+        .count()
+    )
 
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     reviewed_today = db.query(ReviewRecord).filter(ReviewRecord.reviewed_at >= today_start).count()
@@ -40,7 +42,7 @@ def get_overview(db: Session = Depends(get_db)):
     cats = db.query(Classification).all()
     cat_dist: dict[str, int] = {}
     for c in cats:
-        cat_dist[c.category] = cat_dist.get(c.category, 0) + 1
+        cat_dist[c.category] = cat_dist.get(c.category, 0) + 1  # type: ignore[index,call-overload]
 
     # 標籤統計
     labels = db.query(Label).all()
@@ -48,7 +50,7 @@ def get_overview(db: Session = Depends(get_db)):
     for lbl in labels:
         cnt = db.query(VideoLabel).filter(VideoLabel.label_id == lbl.id).count()
         label_stats.append({"id": lbl.id, "name": lbl.name, "color": lbl.color, "count": cnt})
-    label_stats.sort(key=lambda x: x["count"], reverse=True)
+    label_stats.sort(key=lambda x: x["count"], reverse=True)  # type: ignore[arg-type,return-value]
 
     return {
         "total_videos": total,
@@ -73,10 +75,14 @@ def get_daily_stats(days: int = 30, db: Session = Depends(get_db)):
     for i in range(days - 1, -1, -1):
         day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
-        count = db.query(ReviewRecord).filter(
-            ReviewRecord.reviewed_at >= day_start,
-            ReviewRecord.reviewed_at < day_end,
-        ).count()
+        count = (
+            db.query(ReviewRecord)
+            .filter(
+                ReviewRecord.reviewed_at >= day_start,
+                ReviewRecord.reviewed_at < day_end,
+            )
+            .count()
+        )
         result.append({"date": day_start.strftime("%Y-%m-%d"), "reviews": count})
     return {"days": days, "data": result}
 
@@ -96,15 +102,10 @@ def get_confidence_distribution(db: Session = Depends(get_db)):
             .first()
         )
         if latest and latest.confidence in dist:
-            dist[latest.confidence] += 1
+            dist[latest.confidence] += 1  # type: ignore[index]
 
     labels = {1: "完全不懂", 2: "模糊記得", 3: "大致理解", 4: "掌握良好", 5: "完全掌握"}
-    return {
-        "distribution": [
-            {"level": k, "label": labels[k], "count": v}
-            for k, v in dist.items()
-        ]
-    }
+    return {"distribution": [{"level": k, "label": labels[k], "count": v} for k, v in dist.items()]}
 
 
 @router.get("/top-reviewed")

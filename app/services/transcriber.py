@@ -1,13 +1,14 @@
 """使用 Azure OpenAI Whisper 進行語音轉文字"""
+
 from __future__ import annotations
+
 import logging
 import math
 import subprocess
-import tempfile
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from openai import AzureOpenAI
 
@@ -25,7 +26,9 @@ def _get_client() -> AzureOpenAI:
     global _client
     if _client is None:
         if not settings.whisper_api_key or not settings.whisper_endpoint:
-            raise ValueError("AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定，請在 .env 中配置")
+            raise ValueError(
+                "AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定，請在 .env 中配置"
+            )
         _client = AzureOpenAI(
             api_key=settings.whisper_api_key,
             azure_endpoint=settings.whisper_endpoint,
@@ -38,9 +41,13 @@ def _get_client() -> AzureOpenAI:
 def _get_audio_duration(audio_path: Path) -> float:
     """使用 ffprobe 取得音頻時長（秒）"""
     cmd = [
-        "ffprobe", "-v", "quiet",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
         str(audio_path),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -60,7 +67,9 @@ def _split_audio(audio_path: Path) -> list[Path]:
     n_chunks = math.ceil(file_size / WHISPER_MAX_BYTES) + 1
     chunk_duration = duration / n_chunks
 
-    logger.info(f"音頻 {file_size / 1024 / 1024:.1f} MB 超過限制，切割為 {n_chunks} 個片段（每段 {chunk_duration:.0f}s）")
+    logger.info(
+        f"音頻 {file_size / 1024 / 1024:.1f} MB 超過限制，切割為 {n_chunks} 個片段（每段 {chunk_duration:.0f}s）"
+    )
 
     chunk_dir = audio_path.parent / f"{audio_path.stem}_chunks"
     chunk_dir.mkdir(exist_ok=True)
@@ -70,9 +79,17 @@ def _split_audio(audio_path: Path) -> list[Path]:
         start = i * chunk_duration
         chunk_path = chunk_dir / f"chunk_{i:03d}.mp3"
         cmd = [
-            "ffmpeg", "-i", str(audio_path),
-            "-ss", str(start), "-t", str(chunk_duration),
-            "-c", "copy", "-y", str(chunk_path),
+            "ffmpeg",
+            "-i",
+            str(audio_path),
+            "-ss",
+            str(start),
+            "-t",
+            str(chunk_duration),
+            "-c",
+            "copy",
+            "-y",
+            str(chunk_path),
         ]
         subprocess.run(cmd, capture_output=True, timeout=120)
         if chunk_path.exists() and chunk_path.stat().st_size > 0:
@@ -84,7 +101,7 @@ def _split_audio(audio_path: Path) -> list[Path]:
 def _transcribe_with_heartbeat(
     audio_path: Path,
     language: str,
-    progress_callback: "Callable[[int, int, int], None]",
+    progress_callback: Callable[[int, int, int], None],
     chunk_idx: int,
     total_chunks: int,
 ) -> str:
@@ -141,11 +158,14 @@ def _transcribe_single(audio_path: Path, language: str) -> str:
             language=language,
             response_format="text",
         )
-    return response if isinstance(response, str) else response.text
+    return response if isinstance(response, str) else response.text  # type: ignore[attr-defined]
 
 
-def transcribe(audio_path: str | Path, language: str = "zh",
-               progress_callback: "Callable[[int, int, int], None] | None" = None) -> str:
+def transcribe(
+    audio_path: str | Path,
+    language: str = "zh",
+    progress_callback: Callable[[int, int, int], None] | None = None,
+) -> str:
     """
     使用 Azure OpenAI Whisper 將音頻轉為文字。
     超過 25MB 的檔案會自動切割後分段轉錄再合併。
@@ -178,7 +198,9 @@ def transcribe(audio_path: str | Path, language: str = "zh",
         if total == 1:
             if progress_callback:
                 progress_callback(0, 1, 1)
-                transcript = _transcribe_with_heartbeat(chunks[0], language, progress_callback, 1, 1)
+                transcript = _transcribe_with_heartbeat(
+                    chunks[0], language, progress_callback, 1, 1
+                )
             else:
                 transcript = _transcribe_single(chunks[0], language)
             if progress_callback:
@@ -189,7 +211,9 @@ def transcribe(audio_path: str | Path, language: str = "zh",
                 if progress_callback:
                     progress_callback(int((idx - 1) / total * 100), idx, total)
                     logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
-                    parts.append(_transcribe_with_heartbeat(chunk, language, progress_callback, idx, total))
+                    parts.append(
+                        _transcribe_with_heartbeat(chunk, language, progress_callback, idx, total)
+                    )
                 else:
                     logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
                     parts.append(_transcribe_single(chunk, language))

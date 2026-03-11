@@ -1,8 +1,7 @@
 """
 個人筆記 API 測試
 """
-import uuid
-import pytest
+
 from app.database import VideoNote
 
 

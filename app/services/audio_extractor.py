@@ -1,18 +1,22 @@
 """從影片檔案提取音頻，供 Whisper 轉錄使用"""
+
 from __future__ import annotations
+
+import logging
 import re
 import subprocess
-import logging
-from pathlib import Path
-from typing import Callable
 import uuid
+from collections.abc import Callable
+from pathlib import Path
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-def extract_audio(video_path: str | Path, progress_callback: Callable[[int], None] | None = None) -> Path:
+def extract_audio(
+    video_path: str | Path, progress_callback: Callable[[int], None] | None = None
+) -> Path:
     """
     使用 FFmpeg 從影片提取音頻，輸出為 MP3 格式。
     若提供 progress_callback，會即時回報提取進度（0-100）。
@@ -39,13 +43,18 @@ def extract_audio(video_path: str | Path, progress_callback: Callable[[int], Non
 
     cmd = [
         "ffmpeg",
-        "-i", str(video_path),
-        "-vn",                    # 不處理影像
-        "-acodec", "libmp3lame",
-        "-ab", "32k",             # 32kbps 足夠語音識別，支援更長影片不超 25MB 限制
-        "-ar", "16000",           # 16kHz 採樣率（Whisper 最佳化）
-        "-ac", "1",               # 單聲道
-        "-y",                     # 覆蓋輸出檔案
+        "-i",
+        str(video_path),
+        "-vn",  # 不處理影像
+        "-acodec",
+        "libmp3lame",
+        "-ab",
+        "32k",  # 32kbps 足夠語音識別，支援更長影片不超 25MB 限制
+        "-ar",
+        "16000",  # 16kHz 採樣率（Whisper 最佳化）
+        "-ac",
+        "1",  # 單聲道
+        "-y",  # 覆蓋輸出檔案
         str(audio_path),
     ]
 
@@ -53,9 +62,9 @@ def extract_audio(video_path: str | Path, progress_callback: Callable[[int], Non
 
     process = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, bufsize=1)
 
-    for line in process.stderr:
-        if progress_callback and duration and 'time=' in line:
-            m = re.search(r'time=(\d+):(\d+):(\d+\.\d+)', line)
+    for line in process.stderr:  # type: ignore[union-attr]
+        if progress_callback and duration and "time=" in line:
+            m = re.search(r"time=(\d+):(\d+):(\d+\.\d+)", line)
             if m:
                 h, mn, s = m.groups()
                 secs = int(h) * 3600 + int(mn) * 60 + float(s)
@@ -78,9 +87,12 @@ def get_video_duration(video_path: str | Path) -> float | None:
     try:
         cmd = [
             "ffprobe",
-            "-v", "quiet",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "-v",
+            "quiet",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
             str(video_path),
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)

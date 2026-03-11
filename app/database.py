@@ -1,19 +1,18 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Integer, Float, Text, Boolean
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+
 from app.config import settings
 
 DATABASE_URL = f"sqlite:///{settings.DATA_DIR}/video_analyzer.db"
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    echo=False
-)
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, echo=False)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+Base: Any = declarative_base()
 
 
 class Video(Base):
@@ -121,16 +120,18 @@ class VideoLabel(Base):
 
 class ReviewRecord(Base):
     """每次複習紀錄"""
+
     __tablename__ = "review_records"
 
     id = Column(String, primary_key=True)
     video_id = Column(String, index=True)
-    confidence = Column(Integer)        # 1-5
+    confidence = Column(Integer)  # 1-5
     reviewed_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
 class VideoNote(Base):
     """個人筆記"""
+
     __tablename__ = "video_notes"
 
     id = Column(String, primary_key=True)
@@ -143,6 +144,7 @@ class VideoNote(Base):
 def _migrate_db():
     """補齊新欄位與新資料表（不破壞已有資料）"""
     import sqlite3
+
     db_path = str(settings.DATA_DIR / "video_analyzer.db")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -151,8 +153,10 @@ def _migrate_db():
     cursor.execute("PRAGMA table_info(summaries)")
     existing = {row[1] for row in cursor.fetchall()}
     for col, typ in [
-        ("mindmap", "TEXT"), ("faq", "TEXT"),
-        ("study_notes", "TEXT"), ("case_analysis", "TEXT"),
+        ("mindmap", "TEXT"),
+        ("faq", "TEXT"),
+        ("study_notes", "TEXT"),
+        ("case_analysis", "TEXT"),
     ]:
         if col not in existing:
             cursor.execute(f"ALTER TABLE summaries ADD COLUMN {col} {typ}")

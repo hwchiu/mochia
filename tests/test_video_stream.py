@@ -1,15 +1,16 @@
 """
 影片串流 & 本地開啟 API 測試
 """
-import pytest
+
 import uuid
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from app.database import Video
 
-
 # ─── 輔助 fixture ──────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def real_mp4_video(db_session, tmp_path) -> tuple:
@@ -70,6 +71,7 @@ def missing_file_video(db_session) -> Video:
 # GET /api/videos/{id}/stream — 影片串流
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestVideoStream:
     def test_stream_mp4_success(self, client, real_mp4_video):
         vid, _ = real_mp4_video
@@ -113,8 +115,13 @@ class TestVideoStream:
         f = tmp_path / "test.mov"
         f.write_bytes(b"\x00" * 512)
         vid = Video(
-            id=uuid.uuid4().hex, filename="test.mov", original_filename="test.mov",
-            file_path=str(f), source="local_scan", file_size=512, status="completed",
+            id=uuid.uuid4().hex,
+            filename="test.mov",
+            original_filename="test.mov",
+            file_path=str(f),
+            source="local_scan",
+            file_size=512,
+            status="completed",
         )
         db_session.add(vid)
         db_session.commit()
@@ -126,8 +133,13 @@ class TestVideoStream:
         f = tmp_path / "test.mkv"
         f.write_bytes(b"\x00" * 512)
         vid = Video(
-            id=uuid.uuid4().hex, filename="test.mkv", original_filename="test.mkv",
-            file_path=str(f), source="local_scan", file_size=512, status="completed",
+            id=uuid.uuid4().hex,
+            filename="test.mkv",
+            original_filename="test.mkv",
+            file_path=str(f),
+            source="local_scan",
+            file_size=512,
+            status="completed",
         )
         db_session.add(vid)
         db_session.commit()
@@ -138,8 +150,13 @@ class TestVideoStream:
         f = tmp_path / "test.avi"
         f.write_bytes(b"\x00" * 512)
         vid = Video(
-            id=uuid.uuid4().hex, filename="test.avi", original_filename="test.avi",
-            file_path=str(f), source="local_scan", file_size=512, status="completed",
+            id=uuid.uuid4().hex,
+            filename="test.avi",
+            original_filename="test.avi",
+            file_path=str(f),
+            source="local_scan",
+            file_size=512,
+            status="completed",
         )
         db_session.add(vid)
         db_session.commit()
@@ -148,8 +165,13 @@ class TestVideoStream:
 
     def test_stream_video_with_null_file_path(self, client, db_session):
         vid = Video(
-            id=uuid.uuid4().hex, filename="nopath.mp4", original_filename="nopath.mp4",
-            file_path=None, source="uploaded", file_size=100, status="completed",
+            id=uuid.uuid4().hex,
+            filename="nopath.mp4",
+            original_filename="nopath.mp4",
+            file_path=None,
+            source="uploaded",
+            file_size=100,
+            status="completed",
         )
         db_session.add(vid)
         db_session.commit()
@@ -162,9 +184,13 @@ class TestVideoStream:
             f = tmp_path / f"test{ext}"
             f.write_bytes(b"\x00" * 256)
             vid = Video(
-                id=uuid.uuid4().hex, filename=f"test{ext}",
-                original_filename=f"test{ext}", file_path=str(f),
-                source="local_scan", file_size=256, status="completed",
+                id=uuid.uuid4().hex,
+                filename=f"test{ext}",
+                original_filename=f"test{ext}",
+                file_path=str(f),
+                source="local_scan",
+                file_size=256,
+                status="completed",
             )
             db_session.add(vid)
             db_session.commit()
@@ -176,11 +202,14 @@ class TestVideoStream:
 # POST /api/videos/{id}/open-local — 本地開啟
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestOpenLocal:
     def test_open_local_macos_success(self, client, real_mp4_video):
         vid, _ = real_mp4_video
-        with patch("subprocess.Popen") as mock_popen, \
-             patch("platform.system", return_value="Darwin"):
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch("platform.system", return_value="Darwin"),
+        ):
             r = client.post(f"/api/videos/{vid.id}/open-local")
             assert r.status_code == 200
             mock_popen.assert_called_once()
@@ -189,8 +218,10 @@ class TestOpenLocal:
 
     def test_open_local_linux_uses_xdg_open(self, client, real_mp4_video):
         vid, _ = real_mp4_video
-        with patch("subprocess.Popen") as mock_popen, \
-             patch("platform.system", return_value="Linux"):
+        with (
+            patch("subprocess.Popen") as mock_popen,
+            patch("platform.system", return_value="Linux"),
+        ):
             r = client.post(f"/api/videos/{vid.id}/open-local")
             assert r.status_code == 200
             args = mock_popen.call_args[0][0]
@@ -208,8 +239,10 @@ class TestOpenLocal:
 
     def test_open_local_subprocess_failure_returns_500(self, client, real_mp4_video):
         vid, _ = real_mp4_video
-        with patch("subprocess.Popen", side_effect=FileNotFoundError("open not found")), \
-             patch("platform.system", return_value="Darwin"):
+        with (
+            patch("subprocess.Popen", side_effect=FileNotFoundError("open not found")),
+            patch("platform.system", return_value="Darwin"),
+        ):
             r = client.post(f"/api/videos/{vid.id}/open-local")
         assert r.status_code == 500
 

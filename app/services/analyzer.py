@@ -1,8 +1,9 @@
 """使用 Azure OpenAI GPT 進行影片內容分析：摘要、重點提取、分類"""
+
 from __future__ import annotations
+
 import json
 import logging
-from typing import Tuple, List, Dict
 
 from openai import AzureOpenAI
 
@@ -39,10 +40,10 @@ def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
         ],
         max_completion_tokens=max_tokens,  # 新一代模型（o1/o3/gpt-5系列）使用此參數
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message.content.strip()  # type: ignore[union-attr]
 
 
-def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
+def analyze(transcript: str) -> tuple[str, list[str], str, float]:
     """
     對逐字稿執行完整分析：摘要、重點、分類。
 
@@ -60,9 +61,7 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         half = MAX_TRANSCRIPT_CHARS // 2
         transcript_for_gpt = (
-            transcript[:half]
-            + "\n\n[... 中間內容省略 ...]\n\n"
-            + transcript[-half:]
+            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
         )
         logger.info(f"逐字稿過長 ({len(transcript)} 字)，已截斷送分析")
     else:
@@ -138,14 +137,16 @@ def analyze(transcript: str) -> Tuple[str, list[str], str, float]:
         confidence = 0.0
 
     logger.info(f"分析完成 - 分類: {category} ({confidence:.0%})")
-    return summary, key_points, category, confidence
+    return summary, key_points, category, confidence  # type: ignore[return-value]
 
 
 def generate_mindmap(transcript: str) -> str:
     """Generate Markmap-compatible Markdown mind map from transcript."""
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        transcript_for_gpt = (
+            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        )
     else:
         transcript_for_gpt = transcript
 
@@ -171,11 +172,13 @@ def generate_mindmap(transcript: str) -> str:
     return result
 
 
-def generate_faq(transcript: str) -> List[Dict]:
+def generate_faq(transcript: str) -> list[dict]:
     """Generate FAQ list (5-8 Q&A pairs) from transcript."""
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        transcript_for_gpt = (
+            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        )
     else:
         transcript_for_gpt = transcript
 
@@ -226,7 +229,9 @@ def generate_study_notes(transcript: str) -> str:
     """Generate structured study notes in Markdown."""
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        transcript_for_gpt = (
+            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        )
     else:
         transcript_for_gpt = transcript
 
@@ -261,11 +266,13 @@ def generate_study_notes(transcript: str) -> str:
     return result
 
 
-def ask_question(transcript: str, question: str, chat_history: List[Dict]) -> str:
+def ask_question(transcript: str, question: str, chat_history: list[dict]) -> str:
     """Answer a question about the video using multi-turn conversation."""
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        transcript_for_gpt = (
+            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        )
     else:
         transcript_for_gpt = transcript
 
@@ -284,15 +291,13 @@ def ask_question(transcript: str, question: str, chat_history: List[Dict]) -> st
     logger.info("開始 ask_question...")
     response = client.chat.completions.create(
         model=settings.AZURE_OPENAI_DEPLOYMENT,
-        messages=messages,
-        max_completion_tokens=1000,
+        messages=messages,  # type: ignore[arg-type]
     )
-    answer = response.choices[0].message.content.strip()
-    logger.info("ask_question 完成")
+    answer = response.choices[0].message.content.strip()  # type: ignore[union-attr]
     return answer
 
 
-def suggest_labels(summary: str) -> List[str]:
+def suggest_labels(summary: str) -> list[str]:
     """根據影片摘要，用 GPT 建議 3-5 個繁體中文標籤"""
     system_prompt = """你是一個影片內容標籤分類專家。
 根據使用者提供的影片摘要，建議 3 到 5 個簡短的繁體中文標籤。
@@ -310,7 +315,7 @@ def suggest_labels(summary: str) -> List[str]:
         start = raw.find("[")
         end = raw.rfind("]") + 1
         labels = json.loads(raw[start:end])
-        return [str(l).strip() for l in labels if str(l).strip()][:5]
+        return [str(item).strip() for item in labels if str(item).strip()][:5]
     except Exception:
         logger.warning(f"suggest_labels JSON 解析失敗: {raw}")
         return []
@@ -325,7 +330,9 @@ def extract_case_analysis(transcript: str) -> str:
     """
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        transcript_for_gpt = (
+            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+        )
     else:
         transcript_for_gpt = transcript
 

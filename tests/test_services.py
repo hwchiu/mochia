@@ -1,22 +1,25 @@
 """Services 單元測試（mock 外部依賴）"""
+
 import json
-import subprocess
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestAudioExtractor:
     def test_extract_audio_success(self, tmp_path, fake_video_file):
         """FFmpeg 執行成功時回傳音頻路徑"""
-        with patch("app.services.audio_extractor.settings") as mock_settings, \
-             patch("app.services.audio_extractor.subprocess.Popen") as mock_popen:
-
+        with (
+            patch("app.services.audio_extractor.settings") as mock_settings,
+            patch("app.services.audio_extractor.subprocess.Popen") as mock_popen,
+        ):
             audio_dir = tmp_path / "audio_temp"
             audio_dir.mkdir()
             mock_settings.AUDIO_TEMP_DIR = audio_dir
 
             from app.services.audio_extractor import extract_audio
+
             with patch("app.services.audio_extractor.settings", mock_settings):
                 # 模擬 FFmpeg Popen 產生輸出檔案
                 def fake_popen(cmd, **kwargs):
@@ -27,6 +30,7 @@ class TestAudioExtractor:
                     mock_proc.returncode = 0
                     mock_proc.wait.return_value = 0
                     return mock_proc
+
                 mock_popen.side_effect = fake_popen
 
                 result = extract_audio(fake_video_file)
@@ -36,14 +40,16 @@ class TestAudioExtractor:
     def test_extract_audio_file_not_found(self, tmp_path):
         """影片不存在時拋出 FileNotFoundError"""
         from app.services.audio_extractor import extract_audio
+
         with pytest.raises(FileNotFoundError, match="影片檔案不存在"):
             extract_audio(tmp_path / "nonexistent.mp4")
 
     def test_extract_audio_ffmpeg_fails(self, fake_video_file, tmp_path):
         """FFmpeg 失敗時拋出 RuntimeError"""
-        with patch("app.services.audio_extractor.settings") as mock_settings, \
-             patch("app.services.audio_extractor.subprocess.Popen") as mock_popen:
-
+        with (
+            patch("app.services.audio_extractor.settings") as mock_settings,
+            patch("app.services.audio_extractor.subprocess.Popen") as mock_popen,
+        ):
             audio_dir = tmp_path / "audio_temp"
             audio_dir.mkdir()
             mock_settings.AUDIO_TEMP_DIR = audio_dir
@@ -55,6 +61,7 @@ class TestAudioExtractor:
             mock_popen.return_value = mock_proc
 
             from app.services.audio_extractor import extract_audio
+
             with pytest.raises(RuntimeError, match="FFmpeg 提取失敗"):
                 extract_audio(fake_video_file)
 
@@ -63,6 +70,7 @@ class TestAudioExtractor:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="125.5\n")
             from app.services.audio_extractor import get_video_duration
+
             duration = get_video_duration(fake_video_file)
             assert duration == 125.5
 
@@ -71,6 +79,7 @@ class TestAudioExtractor:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stdout="")
             from app.services.audio_extractor import get_video_duration
+
             assert get_video_duration(fake_video_file) is None
 
     def test_cleanup_audio_removes_file(self, tmp_path):
@@ -78,22 +87,25 @@ class TestAudioExtractor:
         f = tmp_path / "temp.mp3"
         f.write_bytes(b"data")
         from app.services.audio_extractor import cleanup_audio
+
         cleanup_audio(f)
         assert not f.exists()
 
     def test_cleanup_audio_missing_file_no_error(self, tmp_path):
         """cleanup_audio 對不存在的檔案不拋出例外"""
         from app.services.audio_extractor import cleanup_audio
+
         cleanup_audio(tmp_path / "not_there.mp3")  # should not raise
 
 
 class TestTranscriber:
     def test_transcribe_success(self, fake_audio_file):
         """Azure Whisper API 成功呼叫時回傳文字"""
-        with patch("app.services.transcriber.settings") as mock_settings, \
-             patch("app.services.transcriber._client", None), \
-             patch("app.services.transcriber.AzureOpenAI") as MockAzureOpenAI:
-
+        with (
+            patch("app.services.transcriber.settings") as mock_settings,
+            patch("app.services.transcriber._client", None),
+            patch("app.services.transcriber.AzureOpenAI") as MockAzureOpenAI,
+        ):
             mock_settings.AZURE_OPENAI_API_KEY = "test-key"
             mock_settings.AZURE_OPENAI_ENDPOINT = "https://test.openai.azure.com/"
             mock_settings.AZURE_OPENAI_API_VERSION = "2024-02-01"
@@ -104,6 +116,7 @@ class TestTranscriber:
             mock_client.audio.transcriptions.create.return_value = "測試逐字稿內容"
 
             from app.services import transcriber
+
             transcriber._client = None  # 強制重新建立 client
 
             with patch.object(transcriber, "_get_client", return_value=mock_client):
@@ -113,13 +126,16 @@ class TestTranscriber:
     def test_transcribe_file_not_found(self, tmp_path):
         """音頻不存在時拋出 FileNotFoundError"""
         from app.services.transcriber import transcribe
+
         with pytest.raises(FileNotFoundError):
             transcribe(tmp_path / "no_audio.mp3")
 
     def test_transcribe_no_api_key(self, fake_audio_file):
         """未設定 API Key 時拋出 ValueError"""
-        with patch("app.services.transcriber.settings") as mock_settings, \
-             patch("app.services.transcriber._client", None):
+        with (
+            patch("app.services.transcriber.settings") as mock_settings,
+            patch("app.services.transcriber._client", None),
+        ):
             mock_settings.AZURE_OPENAI_API_KEY = ""
             mock_settings.AZURE_OPENAI_ENDPOINT = ""
             mock_settings.AZURE_OPENAI_WHISPER_API_KEY = ""
@@ -128,6 +144,7 @@ class TestTranscriber:
             mock_settings.whisper_endpoint = ""
 
             from app.services import transcriber
+
             transcriber._client = None
 
             with pytest.raises(ValueError, match="AZURE_OPENAI_API_KEY"):
@@ -135,7 +152,8 @@ class TestTranscriber:
 
     def test_split_audio_small_file(self, fake_audio_file):
         """小於 24MB 的檔案不切割，直接回傳原路徑"""
-        from app.services.transcriber import _split_audio, WHISPER_MAX_BYTES
+        from app.services.transcriber import _split_audio
+
         # fake_audio_file 很小，不需切割
         result = _split_audio(fake_audio_file)
         assert result == [fake_audio_file]
@@ -148,9 +166,11 @@ class TestTranscriber:
         large_audio = tmp_path / "large.mp3"
         large_audio.write_bytes(b"\x00" * 100)
 
-        with patch("app.services.transcriber.WHISPER_MAX_BYTES", 50), \
-             patch("app.services.transcriber._get_audio_duration", return_value=120.0), \
-             patch("subprocess.run") as mock_run:
+        with (
+            patch("app.services.transcriber.WHISPER_MAX_BYTES", 50),
+            patch("app.services.transcriber._get_audio_duration", return_value=120.0),
+            patch("subprocess.run") as mock_run,
+        ):
 
             def fake_ffmpeg(cmd, **kwargs):
                 # 模擬 FFmpeg 產生 chunk 檔案
@@ -179,11 +199,12 @@ class TestTranscriber:
         mock_client = MagicMock()
         mock_client.audio.transcriptions.create.side_effect = ["第一段文字", "第二段文字"]
 
-        with patch("app.services.transcriber.WHISPER_MAX_BYTES", 50), \
-             patch.object(transcriber, "_split_audio", return_value=[chunk1, chunk2]), \
-             patch.object(transcriber, "_get_client", return_value=mock_client), \
-             patch("app.services.transcriber.settings") as mock_settings:
-
+        with (
+            patch("app.services.transcriber.WHISPER_MAX_BYTES", 50),
+            patch.object(transcriber, "_split_audio", return_value=[chunk1, chunk2]),
+            patch.object(transcriber, "_get_client", return_value=mock_client),
+            patch("app.services.transcriber.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_WHISPER_DEPLOYMENT = "whisper"
             result = transcriber.transcribe(large_audio)
 
@@ -203,17 +224,25 @@ class TestAnalyzer:
 
     def test_analyze_success(self):
         """GPT 回傳正確 JSON 時解析成功"""
-        result_json = json.dumps({
-            "summary": "這是一部占星學入門影片",
-            "key_points": [{"theme": "星座基礎", "points": ["星座介紹", "行星關係"]}, {"theme": "應用技巧", "points": ["實占技巧"]}, {"theme": "其他", "points": ["延伸閱讀"]}],
-            "category": "占星學 (Astrology)",
-            "confidence": 0.88,
-        }, ensure_ascii=False)
+        result_json = json.dumps(
+            {
+                "summary": "這是一部占星學入門影片",
+                "key_points": [
+                    {"theme": "星座基礎", "points": ["星座介紹", "行星關係"]},
+                    {"theme": "應用技巧", "points": ["實占技巧"]},
+                    {"theme": "其他", "points": ["延伸閱讀"]},
+                ],
+                "category": "占星學 (Astrology)",
+                "confidence": 0.88,
+            },
+            ensure_ascii=False,
+        )
 
-        with patch("app.services.analyzer.settings") as mock_settings, \
-             patch("app.services.analyzer._client", None), \
-             patch("app.services.analyzer._get_client") as mock_get:
-
+        with (
+            patch("app.services.analyzer.settings") as mock_settings,
+            patch("app.services.analyzer._client", None),
+            patch("app.services.analyzer._get_client") as mock_get,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_settings.CATEGORIES = ["占星學 (Astrology)", "未分類 (Uncategorized)"]
             mock_settings.MAX_TRANSCRIPT_CHARS = 12000
@@ -223,6 +252,7 @@ class TestAnalyzer:
             mock_client.chat.completions.create.return_value = self._make_mock_response(result_json)
 
             from app.services.analyzer import analyze
+
             summary, key_points, category, confidence = analyze("這是測試逐字稿")
 
             assert summary == "這是一部占星學入門影片"
@@ -232,18 +262,22 @@ class TestAnalyzer:
 
     def test_analyze_with_markdown_code_block(self):
         """GPT 回傳包含 markdown code block 時正確處理"""
-        result_json = json.dumps({
-            "summary": "摘要內容",
-            "key_points": ["重點"],
-            "category": "未分類 (Uncategorized)",
-            "confidence": 0.5,
-        }, ensure_ascii=False)
+        result_json = json.dumps(
+            {
+                "summary": "摘要內容",
+                "key_points": ["重點"],
+                "category": "未分類 (Uncategorized)",
+                "confidence": 0.5,
+            },
+            ensure_ascii=False,
+        )
 
         wrapped = f"```json\n{result_json}\n```"
 
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
-
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_settings.CATEGORIES = ["未分類 (Uncategorized)"]
             mock_settings.MAX_TRANSCRIPT_CHARS = 12000
@@ -253,21 +287,26 @@ class TestAnalyzer:
             mock_client.chat.completions.create.return_value = self._make_mock_response(wrapped)
 
             from app.services.analyzer import analyze
+
             summary, _, category, _ = analyze("測試")
             assert summary == "摘要內容"
 
     def test_analyze_unknown_category_falls_back(self):
         """GPT 回傳未知分類時改用「未分類」"""
-        result_json = json.dumps({
-            "summary": "摘要",
-            "key_points": [],
-            "category": "不存在的分類",
-            "confidence": 0.9,
-        }, ensure_ascii=False)
+        result_json = json.dumps(
+            {
+                "summary": "摘要",
+                "key_points": [],
+                "category": "不存在的分類",
+                "confidence": 0.9,
+            },
+            ensure_ascii=False,
+        )
 
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
-
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_settings.CATEGORIES = ["占星學 (Astrology)", "未分類 (Uncategorized)"]
             mock_settings.MAX_TRANSCRIPT_CHARS = 12000
@@ -277,23 +316,28 @@ class TestAnalyzer:
             mock_client.chat.completions.create.return_value = self._make_mock_response(result_json)
 
             from app.services.analyzer import analyze
+
             _, _, category, confidence = analyze("測試")
             assert category == "未分類 (Uncategorized)"
             assert confidence == 0.0
 
     def test_analyze_truncates_long_transcript(self):
         """逐字稿超長時截斷後送分析"""
-        result_json = json.dumps({
-            "summary": "摘要",
-            "key_points": ["重點"],
-            "category": "未分類 (Uncategorized)",
-            "confidence": 0.5,
-        }, ensure_ascii=False)
+        result_json = json.dumps(
+            {
+                "summary": "摘要",
+                "key_points": ["重點"],
+                "category": "未分類 (Uncategorized)",
+                "confidence": 0.5,
+            },
+            ensure_ascii=False,
+        )
 
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings, \
-             patch("app.services.analyzer.MAX_TRANSCRIPT_CHARS", 100):
-
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+            patch("app.services.analyzer.MAX_TRANSCRIPT_CHARS", 100),
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_settings.CATEGORIES = ["未分類 (Uncategorized)"]
 
@@ -302,6 +346,7 @@ class TestAnalyzer:
             mock_client.chat.completions.create.return_value = self._make_mock_response(result_json)
 
             from app.services.analyzer import analyze
+
             long_text = "A" * 500
             analyze(long_text)
 
@@ -316,6 +361,7 @@ class TestAnalyzer:
 # suggest_labels() 單元測試
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestSuggestLabels:
     def _chat(self, response_text):
         mock_client = MagicMock()
@@ -325,74 +371,93 @@ class TestSuggestLabels:
         return mock_client
 
     def test_suggest_labels_returns_list(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat('["占星學", "命盤解析", "風水"]')
             from app.services.analyzer import suggest_labels
+
             result = suggest_labels("這是一部占星學課程")
         assert isinstance(result, list)
         assert len(result) >= 1
 
     def test_suggest_labels_returns_max_5(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat('["A","B","C","D","E","F","G"]')
             from app.services.analyzer import suggest_labels
+
             result = suggest_labels("摘要")
         assert len(result) <= 5
 
     def test_suggest_labels_json_error_returns_empty(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat("這不是 JSON")
             from app.services.analyzer import suggest_labels
+
             result = suggest_labels("摘要")
         assert result == []
 
     def test_suggest_labels_extracts_json_from_text(self):
         """GPT 有時在 JSON 前後加了說明文字"""
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat('以下是標籤：["風水", "奇門遁甲"]，希望對您有幫助。')
             from app.services.analyzer import suggest_labels
+
             result = suggest_labels("摘要")
         assert "風水" in result
         assert "奇門遁甲" in result
 
     def test_suggest_labels_strips_whitespace(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat('[" 占星學 ", " 風水 "]')
             from app.services.analyzer import suggest_labels
+
             result = suggest_labels("摘要")
         assert all(label == label.strip() for label in result)
 
     def test_suggest_labels_truncates_long_summary(self):
         """超過 1500 字的摘要應截斷"""
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_client = self._chat('["標籤1"]')
             mock_get.return_value = mock_client
             from app.services.analyzer import suggest_labels
+
             long_summary = "長摘要" * 1000
             suggest_labels(long_summary)
         # 驗證被截斷（prompt 不含超長文字）
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args.kwargs.get("messages") or call_args.args[0]
         if isinstance(messages, list):
-            user_text = " ".join(str(m.get("content","")) for m in messages)
+            user_text = " ".join(str(m.get("content", "")) for m in messages)
             assert len(user_text) < len(long_summary)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # extract_case_analysis() 單元測試
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestExtractCaseAnalysis:
     def _chat(self, response_text):
@@ -403,51 +468,66 @@ class TestExtractCaseAnalysis:
         return mock_client
 
     def test_no_case_analysis_returns_empty_string(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat("NO_CASE_ANALYSIS")
             from app.services.analyzer import extract_case_analysis
+
             result = extract_case_analysis("這是沒有案例分析的逐字稿")
         assert result == ""
 
     def test_empty_response_returns_empty_string(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat("")
             from app.services.analyzer import extract_case_analysis
+
             result = extract_case_analysis("逐字稿")
         assert result == ""
 
     def test_whitespace_only_returns_empty(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat("   ")
             from app.services.analyzer import extract_case_analysis
+
             result = extract_case_analysis("逐字稿")
         assert result == ""
 
     def test_with_case_analysis_returns_content(self):
         case_md = "## 案例1\n背景：...\n分析：...\n結論：..."
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat(case_md)
             from app.services.analyzer import extract_case_analysis
+
             result = extract_case_analysis("包含案例的逐字稿")
         assert result == case_md
 
     def test_long_transcript_triggers_truncation(self):
         """超過 MAX_TRANSCRIPT_CHARS 的逐字稿應被截斷送出"""
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings, \
-             patch("app.services.analyzer.MAX_TRANSCRIPT_CHARS", 100):
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+            patch("app.services.analyzer.MAX_TRANSCRIPT_CHARS", 100),
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_client = self._chat("## 案例1\n內容")
             mock_get.return_value = mock_client
             from app.services.analyzer import extract_case_analysis
+
             long_text = "X" * 500
             extract_case_analysis(long_text)
         call_args = mock_client.chat.completions.create.call_args
@@ -456,10 +536,13 @@ class TestExtractCaseAnalysis:
         assert "省略" in user_text
 
     def test_result_is_stripped(self):
-        with patch("app.services.analyzer._get_client") as mock_get, \
-             patch("app.services.analyzer.settings") as mock_settings:
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_get.return_value = self._chat("  ## 案例1\n內容  ")
             from app.services.analyzer import extract_case_analysis
+
             result = extract_case_analysis("逐字稿")
         assert result == result.strip()

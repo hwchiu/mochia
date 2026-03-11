@@ -1,14 +1,14 @@
 """全文搜尋 API — 基於 SQLite FTS5"""
+
 import json
 import logging
 import sqlite3
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db, Video, Summary, Transcript, Classification, VideoLabel, Label
+from app.database import Classification, Label, Summary, Transcript, Video, VideoLabel, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -33,7 +33,7 @@ def rebuild_fts_index(video_id: str, db: Session) -> None:
     kp_text = ""
     if summary_row and summary_row.key_points:
         try:
-            kps = json.loads(summary_row.key_points)
+            kps = json.loads(summary_row.key_points)  # type: ignore[arg-type]
             parts = []
             for kp in kps:
                 if isinstance(kp, dict):
@@ -106,18 +106,20 @@ def search_videos(
     video_ids = [r[0] for r in rows]
     videos = {v.id: v for v in db.query(Video).filter(Video.id.in_(video_ids)).all()}
     classifications = {
-        c.video_id: c for c in
-        db.query(Classification).filter(Classification.video_id.in_(video_ids)).all()
+        c.video_id: c
+        for c in db.query(Classification).filter(Classification.video_id.in_(video_ids)).all()
     }
     # 取得 labels
     vl_rows = db.query(VideoLabel).filter(VideoLabel.video_id.in_(video_ids)).all()
     label_ids = [vl.label_id for vl in vl_rows]
-    labels_map = {l.id: l for l in db.query(Label).filter(Label.id.in_(label_ids)).all()}
+    labels_map = {lbl.id: lbl for lbl in db.query(Label).filter(Label.id.in_(label_ids)).all()}
     video_labels: dict[str, list] = {}
     for vl in vl_rows:
         lbl = labels_map.get(vl.label_id)
         if lbl:
-            video_labels.setdefault(vl.video_id, []).append({"id": lbl.id, "name": lbl.name, "color": lbl.color})
+            video_labels.setdefault(vl.video_id, []).append(  # type: ignore[arg-type]
+                {"id": lbl.id, "name": lbl.name, "color": lbl.color}
+            )
 
     items = []
     for row in rows:
@@ -130,18 +132,24 @@ def search_videos(
         # 選最佳片段展示
         snippet = summary_hl or transcript_snip or kp_snip or ""
 
-        items.append({
-            "id": video.id,
-            "filename": video.original_filename or video.filename,
-            "status": video.status,
-            "category": cls.category if cls else None,
-            "labels": video_labels.get(vid_id, []),
-            "last_reviewed_at": video.last_reviewed_at.isoformat() if video.last_reviewed_at else None,
-            "review_count": video.review_count or 0,
-            "sr_next_review_at": video.sr_next_review_at.isoformat() if video.sr_next_review_at else None,
-            "snippet": snippet,
-            "title_highlight": title_hl,
-        })
+        items.append(
+            {
+                "id": video.id,
+                "filename": video.original_filename or video.filename,
+                "status": video.status,
+                "category": cls.category if cls else None,
+                "labels": video_labels.get(vid_id, []),
+                "last_reviewed_at": video.last_reviewed_at.isoformat()
+                if video.last_reviewed_at
+                else None,
+                "review_count": video.review_count or 0,
+                "sr_next_review_at": video.sr_next_review_at.isoformat()
+                if video.sr_next_review_at
+                else None,
+                "snippet": snippet,
+                "title_highlight": title_hl,
+            }
+        )
 
     return {"query": q, "total": len(items), "items": items}
 
@@ -153,7 +161,7 @@ def reindex_all(db: Session = Depends(get_db)):
     count = 0
     for video in videos:
         try:
-            rebuild_fts_index(video.id, db)
+            rebuild_fts_index(video.id, db)  # type: ignore[arg-type]
             count += 1
         except Exception as e:
             logger.error(f"FTS reindex 失敗 {video.id}: {e}")

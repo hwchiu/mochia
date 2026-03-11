@@ -13,30 +13,33 @@ Video Analyzer CLI
     python cli.py list [--status S]    列出影片
     python cli.py worker               啟動 Worker（等同 python worker.py）
 """
+
 from __future__ import annotations
+
 import argparse
 import sys
 import uuid
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # 確保從專案根目錄執行
 sys.path.insert(0, str(Path(__file__).parent))
 
 from sqlalchemy.orm import Session
-from app.database import SessionLocal, Video, TaskQueue, init_db
+
 from app.config import settings
+from app.database import SessionLocal, TaskQueue, Video, init_db
 from app.services.audio_extractor import get_video_duration
 
-
 # ─────────────────────── Helpers ───────────────────────
+
 
 def _fmt_size(size_bytes: int) -> str:
     if size_bytes < 1024:
         return f"{size_bytes} B"
-    if size_bytes < 1024 ** 2:
+    if size_bytes < 1024**2:
         return f"{size_bytes/1024:.1f} KB"
-    if size_bytes < 1024 ** 3:
+    if size_bytes < 1024**3:
         return f"{size_bytes/1024**2:.1f} MB"
     return f"{size_bytes/1024**3:.2f} GB"
 
@@ -57,6 +60,7 @@ def _get_db() -> Session:
 
 
 # ─────────────────────── Commands ───────────────────────
+
 
 def cmd_scan(args):
     """遞迴掃描目錄，登錄影片到資料庫"""
@@ -102,14 +106,18 @@ def cmd_scan(args):
                 )
                 db.add(video)
                 registered += 1
-                print(f"   ✅ 登錄: {video_file.name} ({_fmt_size(file_size)}, {_fmt_duration(duration)})")
+                print(
+                    f"   ✅ 登錄: {video_file.name} ({_fmt_size(file_size)}, {_fmt_duration(duration)})"
+                )
 
         db.commit()
         print()
         print(f"📊 掃描結果：發現 {found} 支 | 新登錄 {registered} 支 | 跳過 {skipped} 支")
 
         if registered > 0 and not args.no_queue:
-            answer = input(f"\n是否立即將 {registered} 支新影片加入分析佇列？[Y/n] ").strip().lower()
+            answer = (
+                input(f"\n是否立即將 {registered} 支新影片加入分析佇列？[Y/n] ").strip().lower()
+            )
             if answer in ("", "y", "yes"):
                 cmd_queue_all_videos(db, source="local_scan")
     finally:
@@ -125,10 +133,14 @@ def cmd_queue_all_videos(db: Session, source: str | None = None):
 
     queued = 0
     for video in videos:
-        existing = db.query(TaskQueue).filter(
-            TaskQueue.video_id == video.id,
-            TaskQueue.status.in_(["pending", "processing"]),
-        ).first()
+        existing = (
+            db.query(TaskQueue)
+            .filter(
+                TaskQueue.video_id == video.id,
+                TaskQueue.status.in_(["pending", "processing"]),
+            )
+            .first()
+        )
         if existing:
             continue
         task = TaskQueue(
@@ -162,10 +174,14 @@ def cmd_queue(args):
             print(f"❌ 影片不存在: {args.video_id}")
             sys.exit(1)
 
-        existing = db.query(TaskQueue).filter(
-            TaskQueue.video_id == args.video_id,
-            TaskQueue.status.in_(["pending", "processing"]),
-        ).first()
+        existing = (
+            db.query(TaskQueue)
+            .filter(
+                TaskQueue.video_id == args.video_id,
+                TaskQueue.status.in_(["pending", "processing"]),
+            )
+            .first()
+        )
         if existing:
             print(f"⚠ 影片已在佇列中 (task_id={existing.id})")
             return
@@ -193,8 +209,13 @@ def cmd_status(args):
         print("=" * 50)
         for status in ["pending", "queued", "processing", "completed", "failed"]:
             count = db.query(Video).filter(Video.status == status).count()
-            icon = {"pending": "⏳", "queued": "📋", "processing": "⚙️",
-                    "completed": "✅", "failed": "❌"}.get(status, "•")
+            icon = {
+                "pending": "⏳",
+                "queued": "📋",
+                "processing": "⚙️",
+                "completed": "✅",
+                "failed": "❌",
+            }.get(status, "•")
             print(f"  {icon} {status:<12}: {count:>5} 支")
 
         total = db.query(Video).count()
@@ -279,10 +300,12 @@ def cmd_retry(args):
 def cmd_worker(args):
     """啟動 Worker"""
     from worker import run_worker
+
     run_worker()
 
 
 # ─────────────────────── Argument Parser ───────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(

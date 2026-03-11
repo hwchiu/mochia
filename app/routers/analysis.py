@@ -1,20 +1,22 @@
 """分析狀態與結果查詢 API"""
+
 import json
-import uuid
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Video, TaskQueue, Transcript, Summary, Classification, ChatMessage
+from app.database import ChatMessage, Classification, Summary, TaskQueue, Transcript, Video, get_db
 from app.services.analyzer import (
     analyze,
     ask_question,
     extract_case_analysis,
     generate_faq,
     generate_mindmap,
-    generate_study_notes,
+)
+from app.services.analyzer import (
     suggest_labels as _suggest_labels,
 )
 
@@ -33,10 +35,14 @@ def queue_video(video_id: str, priority: int = 5, db: Session = Depends(get_db))
     if not video:
         raise HTTPException(404, "影片不存在")
 
-    existing = db.query(TaskQueue).filter(
-        TaskQueue.video_id == video_id,
-        TaskQueue.status.in_(["pending", "processing"]),
-    ).first()
+    existing = (
+        db.query(TaskQueue)
+        .filter(
+            TaskQueue.video_id == video_id,
+            TaskQueue.status.in_(["pending", "processing"]),
+        )
+        .first()
+    )
     if existing:
         return {"message": "已在佇列中", "task_id": existing.id}
 
@@ -47,7 +53,7 @@ def queue_video(video_id: str, priority: int = 5, db: Session = Depends(get_db))
         status="pending",
     )
     db.add(task)
-    video.status = "queued"
+    video.status = "queued"  # type: ignore[assignment]
     db.commit()
     return {"message": "已加入佇列", "task_id": task.id}
 
@@ -60,17 +66,22 @@ def retry_video(video_id: str, db: Session = Depends(get_db)):
         raise HTTPException(404, "影片不存在")
 
     # 找到最新的失敗任務，重設它
-    task = db.query(TaskQueue).filter(
-        TaskQueue.video_id == video_id,
-        TaskQueue.status == "failed",
-    ).order_by(TaskQueue.created_at.desc()).first()
+    task = (
+        db.query(TaskQueue)
+        .filter(
+            TaskQueue.video_id == video_id,
+            TaskQueue.status == "failed",
+        )
+        .order_by(TaskQueue.created_at.desc())
+        .first()
+    )
 
     if task:
-        task.status = "pending"
-        task.retry_count = 0
-        task.error_message = None
-        task.started_at = None
-        task.completed_at = None
+        task.status = "pending"  # type: ignore[assignment]
+        task.retry_count = 0  # type: ignore[assignment]
+        task.error_message = None  # type: ignore[assignment]
+        task.started_at = None  # type: ignore[assignment]
+        task.completed_at = None  # type: ignore[assignment]
     else:
         # 沒有失敗任務就建立新的
         task = TaskQueue(
@@ -81,11 +92,11 @@ def retry_video(video_id: str, db: Session = Depends(get_db)):
         )
         db.add(task)
 
-    video.status = "queued"
-    video.error_message = None
-    video.progress_step = 0
-    video.progress_message = None
-    video.progress_sub = 0
+    video.status = "queued"  # type: ignore[assignment]
+    video.error_message = None  # type: ignore[assignment]
+    video.progress_step = 0  # type: ignore[assignment]
+    video.progress_message = None  # type: ignore[assignment]
+    video.progress_sub = 0  # type: ignore[assignment]
     db.commit()
     return {"message": "已重新加入佇列", "task_id": task.id}
 
@@ -125,7 +136,7 @@ def get_status(video_id: str, db: Session = Depends(get_db)):
         "progress": {
             "step": step,
             "total_steps": 4,
-            "step_name": step_names.get(step, "等待中"),
+            "step_name": step_names.get(step, "等待中"),  # type: ignore[arg-type]
             "message": video.progress_message or "",
             "percent": int(step / 4 * 100),
             "sub_percent": video.progress_sub or 0,
@@ -138,7 +149,9 @@ def get_status(video_id: str, db: Session = Depends(get_db)):
             "created_at": task.created_at.isoformat() if task.created_at else None,
             "started_at": task.started_at.isoformat() if task.started_at else None,
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-        } if task else None,
+        }
+        if task
+        else None,
     }
 
 
@@ -159,7 +172,7 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
         "video_id": video_id,
         "transcript": transcript.content if transcript else None,
         "summary": summary.summary if summary else None,
-        "key_points": json.loads(summary.key_points) if summary and summary.key_points else [],
+        "key_points": json.loads(summary.key_points) if summary and summary.key_points else [],  # type: ignore[arg-type]
         "category": classification.category if classification else None,
         "confidence": classification.confidence if classification else None,
         "case_analysis": summary.case_analysis if summary else None,
@@ -191,7 +204,7 @@ def get_faq(video_id: str, db: Session = Depends(get_db)):
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if not summary or summary.faq is None:
         raise HTTPException(404, "尚未生成")
-    return {"video_id": video_id, "faq": json.loads(summary.faq)}
+    return {"video_id": video_id, "faq": json.loads(summary.faq)}  # type: ignore[arg-type]
 
 
 @router.get("/{video_id}/study-notes")
@@ -233,22 +246,26 @@ def ask_video_question(video_id: str, req: AskRequest, db: Session = Depends(get
     )
     chat_history = [{"role": m.role, "content": m.content} for m in history_records[-10:]]
 
-    answer = ask_question(transcript.content, question, chat_history)
+    answer = ask_question(transcript.content, question, chat_history)  # type: ignore[arg-type]
 
     # Save user message
-    db.add(ChatMessage(
-        id=uuid.uuid4().hex,
-        video_id=video_id,
-        role="user",
-        content=question,
-    ))
+    db.add(
+        ChatMessage(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            role="user",
+            content=question,
+        )
+    )
     # Save assistant response
-    db.add(ChatMessage(
-        id=uuid.uuid4().hex,
-        video_id=video_id,
-        role="assistant",
-        content=answer,
-    ))
+    db.add(
+        ChatMessage(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            role="assistant",
+            content=answer,
+        )
+    )
     db.commit()
 
     return {"answer": answer}
@@ -312,13 +329,13 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
         raise HTTPException(404, "摘要記錄不存在")
 
     if content_type == "mindmap":
-        result = generate_mindmap(transcript.content)
-        summary.mindmap = result
+        result = generate_mindmap(transcript.content)  # type: ignore[arg-type]
+        summary.mindmap = result  # type: ignore[assignment]
         db.commit()
         return {"video_id": video_id, "mindmap": result}
     elif content_type == "faq":
-        result = generate_faq(transcript.content)
-        summary.faq = json.dumps(result, ensure_ascii=False)
+        result = generate_faq(transcript.content)  # type: ignore[arg-type,assignment]
+        summary.faq = json.dumps(result, ensure_ascii=False)  # type: ignore[assignment]
         db.commit()
         return {"video_id": video_id, "faq": result}
 
@@ -334,36 +351,40 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     if not transcript or not transcript.content:
         raise HTTPException(409, "逐字稿不存在，請先完成語音辨識")
 
-    summary_text, key_points, category, confidence = analyze(transcript.content)
-    case_analysis_text = extract_case_analysis(transcript.content)
+    summary_text, key_points, category, confidence = analyze(transcript.content)  # type: ignore[arg-type]
+    case_analysis_text = extract_case_analysis(transcript.content)  # type: ignore[arg-type]
 
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if summary:
-        summary.summary = summary_text
-        summary.key_points = json.dumps(key_points, ensure_ascii=False)
-        summary.case_analysis = case_analysis_text or None
+        summary.summary = summary_text  # type: ignore[assignment]
+        summary.key_points = json.dumps(key_points, ensure_ascii=False)  # type: ignore[assignment]
+        summary.case_analysis = case_analysis_text or None  # type: ignore[assignment]
     else:
-        db.add(Summary(
-            id=uuid.uuid4().hex,
-            video_id=video_id,
-            summary=summary_text,
-            key_points=json.dumps(key_points, ensure_ascii=False),
-            case_analysis=case_analysis_text or None,
-        ))
+        db.add(
+            Summary(
+                id=uuid.uuid4().hex,
+                video_id=video_id,
+                summary=summary_text,
+                key_points=json.dumps(key_points, ensure_ascii=False),
+                case_analysis=case_analysis_text or None,
+            )
+        )
 
     existing_cls = db.query(Classification).filter(Classification.video_id == video_id).first()
     if existing_cls:
-        existing_cls.category = category
-        existing_cls.confidence = confidence
+        existing_cls.category = category  # type: ignore[assignment]
+        existing_cls.confidence = confidence  # type: ignore[assignment]
     else:
-        db.add(Classification(
-            id=uuid.uuid4().hex,
-            video_id=video_id,
-            category=category,
-            confidence=confidence,
-        ))
+        db.add(
+            Classification(
+                id=uuid.uuid4().hex,
+                video_id=video_id,
+                category=category,
+                confidence=confidence,
+            )
+        )
 
-    video.status = "completed"
+    video.status = "completed"  # type: ignore[assignment]
     db.commit()
     return {
         "message": "重新分析完成",
@@ -386,7 +407,7 @@ def suggest_labels(video_id: str, db: Session = Depends(get_db)):
     if not summary or not summary.summary:
         raise HTTPException(409, "尚無摘要，請先完成分析")
 
-    labels = _suggest_labels(summary.summary)
+    labels = _suggest_labels(summary.summary)  # type: ignore[arg-type]
     return {"video_id": video_id, "suggestions": labels}
 
 
@@ -403,4 +424,3 @@ def get_case_analysis(video_id: str, db: Session = Depends(get_db)):
         "video_id": video_id,
         "case_analysis": summary.case_analysis if summary else None,
     }
-

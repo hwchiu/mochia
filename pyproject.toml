@@ -46,6 +46,10 @@ known-first-party = ["app"]
 exclude_dirs = ["tests", "venv"]
 skips = [
     "B101",  # assert statements (fine in tests)
+    "B104",  # hardcoded bind all interfaces (0.0.0.0 is intentional for containerized deployments)
+    "B110",  # try/except/pass (intentional for JSON parse fallback)
+    "B404",  # subprocess import (intentional for ffmpeg/osascript usage)
+    "B602",  # subprocess with shell=True (Windows-only open command, intentional)
     "B603",  # subprocess without shell=True is safe
     "B607",  # partial executable path (osascript is macOS-only, known safe)
 ]

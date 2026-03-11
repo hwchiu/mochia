@@ -1,15 +1,15 @@
 """複習系統 API — SM-2 間隔重複排程"""
+
 import json
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Video, ReviewRecord, Summary, Classification, VideoLabel, Label
+from app.database import Classification, Label, ReviewRecord, Summary, Video, VideoLabel, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/review", tags=["review"])
@@ -31,26 +31,26 @@ def _sm2_update(video: Video, confidence: int) -> None:
 
     if quality < 2:
         # 答錯或非常困難 → 重置
-        video.sr_repetitions = 0
-        video.sr_interval = 1
+        video.sr_repetitions = 0  # type: ignore[assignment]
+        video.sr_interval = 1  # type: ignore[assignment]
     else:
         # 正確回答
         if video.sr_repetitions == 0:
-            video.sr_interval = 1
+            video.sr_interval = 1  # type: ignore[assignment]
         elif video.sr_repetitions == 1:
-            video.sr_interval = 6
+            video.sr_interval = 6  # type: ignore[assignment]
         else:
-            video.sr_interval = round((video.sr_interval or 1) * (video.sr_ease_factor or 2.5))
-        video.sr_repetitions = (video.sr_repetitions or 0) + 1
+            video.sr_interval = round((video.sr_interval or 1) * (video.sr_ease_factor or 2.5))  # type: ignore[assignment,arg-type]
+        video.sr_repetitions = (video.sr_repetitions or 0) + 1  # type: ignore[assignment]
 
     # 更新易難係數 EF
     ef = (video.sr_ease_factor or 2.5) + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-    video.sr_ease_factor = max(1.3, ef)
+    video.sr_ease_factor = max(1.3, ef)  # type: ignore[assignment,type-var]
 
     # 下次複習時間
-    video.sr_next_review_at = datetime.utcnow() + timedelta(days=video.sr_interval)
-    video.last_reviewed_at = datetime.utcnow()
-    video.review_count = (video.review_count or 0) + 1
+    video.sr_next_review_at = datetime.utcnow() + timedelta(days=video.sr_interval)  # type: ignore[assignment,arg-type]
+    video.last_reviewed_at = datetime.utcnow()  # type: ignore[assignment]
+    video.review_count = (video.review_count or 0) + 1  # type: ignore[assignment]
 
 
 def _video_to_review_item(video: Video, db: Session) -> dict:
@@ -61,7 +61,7 @@ def _video_to_review_item(video: Video, db: Session) -> dict:
     labels = []
     if label_ids:
         lbls = db.query(Label).filter(Label.id.in_(label_ids)).all()
-        labels = [{"id": l.id, "name": l.name, "color": l.color} for l in lbls]
+        labels = [{"id": lbl.id, "name": lbl.name, "color": lbl.color} for lbl in lbls]
 
     return {
         "id": video.id,
@@ -69,10 +69,14 @@ def _video_to_review_item(video: Video, db: Session) -> dict:
         "category": cls.category if cls else None,
         "labels": labels,
         "summary_preview": (summary.summary or "")[:200] if summary else "",
-        "key_points_count": len(json.loads(summary.key_points or "[]")) if summary and summary.key_points else 0,
+        "key_points_count": len(json.loads(summary.key_points or "[]"))  # type: ignore[arg-type]
+        if summary and summary.key_points
+        else 0,
         "review_count": video.review_count or 0,
         "last_reviewed_at": video.last_reviewed_at.isoformat() if video.last_reviewed_at else None,
-        "sr_next_review_at": video.sr_next_review_at.isoformat() if video.sr_next_review_at else None,
+        "sr_next_review_at": video.sr_next_review_at.isoformat()
+        if video.sr_next_review_at
+        else None,
         "sr_interval": video.sr_interval or 1,
         "sr_ease_factor": round(video.sr_ease_factor or 2.5, 2),
         "sr_repetitions": video.sr_repetitions or 0,
@@ -185,7 +189,9 @@ def get_review_history(
         "review_count": video.review_count or 0,
         "sr_interval": video.sr_interval,
         "sr_ease_factor": round(video.sr_ease_factor or 2.5, 2),
-        "sr_next_review_at": video.sr_next_review_at.isoformat() if video.sr_next_review_at else None,
+        "sr_next_review_at": video.sr_next_review_at.isoformat()
+        if video.sr_next_review_at
+        else None,
         "records": [
             {
                 "id": r.id,
@@ -200,13 +206,10 @@ def get_review_history(
 @router.get("/stats")
 def get_review_stats(db: Session = Depends(get_db)):
     """全局複習統計"""
-    from sqlalchemy import func
 
     total_completed = db.query(Video).filter(Video.status == "completed").count()
     reviewed_at_least_once = (
-        db.query(Video)
-        .filter(Video.status == "completed", Video.review_count > 0)
-        .count()
+        db.query(Video).filter(Video.status == "completed", Video.review_count > 0).count()
     )
     never_reviewed = total_completed - reviewed_at_least_once
 
@@ -222,11 +225,7 @@ def get_review_stats(db: Session = Depends(get_db)):
 
     # 今日已複習
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    reviewed_today = (
-        db.query(ReviewRecord)
-        .filter(ReviewRecord.reviewed_at >= today_start)
-        .count()
-    )
+    reviewed_today = db.query(ReviewRecord).filter(ReviewRecord.reviewed_at >= today_start).count()
 
     # 近7天每天複習數量
     daily = []

@@ -1,0 +1,56 @@
+# ============================================================
+#  docker-compose.yml — Video Analyzer
+#
+#  使用方式：
+#    啟動：  docker compose up -d
+#    停止：  docker compose down
+#    日誌：  docker compose logs -f worker
+#    CLI：   docker compose exec web python cli.py scan /videos
+#
+#  影片掛載（必須）：
+#    在 .env 設定 VIDEO_DIR=/path/to/your/videos
+#    或直接修改下方 volumes 的 ${VIDEO_DIR} 路徑
+# ============================================================
+services:
+  web:
+    build: .
+    image: mochia:latest
+    container_name: mochia-web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - mochia-data:/app/data
+      - mochia-uploads:/app/uploads
+      - mochia-logs:/app/logs
+      # 本地影片目錄（唯讀掛載，供掃描與串流播放）
+      # 若不需要，可刪除這行
+      - ${VIDEO_DIR:-/tmp/videos}:/videos:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - worker
+
+  worker:
+    image: mochia:latest
+    container_name: mochia-worker
+    restart: unless-stopped
+    command: python worker.py
+    env_file:
+      - .env
+    volumes:
+      - mochia-data:/app/data
+      - mochia-uploads:/app/uploads
+      - mochia-logs:/app/logs
+      - ${VIDEO_DIR:-/tmp/videos}:/videos:ro
+
+volumes:
+  mochia-data:
+  mochia-uploads:
+  mochia-logs:

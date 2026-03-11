@@ -1,17 +1,17 @@
 """影片管理 API：列表、詳情、刪除、單筆加入佇列"""
-import uuid
-import shutil
-import logging
-import subprocess
-from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
-from fastapi.responses import FileResponse, StreamingResponse
+import logging
+import shutil
+import subprocess
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Video, TaskQueue, Label, VideoLabel
 from app.config import settings
+from app.database import Label, TaskQueue, Video, VideoLabel, get_db
 from app.services.audio_extractor import get_video_duration
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def _video_to_dict(v: Video) -> dict:
 @router.post("/upload")
 async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """上傳影片檔案"""
-    ext = Path(file.filename).suffix.lower()
+    ext = Path(file.filename).suffix.lower()  # type: ignore[arg-type]
     if ext not in settings.SUPPORTED_VIDEO_EXTENSIONS:
         raise HTTPException(400, f"不支援的檔案格式: {ext}")
 
@@ -75,9 +75,9 @@ async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_d
 
 @router.get("/")
 def list_videos(
-    status: Optional[str] = None,
-    source: Optional[str] = None,
-    labels: Optional[str] = None,   # comma-separated label names, AND logic
+    status: str | None = None,
+    source: str | None = None,
+    labels: str | None = None,  # comma-separated label names, AND logic
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
@@ -94,7 +94,7 @@ def list_videos(
             lbl = db.query(Label).filter(Label.name == name).first()
             if lbl:
                 sub = db.query(VideoLabel.video_id).filter(VideoLabel.label_id == lbl.id).subquery()
-                query = query.filter(Video.id.in_(sub))
+                query = query.filter(Video.id.in_(sub))  # type: ignore[arg-type]
             else:
                 # 如果標籤不存在，沒有影片能匹配
                 query = query.filter(Video.id == None)  # noqa: E711
@@ -199,6 +199,7 @@ def open_local_player(video_id: str, db: Session = Depends(get_db)):
     macOS: open, Linux: xdg-open。
     """
     import platform
+
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(404, "影片不存在")
@@ -217,6 +218,6 @@ def open_local_player(video_id: str, db: Session = Depends(get_db)):
         else:
             raise HTTPException(400, f"不支援的作業系統：{system}")
     except FileNotFoundError as e:
-        raise HTTPException(500, f"無法開啟播放器：{e}")
+        raise HTTPException(500, f"無法開啟播放器：{e}") from e
 
     return {"message": "已傳送開啟指令"}

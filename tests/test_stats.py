@@ -1,21 +1,24 @@
 """
 學習統計儀表板 API 測試
 """
-import uuid
-import pytest
-from datetime import datetime, timedelta
-from app.database import Video, ReviewRecord, Classification, Label, VideoLabel
 
+import uuid
+from datetime import datetime, timedelta
+
+from app.database import ReviewRecord, Video, VideoLabel
 
 # ─── 測試輔助 ─────────────────────────────────────────────────────────────────
 
+
 def _add_review(db_session, video_id: str, confidence: int, days_ago: int = 0):
-    db_session.add(ReviewRecord(
-        id=uuid.uuid4().hex,
-        video_id=video_id,
-        confidence=confidence,
-        reviewed_at=datetime.utcnow() - timedelta(days=days_ago),
-    ))
+    db_session.add(
+        ReviewRecord(
+            id=uuid.uuid4().hex,
+            video_id=video_id,
+            confidence=confidence,
+            reviewed_at=datetime.utcnow() - timedelta(days=days_ago),
+        )
+    )
     db_session.commit()
 
 
@@ -23,15 +26,24 @@ def _add_review(db_session, video_id: str, confidence: int, days_ago: int = 0):
 # GET /api/stats/overview
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestStatsOverview:
     def test_overview_structure(self, client):
         r = client.get("/api/stats/overview")
         assert r.status_code == 200
         data = r.json()
         for key in [
-            "total_videos", "completed", "pending", "failed",
-            "reviewed", "never_reviewed", "due_today", "reviewed_today",
-            "total_review_sessions", "category_distribution", "label_stats",
+            "total_videos",
+            "completed",
+            "pending",
+            "failed",
+            "reviewed",
+            "never_reviewed",
+            "due_today",
+            "reviewed_today",
+            "total_review_sessions",
+            "category_distribution",
+            "label_stats",
         ]:
             assert key in data, f"Missing key: {key}"
 
@@ -63,22 +75,36 @@ class TestStatsOverview:
         data = client.get("/api/stats/overview").json()
         assert isinstance(data["category_distribution"], dict)
 
-    def test_overview_label_stats_with_labels(self, client, db_session, completed_video, sample_label):
-        db_session.add(VideoLabel(
-            id=uuid.uuid4().hex,
-            video_id=completed_video.id,
-            label_id=sample_label.id,
-        ))
+    def test_overview_label_stats_with_labels(
+        self, client, db_session, completed_video, sample_label
+    ):
+        db_session.add(
+            VideoLabel(
+                id=uuid.uuid4().hex,
+                video_id=completed_video.id,
+                label_id=sample_label.id,
+            )
+        )
         db_session.commit()
         data = client.get("/api/stats/overview").json()
-        label_entry = next((l for l in data["label_stats"] if l["id"] == sample_label.id), None)
+        label_entry = next(
+            (entry for entry in data["label_stats"] if entry["id"] == sample_label.id), None
+        )
         assert label_entry is not None
         assert label_entry["count"] == 1
 
     def test_overview_all_counts_non_negative(self, client, completed_video):
         data = client.get("/api/stats/overview").json()
-        for key in ["total_videos", "completed", "pending", "failed",
-                    "reviewed", "never_reviewed", "due_today", "reviewed_today"]:
+        for key in [
+            "total_videos",
+            "completed",
+            "pending",
+            "failed",
+            "reviewed",
+            "never_reviewed",
+            "due_today",
+            "reviewed_today",
+        ]:
             assert data[key] >= 0, f"{key} is negative"
 
     def test_overview_reviewed_plus_never_equals_completed(self, client, completed_video):
@@ -94,6 +120,7 @@ class TestStatsOverview:
 # ═══════════════════════════════════════════════════════════════════════════════
 # GET /api/stats/daily
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestStatsDaily:
     def test_daily_default_30_days(self, client):
@@ -146,6 +173,7 @@ class TestStatsDaily:
 # GET /api/stats/confidence
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestStatsConfidence:
     def test_confidence_structure(self, client):
         r = client.get("/api/stats/confidence")
@@ -190,6 +218,7 @@ class TestStatsConfidence:
 # GET /api/stats/top-reviewed
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestStatsTopReviewed:
     def test_top_reviewed_empty_when_no_reviews(self, client):
         r = client.get("/api/stats/top-reviewed")
@@ -205,11 +234,16 @@ class TestStatsTopReviewed:
 
     def test_top_reviewed_sorted_descending(self, client, db_session):
         for count in [3, 7, 1]:
-            db_session.add(Video(
-                id=uuid.uuid4().hex, filename=f"v{count}.mp4",
-                original_filename=f"v{count}.mp4", file_size=100,
-                status="completed", review_count=count,
-            ))
+            db_session.add(
+                Video(
+                    id=uuid.uuid4().hex,
+                    filename=f"v{count}.mp4",
+                    original_filename=f"v{count}.mp4",
+                    file_size=100,
+                    status="completed",
+                    review_count=count,
+                )
+            )
         db_session.commit()
         r = client.get("/api/stats/top-reviewed")
         items = r.json()["items"]
@@ -218,11 +252,16 @@ class TestStatsTopReviewed:
 
     def test_top_reviewed_limit_respected(self, client, db_session):
         for i in range(15):
-            db_session.add(Video(
-                id=uuid.uuid4().hex, filename=f"top{i}.mp4",
-                original_filename=f"top{i}.mp4", file_size=100,
-                status="completed", review_count=i + 1,
-            ))
+            db_session.add(
+                Video(
+                    id=uuid.uuid4().hex,
+                    filename=f"top{i}.mp4",
+                    original_filename=f"top{i}.mp4",
+                    file_size=100,
+                    status="completed",
+                    review_count=i + 1,
+                )
+            )
         db_session.commit()
         r = client.get("/api/stats/top-reviewed?limit=5")
         assert len(r.json()["items"]) <= 5

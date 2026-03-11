@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.database import init_db
-from app.routers import videos, analysis, batch, labels, search, review, notes, stats
+from app.routers import analysis, batch, labels, notes, review, search, stats, videos
 
 
 def create_app() -> FastAPI:
@@ -48,8 +48,11 @@ def create_app() -> FastAPI:
     async def video_detail(request: Request, video_id: str):
         return templates.TemplateResponse("detail.html", {"request": request, "video_id": video_id})
 
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
     return app
 
 
 app = create_app()
-

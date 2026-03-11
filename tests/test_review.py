@@ -1,19 +1,17 @@
 """
 複習系統測試 — SM-2 間隔重複算法 + Review API
 """
-import json
+
 import uuid
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import patch
 
-from app.database import Video, ReviewRecord, Summary, Classification
+from app.database import ReviewRecord, Video
 from app.routers.review import _sm2_update
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SM-2 算法單元測試
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestSM2Algorithm:
     """測試 SM-2 間隔重複算法邏輯"""
@@ -126,6 +124,7 @@ class TestSM2Algorithm:
 # Review API 端點測試
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestMarkReviewed:
     def test_mark_reviewed_success(self, client, completed_video):
         vid_id = completed_video.id
@@ -202,11 +201,16 @@ class TestGetDueReviews:
 
     def test_due_respects_limit(self, client, db_session):
         for i in range(5):
-            db_session.add(Video(
-                id=uuid.uuid4().hex, filename=f"v{i}.mp4",
-                original_filename=f"v{i}.mp4", file_size=100,
-                status="completed", sr_next_review_at=None,
-            ))
+            db_session.add(
+                Video(
+                    id=uuid.uuid4().hex,
+                    filename=f"v{i}.mp4",
+                    original_filename=f"v{i}.mp4",
+                    file_size=100,
+                    status="completed",
+                    sr_next_review_at=None,
+                )
+            )
         db_session.commit()
         r = client.get("/api/review/due?limit=3")
         assert len(r.json()["items"]) <= 3
@@ -292,8 +296,14 @@ class TestReviewStats:
         r = client.get("/api/review/stats")
         assert r.status_code == 200
         data = r.json()
-        for key in ["total_completed", "reviewed_at_least_once", "never_reviewed",
-                    "due_today", "reviewed_today", "daily_review_counts"]:
+        for key in [
+            "total_completed",
+            "reviewed_at_least_once",
+            "never_reviewed",
+            "due_today",
+            "reviewed_today",
+            "daily_review_counts",
+        ]:
             assert key in data
 
     def test_stats_counts_never_reviewed(self, client, completed_video):
@@ -314,6 +324,11 @@ class TestReviewStats:
 
     def test_stats_all_counts_non_negative(self, client):
         data = client.get("/api/review/stats").json()
-        for key in ["total_completed", "reviewed_at_least_once", "never_reviewed",
-                    "due_today", "reviewed_today"]:
+        for key in [
+            "total_completed",
+            "reviewed_at_least_once",
+            "never_reviewed",
+            "due_today",
+            "reviewed_today",
+        ]:
             assert data[key] >= 0

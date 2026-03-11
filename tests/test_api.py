@@ -1,12 +1,13 @@
 """API 端點整合測試"""
+
 import uuid
-import json
+
 import pytest
 
-from app.database import Video, TaskQueue
-
+from app.database import TaskQueue, Video
 
 # ─────────────────────── Videos API ───────────────────────
+
 
 class TestVideosAPI:
     def test_list_videos_empty(self, client):
@@ -38,14 +39,16 @@ class TestVideosAPI:
 
     def test_list_videos_pagination(self, client, db_session):
         for i in range(5):
-            db_session.add(Video(
-                id=uuid.uuid4().hex,
-                filename=f"vid{i}.mp4",
-                original_filename=f"vid{i}.mp4",
-                file_path=f"/p/vid{i}.mp4",
-                source="local_scan",
-                file_size=100,
-            ))
+            db_session.add(
+                Video(
+                    id=uuid.uuid4().hex,
+                    filename=f"vid{i}.mp4",
+                    original_filename=f"vid{i}.mp4",
+                    file_path=f"/p/vid{i}.mp4",
+                    source="local_scan",
+                    file_size=100,
+                )
+            )
         db_session.commit()
 
         r = client.get("/api/videos/?limit=3&skip=0")
@@ -90,6 +93,7 @@ class TestVideosAPI:
 
 
 # ─────────────────────── Analysis API ───────────────────────
+
 
 class TestAnalysisAPI:
     def test_queue_video(self, client, sample_video):
@@ -146,6 +150,7 @@ class TestAnalysisAPI:
 
 
 # ─────────────────────── Batch API ───────────────────────
+
 
 class TestBatchAPI:
     def test_batch_status_empty(self, client):
@@ -220,15 +225,17 @@ class TestBatchAPI:
     def test_queue_all_pending(self, client, db_session):
         """queue-all 將所有 pending 影片加入佇列"""
         for i in range(3):
-            db_session.add(Video(
-                id=uuid.uuid4().hex,
-                filename=f"v{i}.mp4",
-                original_filename=f"v{i}.mp4",
-                file_path=f"/p/v{i}.mp4",
-                source="local_scan",
-                file_size=100,
-                status="pending",
-            ))
+            db_session.add(
+                Video(
+                    id=uuid.uuid4().hex,
+                    filename=f"v{i}.mp4",
+                    original_filename=f"v{i}.mp4",
+                    file_path=f"/p/v{i}.mp4",
+                    source="local_scan",
+                    file_size=100,
+                    status="pending",
+                )
+            )
         db_session.commit()
 
         r = client.post("/api/batch/queue-all")
@@ -242,8 +249,15 @@ class TestBatchAPI:
 
     def test_cancel_all(self, client, db_session):
         """cancel-all 取消所有 pending 任務"""
-        vid = Video(id=uuid.uuid4().hex, filename="x.mp4", original_filename="x.mp4",
-                    file_path="/p/x.mp4", source="local_scan", file_size=100, status="queued")
+        vid = Video(
+            id=uuid.uuid4().hex,
+            filename="x.mp4",
+            original_filename="x.mp4",
+            file_path="/p/x.mp4",
+            source="local_scan",
+            file_size=100,
+            status="queued",
+        )
         db_session.add(vid)
         db_session.commit()
         task = TaskQueue(id=uuid.uuid4().hex, video_id=vid.id, status="pending")
@@ -256,13 +270,25 @@ class TestBatchAPI:
 
     def test_retry_failed(self, client, db_session):
         """retry-failed 重設失敗任務"""
-        vid = Video(id=uuid.uuid4().hex, filename="fail.mp4", original_filename="fail.mp4",
-                    file_path="/p/fail.mp4", source="local_scan", file_size=100, status="failed",
-                    error_message="some error")
+        vid = Video(
+            id=uuid.uuid4().hex,
+            filename="fail.mp4",
+            original_filename="fail.mp4",
+            file_path="/p/fail.mp4",
+            source="local_scan",
+            file_size=100,
+            status="failed",
+            error_message="some error",
+        )
         db_session.add(vid)
         db_session.commit()
-        task = TaskQueue(id=uuid.uuid4().hex, video_id=vid.id, status="failed",
-                         retry_count=3, error_message="some error")
+        task = TaskQueue(
+            id=uuid.uuid4().hex,
+            video_id=vid.id,
+            status="failed",
+            retry_count=3,
+            error_message="some error",
+        )
         db_session.add(task)
         db_session.commit()
 
@@ -279,6 +305,7 @@ class TestBatchAPI:
 
 
 # ─────────────────────── Pages ───────────────────────
+
 
 class TestPages:
     def test_index_page(self, client):

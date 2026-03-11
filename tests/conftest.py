@@ -3,22 +3,32 @@
 - 使用獨立的 in-memory SQLite，避免污染開發資料庫
 - 每個測試函數都獲得乾淨的資料庫狀態
 """
-import pytest
-import uuid
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-from datetime import datetime
 
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.database import Base, get_db, Video, TaskQueue, Transcript, Summary, Classification, ChatMessage
-
+from app.database import (
+    Base,
+    ChatMessage,
+    Classification,
+    Label,
+    Summary,
+    Transcript,
+    Video,
+    VideoNote,
+    get_db,
+)
 
 # ─── 測試用 In-memory DB ───────────────────────────────────────
 # StaticPool：所有連線共用同一個 SQLite in-memory 連線，避免每次連線都是空的 DB
+
 
 @pytest.fixture(scope="function")
 def db_engine():
@@ -43,6 +53,7 @@ def db_session(db_engine):
 
 class _NonClosingSession:
     """包裝 Session，避免 CLI finally 塊呼叫 close() 導致測試中物件失效"""
+
     def __init__(self, session):
         self._session = session
 
@@ -60,6 +71,7 @@ def db_session_nc(db_session):
 
 
 # ─── FastAPI TestClient（注入測試 DB）────────────────────────
+
 
 @pytest.fixture(scope="function")
 def client(db_engine):
@@ -81,6 +93,7 @@ def client(db_engine):
 
 
 # ─── 輔助 Fixtures ────────────────────────────────────────────
+
 
 @pytest.fixture
 def sample_video(db_session) -> Video:
@@ -105,6 +118,7 @@ def sample_video(db_session) -> Video:
 def completed_video(db_session) -> Video:
     """建立一個已完成分析的測試影片（含逐字稿、摘要、分類）"""
     import json
+
     vid_id = uuid.uuid4().hex
 
     video = Video(
@@ -161,11 +175,15 @@ def fake_audio_file(tmp_path) -> Path:
 def completed_video_full(db_session) -> Video:
     """建立含有所有 NotebookLM 欄位的完整測試影片"""
     import json
+
     vid_id = uuid.uuid4().hex
-    faq_data = json.dumps([
-        {"question": "什麼是占星學？", "answer": "研究天體對人的影響。"},
-        {"question": "有幾個星座？", "answer": "十二個。"},
-    ], ensure_ascii=False)
+    faq_data = json.dumps(
+        [
+            {"question": "什麼是占星學？", "answer": "研究天體對人的影響。"},
+            {"question": "有幾個星座？", "answer": "十二個。"},
+        ],
+        ensure_ascii=False,
+    )
 
     video = Video(
         id=vid_id,
@@ -228,3 +246,59 @@ def chat_with_history(db_session, completed_video) -> list:
         db_session.add(m)
     db_session.commit()
     return messages
+
+
+@pytest.fixture
+def reviewed_video(db_session) -> Video:
+    """已複習過一次的影片（含 SM-2 欄位）"""
+    from datetime import timedelta
+
+    vid_id = uuid.uuid4().hex
+    video = Video(
+        id=vid_id,
+        filename="reviewed.mp4",
+        original_filename="reviewed.mp4",
+        file_path="/fake/path/reviewed.mp4",
+        source="local_scan",
+        file_size=5 * 1024 * 1024,
+        duration=180.0,
+        status="completed",
+        review_count=3,
+        last_reviewed_at=datetime.utcnow() - timedelta(days=2),
+        sr_interval=6,
+        sr_ease_factor=2.5,
+        sr_repetitions=2,
+        sr_next_review_at=datetime.utcnow() - timedelta(days=1),  # 已到期
+    )
+    db_session.add(video)
+    db_session.commit()
+    db_session.refresh(video)
+    return video
+
+
+@pytest.fixture
+def sample_label(db_session) -> Label:
+    """建立一個測試標籤"""
+    lbl = Label(
+        id=uuid.uuid4().hex,
+        name="測試標籤",
+        color="#3b82f6",
+    )
+    db_session.add(lbl)
+    db_session.commit()
+    db_session.refresh(lbl)
+    return lbl
+
+
+@pytest.fixture
+def video_with_note(db_session, completed_video) -> tuple:
+    """建立有個人筆記的影片"""
+    note = VideoNote(
+        id=uuid.uuid4().hex,
+        video_id=completed_video.id,
+        content="## 我的筆記\n\n- 重點一\n- 重點二\n\n> 這很重要！",
+        updated_at=datetime.utcnow(),
+    )
+    db_session.add(note)
+    db_session.commit()
+    return completed_video, note

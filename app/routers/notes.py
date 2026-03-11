@@ -1,13 +1,14 @@
 """個人筆記 API — Markdown 格式"""
-import uuid
+
 import logging
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db, Video, VideoNote
+from app.database import Video, VideoNote, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/notes", tags=["notes"])
@@ -41,8 +42,8 @@ def upsert_note(video_id: str, body: NoteUpsertRequest, db: Session = Depends(ge
 
     note = db.query(VideoNote).filter(VideoNote.video_id == video_id).first()
     if note:
-        note.content = body.content
-        note.updated_at = datetime.utcnow()
+        note.content = body.content  # type: ignore[assignment]
+        note.updated_at = datetime.utcnow()  # type: ignore[assignment]
     else:
         note = VideoNote(
             id=str(uuid.uuid4()),
