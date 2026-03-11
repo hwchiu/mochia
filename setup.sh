@@ -88,7 +88,7 @@ else
 fi
 
 # ── 7. 設定可執行權限 ──
-chmod +x start.sh stop.sh .githooks/pre-commit
+chmod +x start.sh stop.sh smoke-test.sh .githooks/pre-commit .githooks/pre-push
 
 # ── 8. 啟用 git pre-commit hook ──
 git config core.hooksPath .githooks
