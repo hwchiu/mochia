@@ -170,7 +170,14 @@
       <!-- Cards -->
       <div class="review-cards-area">
         <div class="form-row" style="margin-bottom:16px">
-          <input type="text" id="review-search" placeholder="搜尋影片名稱..." style="flex:1;max-width:360px">
+          <input type="text" id="review-search" placeholder="搜尋影片名稱..." style="flex:1;max-width:300px">
+          <select id="review-sort" onchange="reviewPage=0;loadReview()" style="font-size:13px">
+            <option value="due">⚡ 到期優先</option>
+            <option value="never">🆕 未複習優先</option>
+            <option value="count_asc">📉 最少複習</option>
+            <option value="count_desc">📈 最多複習</option>
+            <option value="name">🔤 名稱排序</option>
+          </select>
         </div>
         <div id="review-cards-grid"></div>
         <div class="pagination" id="review-pagination"></div>

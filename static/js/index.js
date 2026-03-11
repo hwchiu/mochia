@@ -253,22 +253,50 @@ async function loadReview() {
   const grid = document.getElementById("review-cards-grid");
   grid.innerHTML = `<div style="color:var(--muted);text-align:center;padding:40px">載入中...</div>`;
   try {
+    // 一次抓足夠多筆，客戶端排序後再分頁（避免後端排序限制）
     const params = new URLSearchParams({
       status: "completed",
-      skip: reviewPage * REVIEW_PAGE_SIZE,
-      limit: REVIEW_PAGE_SIZE,
+      skip: 0,
+      limit: 500,
     });
     if (activeFilterLabels.size > 0) {
       params.set("labels", [...activeFilterLabels].join(","));
     }
     const d = await api("GET", `/api/videos/?${params}`);
 
-    // Client-side search filter
+    // 客戶端搜尋過濾
     let items = d.items;
     if (reviewSearchQuery) {
       const q = reviewSearchQuery.toLowerCase();
-      items = items.filter(v => v.original_filename.toLowerCase().includes(q));
+      items = items.filter(v => (v.original_filename || "").toLowerCase().includes(q));
     }
+
+    // 客戶端排序
+    const sortEl = document.getElementById("review-sort");
+    const sortMode = sortEl ? sortEl.value : "due";
+    const now = new Date();
+    items.sort((a, b) => {
+      if (sortMode === "due") {
+        // 未複習 → 到期 → 未來排程（越近越前）
+        const aOverdue = !a.sr_next_review_at || new Date(a.sr_next_review_at) <= now;
+        const bOverdue = !b.sr_next_review_at || new Date(b.sr_next_review_at) <= now;
+        if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+        const aT = a.sr_next_review_at ? new Date(a.sr_next_review_at) : new Date(0);
+        const bT = b.sr_next_review_at ? new Date(b.sr_next_review_at) : new Date(0);
+        return aT - bT;
+      } else if (sortMode === "never") {
+        if ((a.review_count === 0) !== (b.review_count === 0))
+          return a.review_count === 0 ? -1 : 1;
+        return (a.review_count || 0) - (b.review_count || 0);
+      } else if (sortMode === "count_asc") {
+        return (a.review_count || 0) - (b.review_count || 0);
+      } else if (sortMode === "count_desc") {
+        return (b.review_count || 0) - (a.review_count || 0);
+      } else if (sortMode === "name") {
+        return (a.original_filename || "").localeCompare(b.original_filename || "", "zh-TW");
+      }
+      return 0;
+    });
 
     if (!items.length) {
       grid.innerHTML = `<div style="color:var(--muted);text-align:center;padding:60px;font-size:15px">（無已完成的影片）</div>`;
@@ -276,8 +304,11 @@ async function loadReview() {
       return;
     }
 
-    grid.innerHTML = items.map(v => renderVideoCard(v)).join("");
-    renderReviewPagination(d.total);
+    // 分頁切割
+    const total = items.length;
+    const pageItems = items.slice(reviewPage * REVIEW_PAGE_SIZE, (reviewPage + 1) * REVIEW_PAGE_SIZE);
+    grid.innerHTML = pageItems.map(v => renderVideoCard(v)).join("");
+    renderReviewPagination(total);
   } catch (e) {
     grid.innerHTML = `<div style="color:var(--danger);text-align:center;padding:40px">載入失敗: ${e.message}</div>`;
   }
@@ -288,15 +319,38 @@ function renderVideoCard(v) {
     `<span class="label-tag" style="background:${l.color}20;color:${l.color};border-color:${l.color}40">${escapeHtml(l.name)}</span>`
   ).join("");
 
+  const now = new Date();
+  const nextReview = v.sr_next_review_at ? new Date(v.sr_next_review_at) : null;
+  const isDue = !nextReview || nextReview <= now;
+  const reviewCount = v.review_count || 0;
+
+  // 複習狀態標示
+  let reviewBadge = "";
+  if (reviewCount === 0) {
+    reviewBadge = `<span style="background:#fef3c7;color:#d97706;border:1px solid #fbbf24;border-radius:6px;font-size:11px;padding:2px 7px;font-weight:600">未複習</span>`;
+  } else if (isDue) {
+    reviewBadge = `<span style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;font-size:11px;padding:2px 7px;font-weight:600">⚡ 待複習</span>`;
+  } else {
+    const days = Math.ceil((nextReview - now) / 86400000);
+    reviewBadge = `<span style="background:#dcfce7;color:#16a34a;border:1px solid #86efac;border-radius:6px;font-size:11px;padding:2px 7px">${days} 天後複習</span>`;
+  }
+
+  const lastReviewedText = v.last_reviewed_at
+    ? `上次：${new Date(v.last_reviewed_at).toLocaleDateString("zh-TW")}`
+    : "尚未複習";
+
   return `
     <div class="video-card" onclick="location.href='/video/${v.id}'">
-      <div class="video-card-title" title="${escapeHtml(v.original_filename)}">${escapeHtml(v.original_filename)}</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
+        <div class="video-card-title" title="${escapeHtml(v.original_filename)}" style="flex:1">${escapeHtml(v.original_filename)}</div>
+        ${reviewBadge}
+      </div>
       <div class="video-card-meta">
         <span>${fmtDur(v.duration)}</span>
-        <span>${fmtSize(v.file_size)}</span>
-        <span>${v.source === "local_scan" ? "本地" : "上傳"}</span>
+        <span>複習 ${reviewCount} 次</span>
+        <span style="color:var(--muted)">${lastReviewedText}</span>
       </div>
-      <div class="video-card-labels">${labels || '<span style="color:var(--muted);font-size:12px">無標籤</span>'}</div>
+      <div class="video-card-labels" style="margin-top:6px">${labels || '<span style="color:var(--muted);font-size:12px">無標籤</span>'}</div>
     </div>
   `;
 }

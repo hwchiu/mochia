@@ -160,7 +160,8 @@ function switchTab(tabName) {
   // Lazy load
   if (!tabLoaded[tabName]) {
     tabLoaded[tabName] = true;
-    if (tabName === "mindmap") loadMindmap();
+    if (tabName === "player") loadPlayer();
+    else if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
     else if (tabName === "notes") loadNote();
@@ -811,3 +812,59 @@ function renderNotePreview(markdown) {
   }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 影片播放器
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _videoFilename = "";
+let _videoExt = "";
+
+async function loadPlayer() {
+  // 取得影片格式資訊
+  try {
+    const v = await api("GET", `/api/videos/${videoId}`);
+    _videoFilename = v.original_filename || v.filename || "";
+    _videoExt = _videoFilename.includes(".") ? _videoFilename.split(".").pop().toLowerCase() : "";
+    document.getElementById("player-format-badge").textContent = _videoExt ? `（${_videoExt.toUpperCase()}）` : "";
+  } catch (_) {}
+
+  const streamUrl = `/api/videos/${videoId}/stream`;
+  const _UNSUPPORTED = ["wmv", "avi", "mkv", "flv"];
+
+  if (_UNSUPPORTED.includes(_videoExt)) {
+    _showUnsupportedPlayer();
+    return;
+  }
+
+  // 嘗試掛上 src，若伺服器回 415 則切到不支援提示
+  const video = document.getElementById("video-player");
+  const source = document.getElementById("video-source");
+
+  // 設定正確 MIME
+  const mimeMap = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", m4v: "video/mp4" };
+  source.type = mimeMap[_videoExt] || "video/mp4";
+  source.src = streamUrl;
+  video.load();
+
+  video.onerror = () => _showUnsupportedPlayer();
+  document.getElementById("player-supported").style.display = "";
+  document.getElementById("player-unsupported").style.display = "none";
+}
+
+function _showUnsupportedPlayer() {
+  document.getElementById("player-supported").style.display = "none";
+  document.getElementById("player-unsupported").style.display = "";
+  document.getElementById("player-format-hint").textContent =
+    `${_videoExt.toUpperCase()} 格式需要使用 VLC 或系統播放器開啟。`;
+}
+
+async function openLocalPlayer() {
+  // 呼叫後端 endpoint，由伺服器端用 open 指令開啟（僅限 macOS/本機）
+  try {
+    await api("POST", `/api/videos/${videoId}/open-local`);
+    toast("已傳送開啟指令給本機播放器", "success");
+  } catch (e) {
+    toast("無法開啟：" + e.message, "error");
+  }
+}

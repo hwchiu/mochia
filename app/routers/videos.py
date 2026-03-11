@@ -2,10 +2,12 @@
 import uuid
 import shutil
 import logging
+import subprocess
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db, Video, TaskQueue, Label, VideoLabel
@@ -28,6 +30,13 @@ def _video_to_dict(v: Video) -> dict:
         "duration": v.duration,
         "status": v.status,
         "error_message": v.error_message,
+        # 複習追蹤
+        "review_count": v.review_count or 0,
+        "last_reviewed_at": v.last_reviewed_at.isoformat() if v.last_reviewed_at else None,
+        "sr_next_review_at": v.sr_next_review_at.isoformat() if v.sr_next_review_at else None,
+        "sr_interval": v.sr_interval or 1,
+        "sr_ease_factor": round(v.sr_ease_factor or 2.5, 2),
+        "sr_repetitions": v.sr_repetitions or 0,
     }
 
 
@@ -131,3 +140,83 @@ def delete_video(video_id: str, db: Session = Depends(get_db)):
     db.delete(video)
     db.commit()
     return {"message": "已刪除"}
+
+
+# ── 影片串流 ─────────────────────────────────────────────────────────
+
+_MIME_MAP = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+    ".wmv": "video/x-ms-wmv",
+    ".m4v": "video/mp4",
+    ".flv": "video/x-flv",
+}
+
+
+@router.get("/{video_id}/stream")
+def stream_video(video_id: str, request: Request, db: Session = Depends(get_db)):
+    """
+    串流播放影片（支援 HTTP Range Request，瀏覽器可直接 seek）。
+    瀏覽器不支援的格式（wmv 等）會回傳 415 讓前端顯示提示。
+    """
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(404, "影片不存在")
+
+    file_path = video.file_path
+    if not file_path or not Path(file_path).exists():
+        raise HTTPException(404, "影片檔案不存在（可能已移動或刪除）")
+
+    ext = Path(file_path).suffix.lower()
+    mime = _MIME_MAP.get(ext)
+
+    # 不支援的格式 → 回傳 415，前端顯示開啟本地播放器提示
+    _BROWSER_UNSUPPORTED = {".wmv", ".mkv", ".avi", ".flv"}
+    if ext in _BROWSER_UNSUPPORTED:
+        raise HTTPException(
+            status_code=415,
+            detail=f"瀏覽器不支援 {ext.upper()} 格式直接播放",
+        )
+
+    if not mime:
+        mime = "application/octet-stream"
+
+    # FileResponse 內建支援 Range Request（Starlette 實作）
+    return FileResponse(
+        path=file_path,
+        media_type=mime,
+        headers={"Accept-Ranges": "bytes"},
+    )
+
+
+@router.post("/{video_id}/open-local")
+def open_local_player(video_id: str, db: Session = Depends(get_db)):
+    """
+    呼叫系統預設播放器開啟影片（僅供本機使用）。
+    macOS: open, Linux: xdg-open。
+    """
+    import platform
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(404, "影片不存在")
+    file_path = video.file_path
+    if not file_path or not Path(file_path).exists():
+        raise HTTPException(404, "影片檔案不存在")
+
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            subprocess.Popen(["open", file_path])
+        elif system == "Linux":
+            subprocess.Popen(["xdg-open", file_path])
+        elif system == "Windows":
+            subprocess.Popen(["start", "", file_path], shell=True)
+        else:
+            raise HTTPException(400, f"不支援的作業系統：{system}")
+    except FileNotFoundError as e:
+        raise HTTPException(500, f"無法開啟播放器：{e}")
+
+    return {"message": "已傳送開啟指令"}
