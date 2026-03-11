@@ -19,6 +19,14 @@ _client_lock = threading.Lock()
 MAX_TRANSCRIPT_CHARS = 12000
 
 
+def _prepare_transcript(transcript: str) -> str:
+    """Truncate transcript to fit GPT context window, preserving start and end."""
+    if len(transcript) <= MAX_TRANSCRIPT_CHARS:
+        return transcript
+    half = MAX_TRANSCRIPT_CHARS // 2
+    return transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+
+
 def _get_client() -> AzureOpenAI:
     global _client
     with _client_lock:
@@ -61,14 +69,9 @@ def analyze(transcript: str) -> tuple[str, list[str], str, float]:
         - confidence: 分類信心分數 0-1
     """
     # 逐字稿太長時截取前後各部分送 GPT
+    transcript_for_gpt = _prepare_transcript(transcript)
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
         logger.info(f"逐字稿過長 ({len(transcript)} 字)，已截斷送分析")
-    else:
-        transcript_for_gpt = transcript
 
     categories_str = "\n".join(f"- {c}" for c in settings.CATEGORIES)
 
@@ -149,13 +152,7 @@ def analyze(transcript: str) -> tuple[str, list[str], str, float]:
 
 def generate_mindmap(transcript: str) -> str:
     """Generate Markmap-compatible Markdown mind map from transcript."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位專業的知識整理專家，擅長將內容整理成結構化的心智圖。
 請根據影片逐字稿，生成 Markmap 相容的 Markdown 格式心智圖。
@@ -181,13 +178,7 @@ def generate_mindmap(transcript: str) -> str:
 
 def generate_faq(transcript: str) -> list[dict]:
     """Generate FAQ list (5-8 Q&A pairs) from transcript."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位教育內容專家，擅長從影片內容提取常見問題。
 請根據影片逐字稿，生成 5-8 個常見問答（FAQ）。
@@ -234,13 +225,7 @@ def generate_faq(transcript: str) -> list[dict]:
 
 def generate_study_notes(transcript: str) -> str:
     """Generate structured study notes in Markdown."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位專業的學習顧問，擅長將影片內容整理成結構化的學習筆記。
 請根據影片逐字稿，生成完整的學習筆記。
@@ -275,13 +260,7 @@ def generate_study_notes(transcript: str) -> str:
 
 def ask_question(transcript: str, question: str, chat_history: list[dict]) -> str:
     """Answer a question about the video using multi-turn conversation."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = f"""你是一位專業的影片內容助手，負責回答關於這支影片的問題。
 請根據以下影片逐字稿來回答問題，使用繁體中文。
@@ -335,13 +314,7 @@ def extract_case_analysis(transcript: str) -> str:
     若影片包含案例分析、實例演示或具體案例，回傳詳細的 Markdown 格式紀錄。
     若影片沒有案例分析內容，回傳空字串。
     """
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位專業的玄學內容分析師。
 你的任務是從影片逐字稿中識別並詳細記錄所有「案例分析」內容。
