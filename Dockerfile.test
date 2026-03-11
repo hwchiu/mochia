@@ -14,12 +14,7 @@ COPY . .
 RUN mkdir -p data uploads logs data/audio_temp
 
 # Smoke test: verify critical imports work
-RUN python -c "
-import fastapi, uvicorn, sqlalchemy, pydantic, openai, jinja2, aiofiles
-from app.config import settings
-from app.database import engine, Base
-print('✅ All imports OK')
-"
+RUN python -c "import fastapi, uvicorn, sqlalchemy, pydantic, openai, jinja2, aiofiles; from app.config import settings; from app.database import engine, Base; print('All imports OK')"
 
 # Run tests
 CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short", "-x"]
