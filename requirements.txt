@@ -26,3 +26,4 @@ pytest-mock>=3.12,<4.0
 
 # Dev tools (linter — also used by pre-commit hook)
 ruff>=0.4,<1.0
+tenacity>=8.2,<9.0

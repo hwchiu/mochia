@@ -10,7 +10,9 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+import openai
 from openai import AzureOpenAI
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
@@ -150,6 +152,14 @@ def _transcribe_with_heartbeat(
     return result_holder[0]
 
 
+@retry(
+    retry=retry_if_exception_type(
+        (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)
+    ),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    stop=stop_after_attempt(3),
+    reraise=True,
+)
 def _transcribe_single(audio_path: Path, language: str) -> str:
     """對單一音頻檔案呼叫 Whisper API"""
     client = _get_client()

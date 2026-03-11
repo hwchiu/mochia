@@ -6,7 +6,9 @@ import json
 import logging
 import threading
 
+import openai
 from openai import AzureOpenAI
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
@@ -41,6 +43,14 @@ def _get_client() -> AzureOpenAI:
     return _client
 
 
+@retry(
+    retry=retry_if_exception_type(
+        (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)
+    ),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    stop=stop_after_attempt(3),
+    reraise=True,
+)
 def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
     client = _get_client()
     response = client.chat.completions.create(
