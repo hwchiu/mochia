@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import Classification, Label, ReviewRecord, Video, VideoLabel, get_db
@@ -17,10 +18,21 @@ def get_overview(db: Session = Depends(get_db)):
     """全局學習概覽統計"""
     now = datetime.utcnow()
 
-    total = db.query(Video).count()
-    completed = db.query(Video).filter(Video.status == "completed").count()
-    pending = db.query(Video).filter(Video.status.in_(["pending", "queued", "processing"])).count()
-    failed = db.query(Video).filter(Video.status == "failed").count()
+    # Single query for all status counts
+    status_counts = (
+        db.query(
+            Video.status,
+            func.count(Video.id).label("cnt"),
+        )
+        .group_by(Video.status)
+        .all()
+    )
+    counts = {row.status: row.cnt for row in status_counts}
+
+    total = sum(counts.values())
+    completed = counts.get("completed", 0)
+    failed = counts.get("failed", 0)
+    pending = counts.get("pending", 0) + counts.get("queued", 0) + counts.get("processing", 0)
 
     reviewed = db.query(Video).filter(Video.status == "completed", Video.review_count > 0).count()
     never_reviewed = completed - reviewed
@@ -44,12 +56,19 @@ def get_overview(db: Session = Depends(get_db)):
     for c in cats:
         cat_dist[c.category] = cat_dist.get(c.category, 0) + 1  # type: ignore[index,call-overload]
 
-    # 標籤統計
+    # 標籤統計 — batch count with GROUP BY instead of per-label COUNT
     labels = db.query(Label).all()
-    label_stats = []
-    for lbl in labels:
-        cnt = db.query(VideoLabel).filter(VideoLabel.label_id == lbl.id).count()
-        label_stats.append({"id": lbl.id, "name": lbl.name, "color": lbl.color, "count": cnt})
+    label_counts_rows = (
+        db.query(VideoLabel.label_id, func.count(VideoLabel.id).label("cnt"))
+        .group_by(VideoLabel.label_id)
+        .all()
+    )
+    label_counts = {row.label_id: row.cnt for row in label_counts_rows}
+
+    label_stats = [
+        {"id": lbl.id, "name": lbl.name, "color": lbl.color, "count": label_counts.get(lbl.id, 0)}
+        for lbl in labels
+    ]
     label_stats.sort(key=lambda x: x["count"], reverse=True)  # type: ignore[arg-type,return-value]
 
     return {

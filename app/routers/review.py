@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import Classification, Label, ReviewRecord, Summary, Video, VideoLabel, get_db
+from app.services.review_service import calculate_next_review
 from app.utils import safe_json_loads
 
 logger = logging.getLogger(__name__)
@@ -20,53 +21,66 @@ class MarkReviewedRequest(BaseModel):
 
 
 def _sm2_update(video: Video, confidence: int) -> None:
-    """
-    SM-2 算法更新複習排程。
-    confidence 1-2 = 需要重複學習 (reset)
-    confidence 3   = 通過，輕微增加
-    confidence 4-5 = 輕鬆通過，顯著增加
-    """
-    # 轉換為 SM-2 的 quality (0-5)
-    quality = confidence - 1  # 1→0, 2→1, 3→2, 4→3, 5→4
-
-    if quality < 2:
-        # 答錯或非常困難 → 重置
-        video.sr_repetitions = 0  # type: ignore[assignment]
-        video.sr_interval = 1  # type: ignore[assignment]
-    else:
-        # 正確回答
-        if video.sr_repetitions == 0:
-            video.sr_interval = 1  # type: ignore[assignment]
-        elif video.sr_repetitions == 1:
-            video.sr_interval = 6  # type: ignore[assignment]
-        else:
-            video.sr_interval = round((video.sr_interval or 1) * (video.sr_ease_factor or 2.5))  # type: ignore[assignment,arg-type]
-        video.sr_repetitions = (video.sr_repetitions or 0) + 1  # type: ignore[assignment]
-
-    # 更新易難係數 EF
-    ef = (video.sr_ease_factor or 2.5) + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-    video.sr_ease_factor = max(1.3, ef)  # type: ignore[assignment,type-var]
-
-    # 下次複習時間
-    video.sr_next_review_at = datetime.utcnow() + timedelta(days=video.sr_interval)  # type: ignore[assignment,arg-type]
+    """Apply SM-2 algorithm to video using the review service."""
+    metrics = calculate_next_review(
+        confidence=confidence,
+        current_interval=video.sr_interval or 1,
+        current_ease_factor=video.sr_ease_factor or 2.5,
+        current_repetitions=video.sr_repetitions or 0,
+    )
+    video.sr_interval = metrics.interval  # type: ignore[assignment]
+    video.sr_ease_factor = metrics.ease_factor  # type: ignore[assignment]
+    video.sr_repetitions = metrics.repetitions  # type: ignore[assignment]
+    video.sr_next_review_at = metrics.next_review_at  # type: ignore[assignment]
     video.last_reviewed_at = datetime.utcnow()  # type: ignore[assignment]
     video.review_count = (video.review_count or 0) + 1  # type: ignore[assignment]
 
 
-def _video_to_review_item(video: Video, db: Session) -> dict:
-    summary = db.query(Summary).filter(Summary.video_id == video.id).first()
-    cls = db.query(Classification).filter(Classification.video_id == video.id).first()
-    vl_rows = db.query(VideoLabel).filter(VideoLabel.video_id == video.id).all()
-    label_ids = [vl.label_id for vl in vl_rows]
-    labels = []
+def _build_review_maps(videos: list[Video], db: Session) -> tuple[dict, dict, dict]:
+    """Batch-fetch summaries, classifications, and labels for a list of videos."""
+    video_ids = [v.id for v in videos]
+
+    summaries = db.query(Summary).filter(Summary.video_id.in_(video_ids)).all()
+    summaries_map = {s.video_id: s for s in summaries}
+
+    classifications = db.query(Classification).filter(Classification.video_id.in_(video_ids)).all()
+    classifications_map = {c.video_id: c for c in classifications}
+
+    vl_rows = db.query(VideoLabel).filter(VideoLabel.video_id.in_(video_ids)).all()
+    vl_by_video: dict = {}
+    for vl in vl_rows:
+        vl_by_video.setdefault(vl.video_id, []).append(vl)
+    label_ids = list({vl.label_id for vl in vl_rows})
+    labels_lookup: dict = {}
     if label_ids:
         lbls = db.query(Label).filter(Label.id.in_(label_ids)).all()
-        labels = [{"id": lbl.id, "name": lbl.name, "color": lbl.color} for lbl in lbls]
+        labels_lookup = {lbl.id: lbl for lbl in lbls}
 
+    labels_by_video: dict = {}
+    for vid_id, vls in vl_by_video.items():
+        labels_by_video[vid_id] = [
+            {
+                "id": labels_lookup[vl.label_id].id,
+                "name": labels_lookup[vl.label_id].name,
+                "color": labels_lookup[vl.label_id].color,
+            }
+            for vl in vls
+            if vl.label_id in labels_lookup
+        ]
+
+    return summaries_map, classifications_map, labels_by_video
+
+
+def _video_to_review_item(
+    video: Video,
+    summary: Summary | None,
+    classification: Classification | None,
+    labels: list[dict],
+) -> dict:
     return {
         "id": video.id,
         "filename": video.original_filename or video.filename,
-        "category": cls.category if cls else None,
+        "category": classification.category if classification else None,
         "labels": labels,
         "summary_preview": (summary.summary or "")[:200] if summary else "",
         "key_points_count": len(safe_json_loads(summary.key_points if summary else None, [])),  # type: ignore[arg-type]
@@ -92,7 +106,6 @@ def mark_reviewed(
     if not video:
         raise HTTPException(404, "影片不存在")
 
-    # 寫入複習紀錄
     record = ReviewRecord(
         id=str(uuid.uuid4()),
         video_id=video_id,
@@ -100,7 +113,6 @@ def mark_reviewed(
     )
     db.add(record)
 
-    # 更新 SM-2
     _sm2_update(video, body.confidence)
     db.commit()
 
@@ -122,7 +134,6 @@ def get_due_reviews(
     """取得今日到期的複習影片清單（優先按到期時間排序）"""
     now = datetime.utcnow()
 
-    # 未曾複習過 OR sr_next_review_at <= now
     videos = (
         db.query(Video)
         .filter(
@@ -134,9 +145,19 @@ def get_due_reviews(
         .all()
     )
 
+    summaries_map, classifications_map, labels_by_video = _build_review_maps(videos, db)
+
     return {
         "total": len(videos),
-        "items": [_video_to_review_item(v, db) for v in videos],
+        "items": [
+            _video_to_review_item(
+                v,
+                summaries_map.get(v.id),
+                classifications_map.get(v.id),
+                labels_by_video.get(v.id, []),
+            )
+            for v in videos
+        ],
     }
 
 
@@ -158,10 +179,21 @@ def get_upcoming_reviews(
         .order_by(Video.sr_next_review_at.asc())
         .all()
     )
+
+    summaries_map, classifications_map, labels_by_video = _build_review_maps(videos, db)
+
     return {
         "days": days,
         "total": len(videos),
-        "items": [_video_to_review_item(v, db) for v in videos],
+        "items": [
+            _video_to_review_item(
+                v,
+                summaries_map.get(v.id),
+                classifications_map.get(v.id),
+                labels_by_video.get(v.id, []),
+            )
+            for v in videos
+        ],
     }
 
 
@@ -221,11 +253,9 @@ def get_review_stats(db: Session = Depends(get_db)):
         .count()
     )
 
-    # 今日已複習
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     reviewed_today = db.query(ReviewRecord).filter(ReviewRecord.reviewed_at >= today_start).count()
 
-    # 近7天每天複習數量
     daily = []
     for i in range(6, -1, -1):
         day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
