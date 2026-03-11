@@ -4,6 +4,101 @@
 
 ---
 
+## 🐳 快速啟動（Docker，推薦）
+
+不需安裝 Python、FFmpeg 等任何依賴，所有環境皆封裝在 container 中。
+
+```bash
+# 1. Clone 專案
+git clone https://github.com/hwchiu/mochia.git
+cd mochia
+
+# 2. 填入 API Key
+cp .env.example .env
+nano .env   # 填入 AZURE_OPENAI_API_KEY、OPENAI_API_KEY
+
+# 3. 設定影片目錄
+echo 'VIDEO_DIR=/path/to/your/videos' >> .env
+
+# 4. 啟動
+docker compose up -d
+
+# 5. 開啟瀏覽器
+open http://localhost:8000
+
+# 6. 掃描影片目錄
+docker compose exec web python cli.py scan /videos
+```
+
+### 日常操作
+
+```bash
+docker compose up -d           # 啟動
+docker compose down            # 停止
+docker compose logs -f web     # 查看 web 日誌
+docker compose logs -f worker  # 查看 worker 日誌
+bash update.sh                 # 升級到最新版本
+```
+
+### 升級版本
+
+```bash
+bash update.sh
+# 等同於：docker compose pull && docker compose up -d
+# 資料（SQLite、逐字稿）完整保留，不受影響
+```
+
+---
+
+## 🔄 跨機器遷移
+
+資料存放在 Docker named volumes，遷移時只需搬移 volumes 與設定檔，**不需複製整個專案資料夾**。
+
+### 舊機器（備份）
+
+```bash
+# 備份 SQLite 資料庫
+docker run --rm \
+  -v mochia_mochia-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/mochia-data-backup.tar.gz -C /data .
+
+# 備份上傳的附件（如有）
+docker run --rm \
+  -v mochia_mochia-uploads:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/mochia-uploads-backup.tar.gz -C /data .
+```
+
+### 新機器（還原）
+
+```bash
+# 1. Clone 專案並設定 .env
+git clone https://github.com/hwchiu/mochia.git
+cd mochia
+cp .env.example .env && nano .env
+
+# 2. 建立 volumes 並還原資料
+docker compose up --no-start   # 建立 volumes（不啟動）
+
+docker run --rm \
+  -v mochia_mochia-data:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/mochia-data-backup.tar.gz -C /data
+
+docker run --rm \
+  -v mochia_mochia-uploads:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/mochia-uploads-backup.tar.gz -C /data
+
+# 3. 啟動
+docker compose up -d
+```
+
+> **影片檔案本身不在 volume 內**（系統只存路徑，不複製檔案），需確認新機器上影片路徑相同，或更新 `.env` 的 `VIDEO_DIR`。
+
+---
+
 ## 🐍 Python 版本相容性
 
 | Python 版本 | 支援狀態 | 測試方式 | 備註 |
@@ -94,17 +189,19 @@
 
 ## 快速開始
 
-### 環境需求
-- macOS（使用 osascript 原生資料夾選擇器）
+> **推薦使用 Docker**，見上方「快速啟動」章節。以下為本地開發（不使用 Docker）的方式。
+
+### 環境需求（本地開發）
+- macOS
 - Python 3.11+
 - FFmpeg（`brew install ffmpeg`）
-- Azure OpenAI API Key（GPT + Whisper）
+- Azure OpenAI API Key
 
-### 首次部署（含 iMac）
+### 首次設定
 
 ```bash
 # 1. Clone 專案
-git clone <repo-url>
+git clone https://github.com/hwchiu/mochia.git
 cd mochia
 
 # 2. 一鍵設定（建立 venv、安裝依賴、建立目錄）
@@ -193,8 +290,6 @@ python cli.py show <video_id>
 ```bash
 # 執行測試
 venv/bin/python -m pytest tests/ -v
-
-# 測試數量：112 個
 ```
 
 ---
@@ -203,95 +298,13 @@ venv/bin/python -m pytest tests/ -v
 
 `.mp4` `.mkv` `.avi` `.mov` `.wmv` `.flv` `.webm` `.m4v`
 
-
-瀏覽器開啟 http://localhost:8000
-
-## 日常使用
-
-### 掃描影片目錄
-```bash
-# 透過 CLI
-python cli.py scan /Volumes/MyDisk/Videos
-
-# 或透過網頁右上角「掃描目錄」按鈕
-```
-
-### 啟動 / 停止服務
-```bash
-bash start.sh    # 啟動 Web Server + Worker
-bash stop.sh     # 停止服務
-```
-
-### 查看狀態
-```bash
-python cli.py status
-```
-
-### CLI 完整指令
-```
-python cli.py scan <目錄>        掃描目錄登錄影片
-python cli.py queue-all          全部加入分析佇列
-python cli.py queue <video_id>   單支影片加入佇列
-python cli.py status             顯示統計
-python cli.py retry              重試失敗任務
-python cli.py list [--status S]  列出影片
-python cli.py worker             啟動 Worker
-```
-
-### 查看 Worker 日誌
-```bash
-tail -f logs/worker.log
-```
-
-## 專案結構
-
-```
-video_analyzer/
-├── app/
-│   ├── __init__.py          FastAPI 應用
-│   ├── config.py            設定管理
-│   ├── database.py          SQLAlchemy 模型
-│   ├── routers/
-│   │   ├── videos.py        影片管理 API
-│   │   ├── analysis.py      分析狀態/結果 API
-│   │   └── batch.py         批量操作 API
-│   └── services/
-│       ├── audio_extractor.py  FFmpeg 音頻提取
-│       ├── transcriber.py      Whisper 轉錄
-│       └── analyzer.py         GPT 分析
-├── static/                  CSS / JS
-├── templates/               HTML 頁面
-├── uploads/                 上傳的影片
-├── data/                    SQLite 資料庫 + 暫存音頻
-├── logs/                    服務日誌
-├── main.py                  Web Server 入口
-├── worker.py                背景 Worker
-├── cli.py                   CLI 工具
-├── start.sh                 啟動腳本
-├── stop.sh                  停止腳本
-├── setup.sh                 首次安裝腳本
-├── .env.example             環境變數範本
-└── requirements.txt         Python 依賴
-```
-
-## 環境需求
-
-- macOS（開發與部署）
-- Python 3.10+
-- FFmpeg（`brew install ffmpeg`）
-- Azure OpenAI API
-- OpenAI API（Whisper）
+---
 
 ## 資料庫
 
-SQLite 位於 `data/video_analyzer.db`，包含：
-- `videos`：影片清單（支援本地路徑，不複製檔案）
+SQLite 位於 Docker volume `mochia_mochia-data`，包含：
+- `videos`：影片清單（存路徑，不複製影片檔案）
 - `transcripts`：逐字稿
 - `summaries`：摘要與重點
 - `classifications`：分類結果
 - `task_queue`：分析任務佇列（Worker 持久化狀態）
-
-## 跨機器遷移
-
-只需複製整個 `video_analyzer/` 資料夾到新機器，執行 `bash setup.sh`，
-重新設定 `.env` 中的 API Key，影片路徑需確認在新機器上存在。
