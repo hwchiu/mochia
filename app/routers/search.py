@@ -43,7 +43,8 @@ def rebuild_fts_index(video_id: str, db: Session) -> None:
                     parts.append(kp)
             kp_text = " ".join(parts)
         except Exception:
-            pass
+            logger.exception("FTS 索引建立失敗：無法解析 key_points for video_id=%r", video_id)
+            # kp_text stays empty, index will proceed without key_points
 
     conn = _get_fts_conn()
     cur = conn.cursor()

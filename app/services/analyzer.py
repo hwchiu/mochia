@@ -116,7 +116,11 @@ def analyze(transcript: str) -> tuple[str, list[str], str, float]:
         raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
         raw = raw.rsplit("```", 1)[0].strip()
 
-    result = json.loads(raw)
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.error("GPT 回傳無效 JSON，raw=%r", raw[:200])
+        raise ValueError(f"GPT 回傳無效 JSON: {raw[:100]}") from exc
 
     summary = result.get("summary", "")
     raw_kp = result.get("key_points", [])
@@ -316,8 +320,8 @@ def suggest_labels(summary: str) -> list[str]:
         end = raw.rfind("]") + 1
         labels = json.loads(raw[start:end])
         return [str(item).strip() for item in labels if str(item).strip()][:5]
-    except Exception:
-        logger.warning(f"suggest_labels JSON 解析失敗: {raw}")
+    except json.JSONDecodeError:
+        logger.warning("suggest_labels JSON 解析失敗: %r", raw)
         return []
 
 
