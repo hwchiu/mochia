@@ -131,3 +131,36 @@ jobs:
             -e AZURE_OPENAI_ENDPOINT=https://dummy.openai.azure.com/ \
             -e AZURE_OPENAI_DEPLOYMENT=gpt-35-turbo \
             mochia-test:${{ matrix.python-version }}
+
+  # ─── E2E Smoke Test ───────────────────────────────────────────
+  smoke-test:
+    name: E2E Smoke Test (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production Docker image
+        run: docker build -t mochia:smoke .
+
+      - name: Start web container
+        run: |
+          docker run -d \
+            --name mochia-smoke \
+            -p 8000:8000 \
+            -e AZURE_OPENAI_API_KEY=dummy-key-for-testing \
+            -e AZURE_OPENAI_ENDPOINT=https://dummy.openai.azure.com/ \
+            -e AZURE_OPENAI_DEPLOYMENT=gpt-35-turbo \
+            mochia:smoke
+
+      - name: Run smoke tests
+        run: |
+          chmod +x smoke-test.sh
+          BASE_URL=http://localhost:8000 bash smoke-test.sh
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs mochia-smoke
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f mochia-smoke 2>/dev/null || true
