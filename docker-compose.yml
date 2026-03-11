@@ -4,17 +4,21 @@
 #  使用方式：
 #    啟動：  docker compose up -d
 #    停止：  docker compose down
+#    升級：  docker compose pull && docker compose up -d
 #    日誌：  docker compose logs -f worker
 #    CLI：   docker compose exec web python cli.py scan /videos
 #
 #  影片掛載（必須）：
 #    在 .env 設定 VIDEO_DIR=/path/to/your/videos
 #    或直接修改下方 volumes 的 ${VIDEO_DIR} 路徑
+#
+#  Image 來源：
+#    預設從 ghcr.io/hwchiu/mochia:latest 拉取
+#    若要本地 build，執行：docker compose build
 # ============================================================
 services:
   web:
-    build: .
-    image: mochia:latest
+    image: hwchiu/mochia:latest
     container_name: mochia-web
     restart: unless-stopped
     ports:
@@ -38,7 +42,7 @@ services:
       - worker
 
   worker:
-    image: mochia:latest
+    image: hwchiu/mochia:latest
     container_name: mochia-worker
     restart: unless-stopped
     command: python worker.py

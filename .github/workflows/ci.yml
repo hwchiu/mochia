@@ -164,3 +164,45 @@ jobs:
       - name: Stop container
         if: always()
         run: docker rm -f mochia-smoke 2>/dev/null || true
+
+  # ─── Publish to GHCR ──────────────────────────────────────────
+  publish:
+    name: Publish image to GHCR
+    runs-on: ubuntu-latest
+    # 只在 merge 到 main 後才推送 image（PR 不推）
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, typecheck, security, test, docker-integration, smoke-test]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USER }}/mochia
+          tags: |
+            # latest tag on every main push
+            type=raw,value=latest
+            # git short SHA tag (e.g. sha-a1b2c3d)
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 使用 GitHub Actions cache 加速 build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
