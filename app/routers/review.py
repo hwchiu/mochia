@@ -1,6 +1,5 @@
 """複習系統 API — SM-2 間隔重複排程"""
 
-import json
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -10,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import Classification, Label, ReviewRecord, Summary, Video, VideoLabel, get_db
+from app.utils import safe_json_loads
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/review", tags=["review"])
@@ -69,9 +69,7 @@ def _video_to_review_item(video: Video, db: Session) -> dict:
         "category": cls.category if cls else None,
         "labels": labels,
         "summary_preview": (summary.summary or "")[:200] if summary else "",
-        "key_points_count": len(json.loads(summary.key_points or "[]"))  # type: ignore[arg-type]
-        if summary and summary.key_points
-        else 0,
+        "key_points_count": len(safe_json_loads(summary.key_points if summary else None, [])),  # type: ignore[arg-type]
         "review_count": video.review_count or 0,
         "last_reviewed_at": video.last_reviewed_at.isoformat() if video.last_reviewed_at else None,
         "sr_next_review_at": video.sr_next_review_at.isoformat()

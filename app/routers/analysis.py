@@ -19,6 +19,7 @@ from app.services.analyzer import (
 from app.services.analyzer import (
     suggest_labels as _suggest_labels,
 )
+from app.utils import safe_json_loads
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -172,7 +173,7 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
         "video_id": video_id,
         "transcript": transcript.content if transcript else None,
         "summary": summary.summary if summary else None,
-        "key_points": json.loads(summary.key_points) if summary and summary.key_points else [],  # type: ignore[arg-type]
+        "key_points": safe_json_loads(summary.key_points if summary else None, []),  # type: ignore[arg-type]
         "category": classification.category if classification else None,
         "confidence": classification.confidence if classification else None,
         "case_analysis": summary.case_analysis if summary else None,
@@ -204,7 +205,7 @@ def get_faq(video_id: str, db: Session = Depends(get_db)):
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if not summary or summary.faq is None:
         raise HTTPException(404, "尚未生成")
-    return {"video_id": video_id, "faq": json.loads(summary.faq)}  # type: ignore[arg-type]
+    return {"video_id": video_id, "faq": safe_json_loads(summary.faq, [])}  # type: ignore[arg-type]
 
 
 @router.get("/{video_id}/study-notes")
