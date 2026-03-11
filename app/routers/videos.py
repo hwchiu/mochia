@@ -43,7 +43,7 @@ def _video_to_dict(v: Video) -> dict:
 @router.post("/upload")
 async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """上傳影片檔案"""
-    ext = Path(file.filename).suffix.lower()  # type: ignore[arg-type]
+    ext = Path(file.filename or "").suffix.lower()
     if ext not in settings.SUPPORTED_VIDEO_EXTENSIONS:
         raise HTTPException(400, f"不支援的檔案格式: {ext}")
 
@@ -94,7 +94,7 @@ def list_videos(
             lbl = db.query(Label).filter(Label.name == name).first()
             if lbl:
                 sub = db.query(VideoLabel.video_id).filter(VideoLabel.label_id == lbl.id).subquery()
-                query = query.filter(Video.id.in_(sub))  # type: ignore[arg-type]
+                query = query.filter(Video.id.in_(sub))
             else:
                 # 如果標籤不存在，沒有影片能匹配
                 query = query.filter(Video.id == None)  # noqa: E711

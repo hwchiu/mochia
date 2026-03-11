@@ -54,7 +54,7 @@ def queue_video(video_id: str, priority: int = 5, db: Session = Depends(get_db))
         status="pending",
     )
     db.add(task)
-    video.status = "queued"  # type: ignore[assignment]
+    video.status = "queued"
     db.commit()
     return {"message": "已加入佇列", "task_id": task.id}
 
@@ -78,11 +78,11 @@ def retry_video(video_id: str, db: Session = Depends(get_db)):
     )
 
     if task:
-        task.status = "pending"  # type: ignore[assignment]
-        task.retry_count = 0  # type: ignore[assignment]
-        task.error_message = None  # type: ignore[assignment]
-        task.started_at = None  # type: ignore[assignment]
-        task.completed_at = None  # type: ignore[assignment]
+        task.status = "pending"
+        task.retry_count = 0
+        task.error_message = None
+        task.started_at = None
+        task.completed_at = None
     else:
         # 沒有失敗任務就建立新的
         task = TaskQueue(
@@ -93,11 +93,11 @@ def retry_video(video_id: str, db: Session = Depends(get_db)):
         )
         db.add(task)
 
-    video.status = "queued"  # type: ignore[assignment]
-    video.error_message = None  # type: ignore[assignment]
-    video.progress_step = 0  # type: ignore[assignment]
-    video.progress_message = None  # type: ignore[assignment]
-    video.progress_sub = 0  # type: ignore[assignment]
+    video.status = "queued"
+    video.error_message = None
+    video.progress_step = 0
+    video.progress_message = None
+    video.progress_sub = 0
     db.commit()
     return {"message": "已重新加入佇列", "task_id": task.id}
 
@@ -137,7 +137,7 @@ def get_status(video_id: str, db: Session = Depends(get_db)):
         "progress": {
             "step": step,
             "total_steps": 4,
-            "step_name": step_names.get(step, "等待中"),  # type: ignore[arg-type]
+            "step_name": step_names.get(step, "等待中"),
             "message": video.progress_message or "",
             "percent": int(step / 4 * 100),
             "sub_percent": video.progress_sub or 0,
@@ -173,7 +173,7 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
         "video_id": video_id,
         "transcript": transcript.content if transcript else None,
         "summary": summary.summary if summary else None,
-        "key_points": safe_json_loads(summary.key_points if summary else None, []),  # type: ignore[arg-type]
+        "key_points": safe_json_loads(summary.key_points if summary else None, []),
         "category": classification.category if classification else None,
         "confidence": classification.confidence if classification else None,
         "case_analysis": summary.case_analysis if summary else None,
@@ -205,7 +205,7 @@ def get_faq(video_id: str, db: Session = Depends(get_db)):
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if not summary or summary.faq is None:
         raise HTTPException(404, "尚未生成")
-    return {"video_id": video_id, "faq": safe_json_loads(summary.faq, [])}  # type: ignore[arg-type]
+    return {"video_id": video_id, "faq": safe_json_loads(summary.faq, [])}
 
 
 @router.get("/{video_id}/study-notes")
@@ -247,7 +247,7 @@ def ask_video_question(video_id: str, req: AskRequest, db: Session = Depends(get
     )
     chat_history = [{"role": m.role, "content": m.content} for m in history_records[-10:]]
 
-    answer = ask_question(transcript.content, question, chat_history)  # type: ignore[arg-type]
+    answer = ask_question(transcript.content or "", question, chat_history)
 
     # Save user message
     db.add(
@@ -330,13 +330,13 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
         raise HTTPException(404, "摘要記錄不存在")
 
     if content_type == "mindmap":
-        result = generate_mindmap(transcript.content)  # type: ignore[arg-type]
-        summary.mindmap = result  # type: ignore[assignment]
+        result = generate_mindmap(transcript.content or "")
+        summary.mindmap = result
         db.commit()
         return {"video_id": video_id, "mindmap": result}
     elif content_type == "faq":
-        result = generate_faq(transcript.content)  # type: ignore[arg-type,assignment]
-        summary.faq = json.dumps(result, ensure_ascii=False)  # type: ignore[assignment]
+        result = generate_faq(transcript.content or "")
+        summary.faq = json.dumps(result, ensure_ascii=False)
         db.commit()
         return {"video_id": video_id, "faq": result}
 
@@ -352,14 +352,14 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     if not transcript or not transcript.content:
         raise HTTPException(409, "逐字稿不存在，請先完成語音辨識")
 
-    summary_text, key_points, category, confidence = analyze(transcript.content)  # type: ignore[arg-type]
-    case_analysis_text = extract_case_analysis(transcript.content)  # type: ignore[arg-type]
+    summary_text, key_points, category, confidence = analyze(transcript.content or "")
+    case_analysis_text = extract_case_analysis(transcript.content or "")
 
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if summary:
-        summary.summary = summary_text  # type: ignore[assignment]
-        summary.key_points = json.dumps(key_points, ensure_ascii=False)  # type: ignore[assignment]
-        summary.case_analysis = case_analysis_text or None  # type: ignore[assignment]
+        summary.summary = summary_text
+        summary.key_points = json.dumps(key_points, ensure_ascii=False)
+        summary.case_analysis = case_analysis_text or None
     else:
         db.add(
             Summary(
@@ -373,8 +373,8 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
 
     existing_cls = db.query(Classification).filter(Classification.video_id == video_id).first()
     if existing_cls:
-        existing_cls.category = category  # type: ignore[assignment]
-        existing_cls.confidence = confidence  # type: ignore[assignment]
+        existing_cls.category = category
+        existing_cls.confidence = confidence
     else:
         db.add(
             Classification(
@@ -385,7 +385,7 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
             )
         )
 
-    video.status = "completed"  # type: ignore[assignment]
+    video.status = "completed"
     db.commit()
     return {
         "message": "重新分析完成",
@@ -408,7 +408,7 @@ def suggest_labels(video_id: str, db: Session = Depends(get_db)):
     if not summary or not summary.summary:
         raise HTTPException(409, "尚無摘要，請先完成分析")
 
-    labels = _suggest_labels(summary.summary)  # type: ignore[arg-type]
+    labels = _suggest_labels(summary.summary or "")
     return {"video_id": video_id, "suggestions": labels}
 
 

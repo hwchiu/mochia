@@ -54,7 +54,8 @@ def get_overview(db: Session = Depends(get_db)):
     cats = db.query(Classification).all()
     cat_dist: dict[str, int] = {}
     for c in cats:
-        cat_dist[c.category] = cat_dist.get(c.category, 0) + 1  # type: ignore[index,call-overload]
+        if c.category:
+            cat_dist[c.category] = cat_dist.get(c.category, 0) + 1
 
     # 標籤統計 — batch count with GROUP BY instead of per-label COUNT
     labels = db.query(Label).all()
@@ -69,7 +70,7 @@ def get_overview(db: Session = Depends(get_db)):
         {"id": lbl.id, "name": lbl.name, "color": lbl.color, "count": label_counts.get(lbl.id, 0)}
         for lbl in labels
     ]
-    label_stats.sort(key=lambda x: x["count"], reverse=True)  # type: ignore[arg-type,return-value]
+    label_stats.sort(key=lambda x: x["count"], reverse=True)
 
     return {
         "total_videos": total,
@@ -120,8 +121,8 @@ def get_confidence_distribution(db: Session = Depends(get_db)):
             .order_by(ReviewRecord.reviewed_at.desc())
             .first()
         )
-        if latest and latest.confidence in dist:
-            dist[latest.confidence] += 1  # type: ignore[index]
+        if latest and isinstance(latest.confidence, int) and latest.confidence in dist:
+            dist[latest.confidence] += 1
 
     labels = {1: "完全不懂", 2: "模糊記得", 3: "大致理解", 4: "掌握良好", 5: "完全掌握"}
     return {"distribution": [{"level": k, "label": labels[k], "count": v} for k, v in dist.items()]}

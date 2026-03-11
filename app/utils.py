@@ -10,10 +10,14 @@ logger = logging.getLogger(__name__)
 
 
 def safe_json_loads(value: str | None, fallback: Any) -> Any:
-    """Parse a JSON string, returning *fallback* on missing value or decode error.
+    """Safely parse JSON string with a fallback value on failure.
 
-    Logs a warning when the stored value cannot be parsed so that data
-    corruption is visible in logs without raising an unhandled exception.
+    Args:
+        value: JSON string to parse, or None.
+        fallback: Value to return if parsing fails or value is None/empty.
+
+    Returns:
+        Parsed JSON value, or fallback if parsing fails.
     """
     if not value:
         return fallback

@@ -32,7 +32,7 @@ def rebuild_fts_index(video_id: str, db: Session) -> None:
     transcript_text = (transcript_row.content or "")[:8000] if transcript_row else ""
     kp_text = ""
     if summary_row and summary_row.key_points:
-        kps = safe_json_loads(summary_row.key_points, [])  # type: ignore[arg-type]
+        kps = safe_json_loads(summary_row.key_points, [])
         parts = []
         for kp in kps:
             if isinstance(kp, dict):
@@ -114,7 +114,7 @@ def search_videos(
     for vl in vl_rows:
         lbl = labels_map.get(vl.label_id)
         if lbl:
-            video_labels.setdefault(vl.video_id, []).append(  # type: ignore[arg-type]
+            video_labels.setdefault(vl.video_id, []).append(
                 {"id": lbl.id, "name": lbl.name, "color": lbl.color}
             )
 
@@ -158,7 +158,7 @@ def reindex_all(db: Session = Depends(get_db)):
     count = 0
     for video in videos:
         try:
-            rebuild_fts_index(video.id, db)  # type: ignore[arg-type]
+            rebuild_fts_index(video.id, db)
             count += 1
         except Exception as e:
             logger.error(f"FTS reindex 失敗 {video.id}: {e}")

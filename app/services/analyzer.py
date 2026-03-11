@@ -61,22 +61,26 @@ def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
         ],
         max_completion_tokens=max_tokens,  # 新一代模型（o1/o3/gpt-5系列）使用此參數
     )
-    return response.choices[0].message.content.strip()  # type: ignore[union-attr]
+    content = response.choices[0].message.content
+    return content.strip() if content else ""
 
 
-def analyze(transcript: str) -> tuple[str, list[str], str, float]:
-    """
-    對逐字稿執行完整分析：摘要、重點、分類。
+def analyze(transcript: str) -> tuple[str, list[dict], str, float]:
+    """Analyze transcript using GPT to generate summary, key points, and classification.
 
     Args:
-        transcript: 影片逐字稿文字
+        transcript: Full transcript text from Whisper.
 
     Returns:
-        (summary, key_points, category, confidence)
-        - summary: 摘要文字
-        - key_points: 重點清單（List[str]）
-        - category: 分類名稱
-        - confidence: 分類信心分數 0-1
+        Tuple of (summary, key_points, category, confidence) where:
+        - summary: Text summary of the content
+        - key_points: List of dicts with 'theme' and 'points' keys
+        - category: One of the predefined CATEGORIES
+        - confidence: Float 0.0-1.0 classification confidence
+
+    Raises:
+        ValueError: If GPT returns invalid JSON response.
+        openai.APIError: If API call fails after retries.
     """
     # 逐字稿太長時截取前後各部分送 GPT
     transcript_for_gpt = _prepare_transcript(transcript)
@@ -157,11 +161,21 @@ def analyze(transcript: str) -> tuple[str, list[str], str, float]:
         confidence = 0.0
 
     logger.info(f"分析完成 - 分類: {category} ({confidence:.0%})")
-    return summary, key_points, category, confidence  # type: ignore[return-value]
+    return summary, key_points, category, confidence
 
 
 def generate_mindmap(transcript: str) -> str:
-    """Generate Markmap-compatible Markdown mind map from transcript."""
+    """Generate Markmap-compatible Markdown mind map from transcript.
+
+    Args:
+        transcript: Full transcript text to convert into a mind map.
+
+    Returns:
+        Markmap-compatible Markdown string with # root node and ## branches.
+
+    Raises:
+        openai.APIError: If API call fails after retries.
+    """
     transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位專業的知識整理專家，擅長將內容整理成結構化的心智圖。
@@ -187,7 +201,18 @@ def generate_mindmap(transcript: str) -> str:
 
 
 def generate_faq(transcript: str) -> list[dict]:
-    """Generate FAQ list (5-8 Q&A pairs) from transcript."""
+    """Generate FAQ list (5-8 Q&A pairs) from transcript.
+
+    Args:
+        transcript: Full transcript text to extract questions and answers from.
+
+    Returns:
+        List of dicts with 'question' and 'answer' keys. Returns empty list
+        if JSON parsing fails.
+
+    Raises:
+        openai.APIError: If API call fails after retries.
+    """
     transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位教育內容專家，擅長從影片內容提取常見問題。
@@ -269,7 +294,20 @@ def generate_study_notes(transcript: str) -> str:
 
 
 def ask_question(transcript: str, question: str, chat_history: list[dict]) -> str:
-    """Answer a question about the video using multi-turn conversation."""
+    """Answer a question about the video using multi-turn conversation.
+
+    Args:
+        transcript: Full transcript text used as context for answers.
+        question: The user's question string.
+        chat_history: List of previous message dicts with 'role' and 'content' keys.
+
+    Returns:
+        Assistant's answer as a string.
+
+    Raises:
+        ValueError: If Azure OpenAI credentials are not configured.
+        openai.APIError: If the API call fails.
+    """
     transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = f"""你是一位專業的影片內容助手，負責回答關於這支影片的問題。
@@ -287,9 +325,10 @@ def ask_question(transcript: str, question: str, chat_history: list[dict]) -> st
     logger.info("開始 ask_question...")
     response = client.chat.completions.create(
         model=settings.AZURE_OPENAI_DEPLOYMENT,
-        messages=messages,  # type: ignore[arg-type]
+        messages=messages,
     )
-    answer = response.choices[0].message.content.strip()  # type: ignore[union-attr]
+    content = response.choices[0].message.content
+    answer = content.strip() if content else ""
     return answer
 
 
@@ -318,11 +357,17 @@ def suggest_labels(summary: str) -> list[str]:
 
 
 def extract_case_analysis(transcript: str) -> str:
-    """
-    從逐字稿中偵測並擷取案例分析內容。
+    """Detect and extract case analysis content from transcript.
 
-    若影片包含案例分析、實例演示或具體案例，回傳詳細的 Markdown 格式紀錄。
-    若影片沒有案例分析內容，回傳空字串。
+    Args:
+        transcript: Full transcript text to scan for case study content.
+
+    Returns:
+        Markdown-formatted case analysis string, or empty string if no cases
+        are found in the transcript.
+
+    Raises:
+        openai.APIError: If API call fails after retries.
     """
     transcript_for_gpt = _prepare_transcript(transcript)
 

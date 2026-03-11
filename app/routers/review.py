@@ -28,12 +28,12 @@ def _sm2_update(video: Video, confidence: int) -> None:
         current_ease_factor=video.sr_ease_factor or 2.5,
         current_repetitions=video.sr_repetitions or 0,
     )
-    video.sr_interval = metrics.interval  # type: ignore[assignment]
-    video.sr_ease_factor = metrics.ease_factor  # type: ignore[assignment]
-    video.sr_repetitions = metrics.repetitions  # type: ignore[assignment]
-    video.sr_next_review_at = metrics.next_review_at  # type: ignore[assignment]
-    video.last_reviewed_at = datetime.utcnow()  # type: ignore[assignment]
-    video.review_count = (video.review_count or 0) + 1  # type: ignore[assignment]
+    video.sr_interval = metrics.interval
+    video.sr_ease_factor = metrics.ease_factor
+    video.sr_repetitions = metrics.repetitions
+    video.sr_next_review_at = metrics.next_review_at
+    video.last_reviewed_at = datetime.utcnow()
+    video.review_count = (video.review_count or 0) + 1
 
 
 def _build_review_maps(videos: list[Video], db: Session) -> tuple[dict, dict, dict]:
@@ -83,7 +83,7 @@ def _video_to_review_item(
         "category": classification.category if classification else None,
         "labels": labels,
         "summary_preview": (summary.summary or "")[:200] if summary else "",
-        "key_points_count": len(safe_json_loads(summary.key_points if summary else None, [])),  # type: ignore[arg-type]
+        "key_points_count": len(safe_json_loads(summary.key_points if summary else None, [])),
         "review_count": video.review_count or 0,
         "last_reviewed_at": video.last_reviewed_at.isoformat() if video.last_reviewed_at else None,
         "sr_next_review_at": video.sr_next_review_at.isoformat()
