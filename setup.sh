@@ -6,6 +6,22 @@
 # ============================================================
 set -e
 
+# 檢查 Python 版本
+PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
+PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
+
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]); then
+  echo "❌ Python $PYTHON_VERSION 不支援。需要 Python 3.10 或以上版本。"
+  echo "   推薦使用 Python 3.11：https://www.python.org/downloads/"
+  exit 1
+elif [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -ge 13 ]; then
+  echo "⚠️  Python $PYTHON_VERSION 為實驗性支援，可能有套件相容性問題。"
+  echo "   推薦使用 Python 3.11 或 3.12。繼續安裝中..."
+else
+  echo "✅ Python $PYTHON_VERSION — 支援"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 

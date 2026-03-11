@@ -4,6 +4,42 @@
 
 ---
 
+## 🐍 Python 版本相容性
+
+| Python 版本 | 支援狀態 | 測試方式 | 備註 |
+|------------|---------|---------|------|
+| 3.10 | ✅ 完整支援 | CI Docker | |
+| 3.11 | ✅ 完整支援（推薦）| CI Docker | 主要開發版本 |
+| 3.12 | ✅ 完整支援 | CI Docker | |
+| 3.13 | ⚠️ 實驗性 | 未測試 | 部分套件尚無 wheel |
+| 3.14 | ❌ 不支援 | 未測試 | 套件相容性問題 |
+| 3.9 | ⚠️ 部分支援 | 未測試 | 需 `from __future__ import annotations` |
+| < 3.9 | ❌ 不支援 | — | — |
+
+> **推薦使用 Python 3.11**。或直接使用 Docker 部署，完全不需要考慮版本問題。
+
+## 🐳 Docker 快速啟動（推薦）
+
+最簡單的跨平台啟動方式，不需安裝 Python、FFmpeg 等依賴：
+
+    # 1. 複製 env 設定
+    cp .env.example .env
+    # 編輯 .env，填入 Azure OpenAI API Key
+
+    # 2. 設定影片目錄（選填）
+    echo 'VIDEO_DIR=/path/to/your/videos' >> .env
+
+    # 3. 啟動
+    docker compose up -d
+
+    # 4. 開啟瀏覽器
+    open http://localhost:8000
+
+    # 5. 掃描影片（影片掛載到 /videos）
+    docker compose exec web python cli.py scan /videos
+
+---
+
 ## 功能特色
 
 ### 分析能力

@@ -1,0 +1,25 @@
+# Test image: verifies all deps install correctly and tests pass
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+RUN mkdir -p data uploads logs data/audio_temp
+
+# Smoke test: verify critical imports work
+RUN python -c "
+import fastapi, uvicorn, sqlalchemy, pydantic, openai, jinja2, aiofiles
+from app.config import settings
+from app.database import engine, Base
+print('✅ All imports OK')
+"
+
+# Run tests
+CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short", "-x"]

@@ -1,14 +1,25 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-sqlalchemy==2.0.23
-python-dotenv==1.0.0
-openai>=2.0.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
-jinja2==3.1.2
-aiofiles==23.2.1
-httpx<0.28
-pytest==7.4.3
-pytest-asyncio==0.23.2
-pytest-mock==3.12.0
+# Core web framework
+fastapi>=0.111,<1.0
+uvicorn[standard]>=0.30,<1.0
+python-multipart>=0.0.9,<1.0
+
+# Database
+sqlalchemy>=2.0.30,<3.0
+
+# Config & env
+python-dotenv>=1.0,<2.0
+pydantic>=2.7,<3.0
+pydantic-settings>=2.3,<3.0
+
+# OpenAI SDK
+openai>=1.40,<2.0
+
+# Templates & files
+jinja2>=3.1,<4.0
+aiofiles>=23.2,<25.0
+httpx>=0.27,<0.29
+
+# Testing (also in main requirements for CI simplicity)
+pytest>=8.0,<9.0
+pytest-asyncio>=0.24,<2.0
+pytest-mock>=3.12,<4.0

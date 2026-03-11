@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -106,3 +106,28 @@ jobs:
           name: coverage-report
           path: coverage.xml
           retention-days: 7
+
+  docker-integration:
+    name: Docker integration test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker test image (Python ${{ matrix.python-version }})
+        run: |
+          docker build \
+            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
+            -f Dockerfile.test \
+            -t mochia-test:${{ matrix.python-version }} \
+            .
+      
+      - name: Run tests in Docker (Python ${{ matrix.python-version }})
+        run: |
+          docker run --rm \
+            -e AZURE_OPENAI_API_KEY=dummy-key-for-testing \
+            -e AZURE_OPENAI_ENDPOINT=https://dummy.openai.azure.com/ \
+            -e AZURE_OPENAI_DEPLOYMENT=gpt-35-turbo \
+            mochia-test:${{ matrix.python-version }}

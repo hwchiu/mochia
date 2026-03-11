@@ -1,0 +1,40 @@
+# Integration test environment — runs tests inside Docker
+# Usage: docker compose -f docker-compose.test.yml run --rm test-311
+# Or run all: docker compose -f docker-compose.test.yml up --abort-on-container-exit
+
+services:
+  test-311:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        PYTHON_VERSION: "3.11"
+    image: mochia-test:3.11
+    environment:
+      - AZURE_OPENAI_API_KEY=dummy-key-for-testing
+      - AZURE_OPENAI_ENDPOINT=https://dummy.openai.azure.com/
+      - AZURE_OPENAI_DEPLOYMENT=gpt-35-turbo
+
+  test-312:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        PYTHON_VERSION: "3.12"
+    image: mochia-test:3.12
+    environment:
+      - AZURE_OPENAI_API_KEY=dummy-key-for-testing
+      - AZURE_OPENAI_ENDPOINT=https://dummy.openai.azure.com/
+      - AZURE_OPENAI_DEPLOYMENT=gpt-35-turbo
+
+  test-310:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        PYTHON_VERSION: "3.10"
+    image: mochia-test:3.10
+    environment:
+      - AZURE_OPENAI_API_KEY=dummy-key-for-testing
+      - AZURE_OPENAI_ENDPOINT=https://dummy.openai.azure.com/
+      - AZURE_OPENAI_DEPLOYMENT=gpt-35-turbo
