@@ -88,7 +88,12 @@ else
 fi
 
 # ── 7. 設定可執行權限 ──
-chmod +x start.sh stop.sh
+chmod +x start.sh stop.sh .githooks/pre-commit
+
+# ── 8. 啟用 git pre-commit hook ──
+git config core.hooksPath .githooks
+echo "✅ Git pre-commit hook 已啟用（每次 commit 前自動跑 ruff + pytest）"
+echo "   緊急跳過：git commit --no-verify"
 
 echo ""
 echo "============================================"

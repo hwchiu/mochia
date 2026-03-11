@@ -1,0 +1,34 @@
+#!/bin/bash
+# ============================================================
+#  Git pre-commit hook
+#  每次 git commit 前自動執行：ruff lint + pytest
+#  安裝：setup.sh 會執行 git config core.hooksPath .githooks
+#  跳過（緊急）：git commit --no-verify
+# ============================================================
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+PYTHON="$ROOT/venv/bin/python"
+
+# 若 venv 不存在（CI 環境），直接略過
+if [ ! -f "$PYTHON" ]; then
+  echo "⚠  venv 不存在，跳過 pre-commit 檢查"
+  exit 0
+fi
+
+echo "🔍 Pre-commit: ruff lint..."
+if ! "$PYTHON" -m ruff check app/ worker.py cli.py --quiet; then
+  echo ""
+  echo "❌ Ruff lint 失敗。修正方式："
+  echo "   venv/bin/python -m ruff check --fix app/ worker.py cli.py"
+  exit 1
+fi
+
+echo "🧪 Pre-commit: pytest (241 tests)..."
+if ! "$PYTHON" -m pytest tests/ -q --tb=short --no-header; then
+  echo ""
+  echo "❌ 測試失敗。請修正後再 commit。"
+  exit 1
+fi
+
+echo "✅ 所有檢查通過，允許 commit。"
