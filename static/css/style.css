@@ -677,3 +677,50 @@ body.app-layout {
 .main-content > span[style*="display:none"] + * {
   /* first visible child after hidden video-id span */
 }
+
+/* ── 學習統計 KPI Cards ─────────────────────────────────────────── */
+.stats-kpi-card {
+  background: var(--surface, #f8f9fa);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 20px 16px;
+  text-align: center;
+}
+.skpi-num {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--primary, #4f46e5);
+  line-height: 1.1;
+}
+.skpi-label {
+  font-size: 12px;
+  color: var(--muted, #888);
+  margin-top: 6px;
+}
+
+/* ── 全文搜尋 highlight ──────────────────────────────────────────── */
+mark {
+  background: #fef08a;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* ── 複習到期卡片 ────────────────────────────────────────────────── */
+#due-review-card {
+  border-left: 4px solid var(--warning, #f59e0b);
+}
+
+/* ── 筆記預覽 markdown ──────────────────────────────────────────── */
+#note-preview h1, #note-preview h2, #note-preview h3 {
+  margin: 12px 0 6px;
+  font-weight: 700;
+}
+#note-preview ul, #note-preview ol { padding-left: 20px; }
+#note-preview li { margin-bottom: 3px; }
+#note-preview blockquote {
+  border-left: 3px solid var(--border, #ddd);
+  padding-left: 12px;
+  color: var(--muted, #888);
+  margin: 8px 0;
+}

@@ -10,8 +10,10 @@ function showSection(name) {
   document.querySelectorAll(".nav-item").forEach(a => {
     a.classList.toggle("active", a.dataset.section === name);
   });
-  if (name === "review") { reviewPage = 0; loadReview(); loadLabelFilters(); }
+  if (name === "review") { reviewPage = 0; loadReview(); loadLabelFilters(); loadDueReviews(); }
   if (name === "labels") loadLabelsPage();
+  if (name === "search") document.getElementById("fts-input").focus();
+  if (name === "stats") loadStatsPage();
 }
 
 document.querySelectorAll(".nav-item").forEach(a => {
@@ -35,6 +37,12 @@ async function loadStats() {
     document.getElementById("sb-stat-processing").textContent = v.processing || 0;
     document.getElementById("sb-stat-completed").textContent = v.completed || 0;
     document.getElementById("sb-stat-failed").textContent = v.failed || 0;
+
+    // 今日待複習
+    try {
+      const rs = await api("GET", "/api/review/stats");
+      document.getElementById("sb-stat-due").textContent = rs.due_today || 0;
+    } catch(_) {}
 
     const t = d.tasks;
     document.getElementById("queue-info").textContent =
@@ -367,7 +375,8 @@ function startPoll() {
   pollTimer = setInterval(() => {
     loadStats();
     if (currentSection === "analysis") loadVideos();
-    if (currentSection === "review") loadReview();
+    if (currentSection === "review") { loadReview(); loadDueReviews(); }
+    if (currentSection === "stats") loadStatsPage();
   }, 8000);
 }
 
@@ -379,3 +388,154 @@ startPoll();
 // 從 URL ?section= 恢復選中的頁面（從 detail 頁返回時）
 const _initSection = new URLSearchParams(window.location.search).get("section");
 if (_initSection) showSection(_initSection);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 今日待複習
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadDueReviews() {
+  const el = document.getElementById("due-cards-list");
+  const badge = document.getElementById("due-count-badge");
+  if (!el) return;
+  try {
+    const data = await api("GET", "/api/review/due?limit=10");
+    badge.textContent = data.total;
+    if (!data.items.length) {
+      el.innerHTML = `<div style="color:var(--success,#22c55e);font-size:14px">🎉 今日複習任務全部完成！</div>`;
+      return;
+    }
+    el.innerHTML = data.items.map(v => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface,#f8f9fa);border-radius:8px;border-left:3px solid var(--warning,#f59e0b)">
+        <div style="flex:1;min-width:0">
+          <a href="/video/${v.id}" style="font-weight:600;font-size:13px;color:var(--text);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+             title="${escapeHtml(v.filename)}">${escapeHtml(v.filename)}</a>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">
+            ${v.category ? `<span style="margin-right:8px">📂 ${v.category}</span>` : ""}
+            <span>複習 ${v.review_count} 次</span>
+            ${v.sr_next_review_at ? `<span style="margin-left:8px;color:var(--danger,#ef4444)">到期：${new Date(v.sr_next_review_at).toLocaleDateString("zh-TW")}</span>` : '<span style="color:var(--warning,#f59e0b);margin-left:8px">尚未複習</span>'}
+          </div>
+        </div>
+        <a href="/video/${v.id}" class="btn btn-primary btn-xs">開始複習</a>
+      </div>
+    `).join("");
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--muted)">載入失敗</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 全文搜尋
+// ═══════════════════════════════════════════════════════════════════════════════
+async function doSearch() {
+  const q = document.getElementById("fts-input").value.trim();
+  const statusEl = document.getElementById("search-status");
+  const resultsEl = document.getElementById("search-results");
+  if (!q) { statusEl.textContent = "請輸入搜尋關鍵字"; return; }
+
+  statusEl.textContent = "搜尋中...";
+  resultsEl.innerHTML = "";
+  try {
+    const data = await api("GET", `/api/search/?q=${encodeURIComponent(q)}`);
+    statusEl.textContent = `共找到 ${data.total} 筆結果`;
+    if (!data.items.length) {
+      resultsEl.innerHTML = `<div class="card" style="text-align:center;color:var(--muted);padding:32px">找不到符合「${escapeHtml(q)}」的影片</div>`;
+      return;
+    }
+    resultsEl.innerHTML = data.items.map(item => `
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <div style="flex:1;min-width:0">
+            <a href="/video/${item.id}" style="font-weight:700;font-size:14px;color:var(--primary,#4f46e5);text-decoration:none">
+              ${item.title_highlight || escapeHtml(item.filename)}
+            </a>
+            ${item.category ? `<span style="margin-left:8px;font-size:12px;color:var(--muted)">${item.category}</span>` : ""}
+            <div style="margin-top:6px;font-size:13px;color:var(--text,#333);line-height:1.6">
+              ${item.snippet || ""}
+            </div>
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+              ${(item.labels||[]).map(l => `<span class="label-chip" style="background:${l.color}22;color:${l.color};border:1px solid ${l.color}">${escapeHtml(l.name)}</span>`).join("")}
+            </div>
+          </div>
+          <a href="/video/${item.id}" class="btn btn-ghost btn-sm" style="white-space:nowrap">查看 →</a>
+        </div>
+      </div>
+    `).join("");
+  } catch (e) {
+    statusEl.textContent = "搜尋失敗: " + e.message;
+  }
+}
+
+async function reindexFTS() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = "重建中...";
+  try {
+    const d = await api("POST", "/api/search/reindex");
+    toast(d.message, "success");
+  } catch(e) {
+    toast("重建失敗: " + e.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "⟳ 重建索引";
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 學習統計
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadStatsPage() {
+  try {
+    const [overview, daily, confidence, topReviewed] = await Promise.all([
+      api("GET", "/api/stats/overview"),
+      api("GET", "/api/stats/daily?days=7"),
+      api("GET", "/api/stats/confidence"),
+      api("GET", "/api/stats/top-reviewed?limit=8"),
+    ]);
+
+    // KPI cards
+    document.getElementById("skpi-completed").querySelector(".skpi-num").textContent = overview.completed;
+    document.getElementById("skpi-reviewed").querySelector(".skpi-num").textContent = overview.reviewed_at_least_once;
+    document.getElementById("skpi-never").querySelector(".skpi-num").textContent = overview.never_reviewed;
+    document.getElementById("skpi-due").querySelector(".skpi-num").textContent = overview.due_today;
+    document.getElementById("skpi-today").querySelector(".skpi-num").textContent = overview.reviewed_today;
+    document.getElementById("skpi-total-sessions").querySelector(".skpi-num").textContent = overview.total_review_sessions;
+
+    // Daily bar chart (simple CSS bars)
+    const maxCount = Math.max(...daily.data.map(d => d.reviews), 1);
+    document.getElementById("daily-chart").innerHTML = daily.data.map(d => `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600">${d.reviews || ""}</div>
+        <div style="width:100%;background:var(--primary,#4f46e5);border-radius:4px 4px 0 0;height:${Math.max(d.reviews/maxCount*80,2)}px;opacity:${d.reviews?1:0.2}"></div>
+        <div style="font-size:10px;color:var(--muted)">${d.date.slice(5)}</div>
+      </div>
+    `).join("");
+
+    // Confidence distribution
+    const confLabels = ["😰完全不懂","😕模糊記得","😐大致理解","😊掌握良好","🤩完全掌握"];
+    const confColors = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6"];
+    const maxConf = Math.max(...confidence.distribution.map(d => d.count), 1);
+    document.getElementById("confidence-chart").innerHTML = confidence.distribution.map((d,i) => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="font-size:11px;width:90px;color:var(--text)">${confLabels[i]}</div>
+        <div style="flex:1;height:18px;background:${confColors[i]};border-radius:4px;width:${d.count/maxConf*100}%;min-width:${d.count?4:0}px;opacity:${d.count?1:0.2}"></div>
+        <div style="font-size:11px;color:var(--muted);width:24px;text-align:right">${d.count}</div>
+      </div>
+    `).join("");
+
+    // Top reviewed
+    const trEl = document.getElementById("top-reviewed-list");
+    if (!topReviewed.items.length) {
+      trEl.innerHTML = `<div style="color:var(--muted);padding:16px 0">尚無複習紀錄</div>`;
+    } else {
+      trEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${topReviewed.items.map((v,i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface,#f5f5f5);border-radius:6px">
+          <span style="font-weight:700;color:var(--muted);width:20px;text-align:right">${i+1}</span>
+          <a href="/video/${v.id}" style="flex:1;font-size:13px;font-weight:600;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(v.filename)}</a>
+          <span style="font-size:12px;color:var(--muted)">複習 ${v.review_count} 次</span>
+          <span style="font-size:11px;color:var(--muted)">EF:${v.sr_ease_factor}</span>
+        </div>
+      `).join("")}</div>`;
+    }
+  } catch (e) {
+    console.error("loadStatsPage error:", e);
+  }
+}

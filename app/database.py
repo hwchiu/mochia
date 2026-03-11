@@ -23,15 +23,23 @@ class Video(Base):
     filename = Column(String, unique=True, index=True)
     original_filename = Column(String)
     file_path = Column(String, nullable=True)
-    source = Column(String, default="uploaded")  # "uploaded" | "local_scan"
+    source = Column(String, default="uploaded")
     upload_date = Column(DateTime, default=datetime.utcnow)
     file_size = Column(Integer)
     duration = Column(Float, nullable=True)
-    status = Column(String, default="pending")  # pending | queued | processing | completed | failed
-    progress_step = Column(Integer, default=0)   # 0=等待 1=音頻 2=轉錄 3=GPT 4=NotebookLM
+    status = Column(String, default="pending")
+    progress_step = Column(Integer, default=0)
     progress_message = Column(String, nullable=True)
-    progress_sub = Column(Integer, default=0)    # 0-100, within-step progress
+    progress_sub = Column(Integer, default=0)
     error_message = Column(String, nullable=True)
+    # 複習追蹤
+    last_reviewed_at = Column(DateTime, nullable=True)
+    review_count = Column(Integer, default=0)
+    # 間隔重複 SM-2
+    sr_interval = Column(Integer, default=1)
+    sr_ease_factor = Column(Float, default=2.5)
+    sr_repetitions = Column(Integer, default=0)
+    sr_next_review_at = Column(DateTime, nullable=True)
 
 
 class Transcript(Base):
@@ -50,11 +58,11 @@ class Summary(Base):
     id = Column(String, primary_key=True)
     video_id = Column(String, index=True)
     summary = Column(Text)
-    key_points = Column(Text)       # JSON 陣列
-    mindmap = Column(Text, nullable=True)       # Markmap Markdown 格式
-    faq = Column(Text, nullable=True)           # JSON 陣列 [{question, answer}]
-    study_notes = Column(Text, nullable=True)   # Markdown 格式的學習筆記
-    case_analysis = Column(Text, nullable=True) # 案例分析（Markdown 格式，若影片無案例則 None）
+    key_points = Column(Text)
+    mindmap = Column(Text, nullable=True)
+    faq = Column(Text, nullable=True)
+    study_notes = Column(Text, nullable=True)
+    case_analysis = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -69,7 +77,6 @@ class Classification(Base):
 
 
 class TaskQueue(Base):
-    """持久化任務佇列"""
     __tablename__ = "task_queue"
 
     id = Column(String, primary_key=True)
@@ -85,28 +92,25 @@ class TaskQueue(Base):
 
 
 class ChatMessage(Base):
-    """影片 Q&A 對話記錄"""
     __tablename__ = "chat_messages"
 
     id = Column(String, primary_key=True)
     video_id = Column(String, index=True)
-    role = Column(String)           # "user" | "assistant"
+    role = Column(String)
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Label(Base):
-    """自定義標籤"""
     __tablename__ = "labels"
 
     id = Column(String, primary_key=True)
     name = Column(String, unique=True, index=True)
-    color = Column(String, default="#3b82f6")    # hex color
+    color = Column(String, default="#3b82f6")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class VideoLabel(Base):
-    """影片與標籤的多對多關聯"""
     __tablename__ = "video_labels"
 
     id = Column(String, primary_key=True)
@@ -115,43 +119,75 @@ class VideoLabel(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ReviewRecord(Base):
+    """每次複習紀錄"""
+    __tablename__ = "review_records"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True)
+    confidence = Column(Integer)        # 1-5
+    reviewed_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class VideoNote(Base):
+    """個人筆記"""
+    __tablename__ = "video_notes"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, index=True, unique=True)
+    content = Column(Text, default="")
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def _migrate_db():
-    """
-    為現有資料庫補齊新增的欄位（ALTER TABLE）。
-    SQLAlchemy create_all 只建新表，不會修改已存在的表結構。
-    """
+    """補齊新欄位與新資料表（不破壞已有資料）"""
     import sqlite3
     db_path = str(settings.DATA_DIR / "video_analyzer.db")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # 取得 summaries 現有欄位
+    # summaries
     cursor.execute("PRAGMA table_info(summaries)")
     existing = {row[1] for row in cursor.fetchall()}
+    for col, typ in [
+        ("mindmap", "TEXT"), ("faq", "TEXT"),
+        ("study_notes", "TEXT"), ("case_analysis", "TEXT"),
+    ]:
+        if col not in existing:
+            cursor.execute(f"ALTER TABLE summaries ADD COLUMN {col} {typ}")
+            print(f"[migration] summaries.{col}")
 
-    new_columns = [
-        ("mindmap",          "TEXT"),
-        ("faq",              "TEXT"),
-        ("study_notes",      "TEXT"),
-        ("case_analysis",    "TEXT"),
-    ]
-    for col_name, col_type in new_columns:
-        if col_name not in existing:
-            cursor.execute(f"ALTER TABLE summaries ADD COLUMN {col_name} {col_type}")
-            print(f"[migration] summaries.{col_name} 欄位已新增")
-
-    # videos 表新欄位
+    # videos
     cursor.execute("PRAGMA table_info(videos)")
-    videos_cols = {row[1] for row in cursor.fetchall()}
-    video_columns = [
-        ("progress_step",    "INTEGER DEFAULT 0"),
+    vcols = {row[1] for row in cursor.fetchall()}
+    for col, typ in [
+        ("progress_step", "INTEGER DEFAULT 0"),
         ("progress_message", "TEXT"),
-        ("progress_sub",     "INTEGER DEFAULT 0"),
-    ]
-    for col_name, col_type in video_columns:
-        if col_name not in videos_cols:
-            cursor.execute(f"ALTER TABLE videos ADD COLUMN {col_name} {col_type}")
-            print(f"[migration] videos.{col_name} 欄位已新增")
+        ("progress_sub", "INTEGER DEFAULT 0"),
+        ("last_reviewed_at", "DATETIME"),
+        ("review_count", "INTEGER DEFAULT 0"),
+        ("sr_interval", "INTEGER DEFAULT 1"),
+        ("sr_ease_factor", "REAL DEFAULT 2.5"),
+        ("sr_repetitions", "INTEGER DEFAULT 0"),
+        ("sr_next_review_at", "DATETIME"),
+    ]:
+        if col not in vcols:
+            cursor.execute(f"ALTER TABLE videos ADD COLUMN {col} {typ}")
+            print(f"[migration] videos.{col}")
+
+    # FTS5 全文搜尋虛擬表
+    cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS video_fts USING fts5(
+            video_id UNINDEXED,
+            title,
+            summary,
+            transcript,
+            key_points,
+            content='',
+            tokenize='unicode61'
+        )
+    """)
 
     conn.commit()
     conn.close()

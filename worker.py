@@ -31,6 +31,7 @@ from app.database import SessionLocal, Video, TaskQueue, Transcript, Summary, Cl
 from app.services.audio_extractor import extract_audio, cleanup_audio
 from app.services.transcriber import transcribe
 from app.services.analyzer import analyze, generate_mindmap, generate_faq, generate_study_notes, extract_case_analysis
+from app.routers.search import rebuild_fts_index
 
 # ──────────────────────────── Logging ────────────────────────────
 
@@ -130,6 +131,11 @@ def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: 
     task.completed_at = datetime.utcnow()
     db.commit()
     _set_progress(video, db, 4, "分析完成！", sub=100)
+    # 重建 FTS 全文搜尋索引
+    try:
+        rebuild_fts_index(task.video_id, db)
+    except Exception as e:
+        logger.warning(f"FTS 索引更新失敗 (非致命): {e}")
     logger.info(f"✅ 完成: {video.original_filename}")
 
 

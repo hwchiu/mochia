@@ -19,6 +19,12 @@
     <a class="nav-item" data-section="review" href="#">
       <span class="nav-icon">📚</span> 複習中心
     </a>
+    <a class="nav-item" data-section="search" href="#">
+      <span class="nav-icon">🔍</span> 全文搜尋
+    </a>
+    <a class="nav-item" data-section="stats" href="#">
+      <span class="nav-icon">📊</span> 學習統計
+    </a>
     <a class="nav-item" data-section="labels" href="#">
       <span class="nav-icon">🏷️</span> 標籤管理
     </a>
@@ -49,6 +55,12 @@
     <div class="sidebar-stat-row">
       <span>失敗</span>
       <span id="sb-stat-failed" style="color:var(--danger)">—</span>
+    </div>
+    <div style="margin-top:8px;border-top:1px solid var(--border,#eee);padding-top:8px">
+      <div class="sidebar-stat-row">
+        <span>今日待複習</span>
+        <span id="sb-stat-due" style="color:var(--warning,#f59e0b);font-weight:600">—</span>
+      </div>
     </div>
   </div>
 
@@ -130,8 +142,20 @@
   <section id="section-review" class="app-section hidden">
     <div class="section-header">
       <h2>📚 複習中心</h2>
-      <span class="section-desc">瀏覽已分析影片，依標籤篩選</span>
+      <span class="section-desc">間隔重複排程 · 今日到期優先</span>
     </div>
+
+    <!-- 今日待複習快速欄 -->
+    <div class="card" id="due-review-card" style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-weight:600;font-size:15px">⚡ 今日待複習</div>
+        <span id="due-count-badge" style="background:var(--warning,#f59e0b);color:#fff;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600">0</span>
+      </div>
+      <div id="due-cards-list" style="display:flex;flex-direction:column;gap:10px">
+        <div style="color:var(--muted);font-size:13px">載入中...</div>
+      </div>
+    </div>
+
     <div class="review-layout">
       <!-- Label filter panel -->
       <aside class="label-filter-panel">
@@ -146,11 +170,75 @@
       <!-- Cards -->
       <div class="review-cards-area">
         <div class="form-row" style="margin-bottom:16px">
-          <input type="text" id="review-search" placeholder="🔍 搜尋影片名稱..." style="flex:1;max-width:360px">
+          <input type="text" id="review-search" placeholder="搜尋影片名稱..." style="flex:1;max-width:360px">
         </div>
         <div id="review-cards-grid"></div>
         <div class="pagination" id="review-pagination"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ══ 全文搜尋 ══ -->
+  <section id="section-search" class="app-section hidden">
+    <div class="section-header">
+      <h2>🔍 全文搜尋</h2>
+      <span class="section-desc">搜尋逐字稿、摘要、重點關鍵字</span>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;gap:10px">
+        <input type="text" id="fts-input" placeholder="輸入關鍵字，按 Enter 搜尋..."
+          style="flex:1;font-size:15px;padding:10px 16px"
+          onkeydown="if(event.key==='Enter') doSearch()">
+        <button class="btn btn-primary" onclick="doSearch()" style="padding:10px 24px">🔍 搜尋</button>
+        <button class="btn btn-ghost btn-sm" onclick="reindexFTS()" title="重建搜尋索引">⟳ 重建索引</button>
+      </div>
+      <div id="search-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+    </div>
+    <div id="search-results"></div>
+  </section>
+
+  <!-- ══ 學習統計 ══ -->
+  <section id="section-stats" class="app-section hidden">
+    <div class="section-header">
+      <h2>📊 學習統計</h2>
+      <span class="section-desc">追蹤你的學習進度</span>
+    </div>
+    <!-- Overview cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px" id="stats-overview-grid">
+      <div class="stats-kpi-card" id="skpi-completed">
+        <div class="skpi-num">—</div><div class="skpi-label">已完成分析</div>
+      </div>
+      <div class="stats-kpi-card" id="skpi-reviewed">
+        <div class="skpi-num">—</div><div class="skpi-label">已複習至少一次</div>
+      </div>
+      <div class="stats-kpi-card" id="skpi-never">
+        <div class="skpi-num" style="color:var(--warning,#f59e0b)">—</div><div class="skpi-label">尚未複習</div>
+      </div>
+      <div class="stats-kpi-card" id="skpi-due">
+        <div class="skpi-num" style="color:var(--danger,#ef4444)">—</div><div class="skpi-label">今日待複習</div>
+      </div>
+      <div class="stats-kpi-card" id="skpi-today">
+        <div class="skpi-num" style="color:var(--success,#22c55e)">—</div><div class="skpi-label">今日已複習</div>
+      </div>
+      <div class="stats-kpi-card" id="skpi-total-sessions">
+        <div class="skpi-num">—</div><div class="skpi-label">總複習次數</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="card">
+        <div class="card-title">近 7 天複習量</div>
+        <div id="daily-chart" style="display:flex;align-items:flex-end;gap:6px;height:100px;padding-top:8px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">信心程度分布</div>
+        <div id="confidence-chart"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📈 複習最多的影片</div>
+      <div id="top-reviewed-list"></div>
     </div>
   </section>
 

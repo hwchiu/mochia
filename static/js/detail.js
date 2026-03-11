@@ -16,6 +16,7 @@ async function loadDetail() {
     document.getElementById("kv-path").textContent = v.file_path || "—";
     document.getElementById("kv-date").textContent = v.upload_date
       ? new Date(v.upload_date).toLocaleString("zh-TW") : "—";
+    _populateReviewInfo(v);
 
     if (v.error_message) {
       document.getElementById("error-box").textContent = v.error_message;
@@ -162,6 +163,7 @@ function switchTab(tabName) {
     if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
+    else if (tabName === "notes") loadNote();
     else if (tabName === "qa-chat") { /* chat history already loaded */ }
   }
 }
@@ -701,3 +703,111 @@ function escHtml(str) {
 }
 
 // 標籤和全部標籤庫在 window.load 時一起初始化（見下方）
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 複習系統
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _selectedConfidence = null;
+
+function openReviewModal() {
+  _selectedConfidence = null;
+  document.querySelectorAll(".confidence-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("confirm-review-btn").disabled = true;
+  document.getElementById("review-result-msg").style.display = "none";
+  document.getElementById("review-modal-overlay").classList.remove("hidden");
+}
+
+function closeReviewModal() {
+  document.getElementById("review-modal-overlay").classList.add("hidden");
+}
+
+function selectConfidence(level) {
+  _selectedConfidence = level;
+  document.querySelectorAll(".confidence-btn").forEach(b => {
+    b.classList.toggle("selected", parseInt(b.dataset.level) === level);
+  });
+  document.getElementById("confirm-review-btn").disabled = false;
+}
+
+async function confirmReview() {
+  if (!_selectedConfidence) return;
+  const btn = document.getElementById("confirm-review-btn");
+  btn.disabled = true;
+  btn.textContent = "記錄中...";
+  try {
+    const data = await api("POST", `/api/review/${videoId}/mark`, { confidence: _selectedConfidence });
+    const msgEl = document.getElementById("review-result-msg");
+    msgEl.textContent = `✅ 已記錄！下次複習：${new Date(data.sr_next_review_at).toLocaleDateString("zh-TW")}（${data.sr_interval} 天後）`;
+    msgEl.style.display = "block";
+    // 更新 kv 欄位
+    document.getElementById("kv-review-count").textContent = `${data.review_count} 次`;
+    document.getElementById("kv-last-reviewed").textContent = new Date().toLocaleDateString("zh-TW");
+    document.getElementById("kv-next-review").textContent = new Date(data.sr_next_review_at).toLocaleDateString("zh-TW");
+    setTimeout(closeReviewModal, 1800);
+  } catch (e) {
+    toast("記錄失敗: " + e.message, "error");
+    btn.disabled = false;
+    btn.textContent = "確認複習";
+  }
+}
+
+function _populateReviewInfo(video) {
+  const el = document.getElementById("btn-reviewed");
+  if (video.status === "completed") el.style.display = "";
+  const rc = video.review_count || 0;
+  document.getElementById("kv-review-count").textContent = rc ? `${rc} 次` : "尚未複習";
+  document.getElementById("kv-last-reviewed").textContent = video.last_reviewed_at
+    ? new Date(video.last_reviewed_at).toLocaleDateString("zh-TW") : "—";
+  document.getElementById("kv-next-review").textContent = video.sr_next_review_at
+    ? new Date(video.sr_next_review_at).toLocaleDateString("zh-TW") : "—";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 個人筆記
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _noteSaveTimer = null;
+
+async function loadNote() {
+  try {
+    const data = await api("GET", `/api/notes/${videoId}`);
+    const editor = document.getElementById("note-editor");
+    editor.value = data.content || "";
+    renderNotePreview(editor.value);
+  } catch (e) {
+    console.error("載入筆記失敗:", e);
+  }
+}
+
+function scheduleNoteSave() {
+  if (_noteSaveTimer) clearTimeout(_noteSaveTimer);
+  renderNotePreview(document.getElementById("note-editor").value);
+  // 自動儲存：停止輸入 2 秒後
+  _noteSaveTimer = setTimeout(saveNote, 2000);
+}
+
+async function saveNote() {
+  if (_noteSaveTimer) clearTimeout(_noteSaveTimer);
+  const content = document.getElementById("note-editor").value;
+  try {
+    await api("PUT", `/api/notes/${videoId}`, { content });
+    const ind = document.getElementById("notes-saved-indicator");
+    ind.style.display = "";
+    setTimeout(() => { ind.style.display = "none"; }, 2000);
+  } catch (e) {
+    toast("筆記儲存失敗: " + e.message, "error");
+  }
+}
+
+function renderNotePreview(markdown) {
+  const el = document.getElementById("note-preview");
+  if (!el) return;
+  if (!markdown.trim()) { el.innerHTML = "<span style='color:var(--muted)'>（預覽區）</span>"; return; }
+  if (window.marked) {
+    el.innerHTML = marked.parse(markdown);
+  } else {
+    el.textContent = markdown;
+  }
+}
+
