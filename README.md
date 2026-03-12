@@ -4,9 +4,22 @@
 
 ---
 
+## 🖥️ 支援架構
+
+| 平台 | 架構 | 支援狀態 |
+|---|---|---|
+| Mac Mini / MacBook (Apple Silicon M1/M2/M3) | `linux/arm64` | ✅ 原生支援 |
+| Mac Intel | `linux/amd64` | ✅ 原生支援 |
+| Linux x86_64 | `linux/amd64` | ✅ 原生支援 |
+| Linux ARM64（AWS Graviton、Raspberry Pi 等） | `linux/arm64` | ✅ 原生支援 |
+
+Docker image 為 **multi-arch manifest**，`docker pull` 時自動選擇符合本機 CPU 的版本，**無需手動指定架構**。
+
+---
+
 ## 🐳 快速啟動（Docker，推薦）
 
-不需安裝 Python、FFmpeg 等任何依賴，所有環境皆封裝在 container 中。
+不需安裝 Python、FFmpeg 等任何依賴，所有環境皆封裝在 container 中。支援 Apple Silicon 與 Intel 架構。
 
 ```bash
 # 1. Clone 專案
@@ -20,7 +33,7 @@ nano .env   # 填入 AZURE_OPENAI_API_KEY、OPENAI_API_KEY
 # 3. 設定影片目錄
 echo 'VIDEO_DIR=/path/to/your/videos' >> .env
 
-# 4. 啟動
+# 4. 啟動（Docker 自動偵測並使用符合本機架構的 image）
 docker compose up -d
 
 # 5. 開啟瀏覽器
