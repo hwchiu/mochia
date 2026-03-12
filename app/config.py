@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -31,6 +32,28 @@ class Settings(BaseSettings):
     AZURE_OPENAI_WHISPER_ENDPOINT: str = ""
     AZURE_OPENAI_WHISPER_API_VERSION: str = ""  # 留空則沿用 AZURE_OPENAI_API_VERSION
     WHISPER_TIMEOUT: int = 600  # Whisper API 逾時秒數（預設 10 分鐘）
+
+    @field_validator("PORT")
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        if not (1 <= v <= 65535):
+            raise ValueError(f"PORT must be between 1 and 65535, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def warn_if_api_keys_empty(self) -> "Settings":
+        import logging
+
+        _logger = logging.getLogger(__name__)
+        if not self.AZURE_OPENAI_API_KEY:
+            _logger.warning(
+                "AZURE_OPENAI_API_KEY is not set. GPT analysis features will not work."
+            )
+        if not self.AZURE_OPENAI_ENDPOINT:
+            _logger.warning(
+                "AZURE_OPENAI_ENDPOINT is not set. GPT analysis features will not work."
+            )
+        return self
 
     @property
     def whisper_api_key(self) -> str:

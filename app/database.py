@@ -1,15 +1,33 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+    event,
+)
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker
 
 from app.config import settings
 
 DATABASE_URL = f"sqlite:///{settings.DATA_DIR}/video_analyzer.db"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, echo=False)
+
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base: Any = declarative_base()
@@ -40,12 +58,21 @@ class Video(Base):
     sr_repetitions = Column(Integer, default=0)
     sr_next_review_at = Column(DateTime, nullable=True)
 
+    # ORM-level cascade: deleting a Video automatically removes all child records
+    transcripts = relationship("Transcript", cascade="all, delete-orphan")
+    summaries = relationship("Summary", cascade="all, delete-orphan")
+    classifications = relationship("Classification", cascade="all, delete-orphan")
+    task_queue_entries = relationship("TaskQueue", cascade="all, delete-orphan")
+    video_labels = relationship("VideoLabel", cascade="all, delete-orphan")
+    review_records = relationship("ReviewRecord", cascade="all, delete-orphan")
+    notes = relationship("VideoNote", cascade="all, delete-orphan")
+
 
 class Transcript(Base):
     __tablename__ = "transcripts"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     content = Column(Text)
     language = Column(String, default="zh")
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -55,7 +82,7 @@ class Summary(Base):
     __tablename__ = "summaries"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     summary = Column(Text)
     key_points = Column(Text)
     mindmap = Column(Text, nullable=True)
@@ -69,7 +96,7 @@ class Classification(Base):
     __tablename__ = "classifications"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     category = Column(String)
     confidence = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -79,7 +106,7 @@ class TaskQueue(Base):
     __tablename__ = "task_queue"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     priority = Column(Integer, default=5)
     status = Column(String, default="pending", index=True)
     retry_count = Column(Integer, default=0)
@@ -113,9 +140,13 @@ class VideoLabel(Base):
     __tablename__ = "video_labels"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True)
-    label_id = Column(String, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    label_id = Column(String, ForeignKey("labels.id", ondelete="CASCADE"), index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("video_id", "label_id", name="uq_video_label"),
+    )
 
 
 class ReviewRecord(Base):
@@ -124,7 +155,7 @@ class ReviewRecord(Base):
     __tablename__ = "review_records"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     confidence = Column(Integer)  # 1-5
     reviewed_at = Column(DateTime, default=datetime.utcnow, index=True)
 
@@ -135,7 +166,7 @@ class VideoNote(Base):
     __tablename__ = "video_notes"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True, unique=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True, unique=True)
     content = Column(Text, default="")
     updated_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)

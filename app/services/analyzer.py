@@ -4,32 +4,53 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 
+import openai
 from openai import AzureOpenAI
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 _client: AzureOpenAI | None = None
+_client_lock = threading.Lock()
 
 # Whisper API 單次最大 25MB；超過此長度的逐字稿需截斷再送 GPT
 MAX_TRANSCRIPT_CHARS = 12000
 
 
+def _prepare_transcript(transcript: str) -> str:
+    """Truncate transcript to fit GPT context window, preserving start and end."""
+    if len(transcript) <= MAX_TRANSCRIPT_CHARS:
+        return transcript
+    half = MAX_TRANSCRIPT_CHARS // 2
+    return transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
+
+
 def _get_client() -> AzureOpenAI:
     global _client
-    if _client is None:
-        if not settings.AZURE_OPENAI_API_KEY or not settings.AZURE_OPENAI_ENDPOINT:
-            raise ValueError("AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定")
-        _client = AzureOpenAI(
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-        )
+    with _client_lock:
+        if _client is None:
+            if not settings.AZURE_OPENAI_API_KEY or not settings.AZURE_OPENAI_ENDPOINT:
+                raise ValueError("AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定")
+            _client = AzureOpenAI(
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+            )
     return _client
 
 
+@retry(
+    retry=retry_if_exception_type(
+        (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)
+    ),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    stop=stop_after_attempt(3),
+    reraise=True,
+)
 def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
     client = _get_client()
     response = client.chat.completions.create(
@@ -40,32 +61,31 @@ def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
         ],
         max_completion_tokens=max_tokens,  # 新一代模型（o1/o3/gpt-5系列）使用此參數
     )
-    return response.choices[0].message.content.strip()  # type: ignore[union-attr]
+    content = response.choices[0].message.content
+    return content.strip() if content else ""
 
 
-def analyze(transcript: str) -> tuple[str, list[str], str, float]:
-    """
-    對逐字稿執行完整分析：摘要、重點、分類。
+def analyze(transcript: str) -> tuple[str, list[dict], str, float]:
+    """Analyze transcript using GPT to generate summary, key points, and classification.
 
     Args:
-        transcript: 影片逐字稿文字
+        transcript: Full transcript text from Whisper.
 
     Returns:
-        (summary, key_points, category, confidence)
-        - summary: 摘要文字
-        - key_points: 重點清單（List[str]）
-        - category: 分類名稱
-        - confidence: 分類信心分數 0-1
+        Tuple of (summary, key_points, category, confidence) where:
+        - summary: Text summary of the content
+        - key_points: List of dicts with 'theme' and 'points' keys
+        - category: One of the predefined CATEGORIES
+        - confidence: Float 0.0-1.0 classification confidence
+
+    Raises:
+        ValueError: If GPT returns invalid JSON response.
+        openai.APIError: If API call fails after retries.
     """
     # 逐字稿太長時截取前後各部分送 GPT
+    transcript_for_gpt = _prepare_transcript(transcript)
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
         logger.info(f"逐字稿過長 ({len(transcript)} 字)，已截斷送分析")
-    else:
-        transcript_for_gpt = transcript
 
     categories_str = "\n".join(f"- {c}" for c in settings.CATEGORIES)
 
@@ -116,7 +136,11 @@ def analyze(transcript: str) -> tuple[str, list[str], str, float]:
         raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
         raw = raw.rsplit("```", 1)[0].strip()
 
-    result = json.loads(raw)
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.error("GPT 回傳無效 JSON，raw=%r", raw[:200])
+        raise ValueError(f"GPT 回傳無效 JSON: {raw[:100]}") from exc
 
     summary = result.get("summary", "")
     raw_kp = result.get("key_points", [])
@@ -137,18 +161,22 @@ def analyze(transcript: str) -> tuple[str, list[str], str, float]:
         confidence = 0.0
 
     logger.info(f"分析完成 - 分類: {category} ({confidence:.0%})")
-    return summary, key_points, category, confidence  # type: ignore[return-value]
+    return summary, key_points, category, confidence
 
 
 def generate_mindmap(transcript: str) -> str:
-    """Generate Markmap-compatible Markdown mind map from transcript."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    """Generate Markmap-compatible Markdown mind map from transcript.
+
+    Args:
+        transcript: Full transcript text to convert into a mind map.
+
+    Returns:
+        Markmap-compatible Markdown string with # root node and ## branches.
+
+    Raises:
+        openai.APIError: If API call fails after retries.
+    """
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位專業的知識整理專家，擅長將內容整理成結構化的心智圖。
 請根據影片逐字稿，生成 Markmap 相容的 Markdown 格式心智圖。
@@ -173,14 +201,19 @@ def generate_mindmap(transcript: str) -> str:
 
 
 def generate_faq(transcript: str) -> list[dict]:
-    """Generate FAQ list (5-8 Q&A pairs) from transcript."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    """Generate FAQ list (5-8 Q&A pairs) from transcript.
+
+    Args:
+        transcript: Full transcript text to extract questions and answers from.
+
+    Returns:
+        List of dicts with 'question' and 'answer' keys. Returns empty list
+        if JSON parsing fails.
+
+    Raises:
+        openai.APIError: If API call fails after retries.
+    """
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位教育內容專家，擅長從影片內容提取常見問題。
 請根據影片逐字稿，生成 5-8 個常見問答（FAQ）。
@@ -227,13 +260,7 @@ def generate_faq(transcript: str) -> list[dict]:
 
 def generate_study_notes(transcript: str) -> str:
     """Generate structured study notes in Markdown."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位專業的學習顧問，擅長將影片內容整理成結構化的學習筆記。
 請根據影片逐字稿，生成完整的學習筆記。
@@ -267,14 +294,21 @@ def generate_study_notes(transcript: str) -> str:
 
 
 def ask_question(transcript: str, question: str, chat_history: list[dict]) -> str:
-    """Answer a question about the video using multi-turn conversation."""
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    """Answer a question about the video using multi-turn conversation.
+
+    Args:
+        transcript: Full transcript text used as context for answers.
+        question: The user's question string.
+        chat_history: List of previous message dicts with 'role' and 'content' keys.
+
+    Returns:
+        Assistant's answer as a string.
+
+    Raises:
+        ValueError: If Azure OpenAI credentials are not configured.
+        openai.APIError: If the API call fails.
+    """
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = f"""你是一位專業的影片內容助手，負責回答關於這支影片的問題。
 請根據以下影片逐字稿來回答問題，使用繁體中文。
@@ -291,9 +325,10 @@ def ask_question(transcript: str, question: str, chat_history: list[dict]) -> st
     logger.info("開始 ask_question...")
     response = client.chat.completions.create(
         model=settings.AZURE_OPENAI_DEPLOYMENT,
-        messages=messages,  # type: ignore[arg-type]
+        messages=messages,
     )
-    answer = response.choices[0].message.content.strip()  # type: ignore[union-attr]
+    content = response.choices[0].message.content
+    answer = content.strip() if content else ""
     return answer
 
 
@@ -316,25 +351,25 @@ def suggest_labels(summary: str) -> list[str]:
         end = raw.rfind("]") + 1
         labels = json.loads(raw[start:end])
         return [str(item).strip() for item in labels if str(item).strip()][:5]
-    except Exception:
-        logger.warning(f"suggest_labels JSON 解析失敗: {raw}")
+    except json.JSONDecodeError:
+        logger.warning("suggest_labels JSON 解析失敗: %r", raw)
         return []
 
 
 def extract_case_analysis(transcript: str) -> str:
-    """
-    從逐字稿中偵測並擷取案例分析內容。
+    """Detect and extract case analysis content from transcript.
 
-    若影片包含案例分析、實例演示或具體案例，回傳詳細的 Markdown 格式紀錄。
-    若影片沒有案例分析內容，回傳空字串。
+    Args:
+        transcript: Full transcript text to scan for case study content.
+
+    Returns:
+        Markdown-formatted case analysis string, or empty string if no cases
+        are found in the transcript.
+
+    Raises:
+        openai.APIError: If API call fails after retries.
     """
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        half = MAX_TRANSCRIPT_CHARS // 2
-        transcript_for_gpt = (
-            transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
-        )
-    else:
-        transcript_for_gpt = transcript
+    transcript_for_gpt = _prepare_transcript(transcript)
 
     system_prompt = """你是一位專業的玄學內容分析師。
 你的任務是從影片逐字稿中識別並詳細記錄所有「案例分析」內容。

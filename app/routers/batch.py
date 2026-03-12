@@ -118,7 +118,7 @@ def queue_all_pending(
             status="pending",
         )
         db.add(task)
-        video.status = "queued"  # type: ignore[assignment]
+        video.status = "queued"
         queued_count += 1
 
     db.commit()
@@ -135,10 +135,10 @@ def cancel_all_pending(db: Session = Depends(get_db)):
     tasks = db.query(TaskQueue).filter(TaskQueue.status == "pending").all()
     cancelled = 0
     for task in tasks:
-        task.status = "cancelled"  # type: ignore[assignment]
+        task.status = "cancelled"
         video = db.query(Video).filter(Video.id == task.video_id).first()
         if video and video.status == "queued":
-            video.status = "pending"  # type: ignore[assignment]
+            video.status = "pending"
         cancelled += 1
     db.commit()
     return {"message": f"已取消 {cancelled} 個任務", "cancelled": cancelled}
@@ -182,13 +182,13 @@ def retry_failed(db: Session = Depends(get_db)):
     tasks = db.query(TaskQueue).filter(TaskQueue.status == "failed").all()
     retried = 0
     for task in tasks:
-        task.status = "pending"  # type: ignore[assignment]
-        task.retry_count = 0  # type: ignore[assignment]
-        task.error_message = None  # type: ignore[assignment]
+        task.status = "pending"
+        task.retry_count = 0
+        task.error_message = None
         video = db.query(Video).filter(Video.id == task.video_id).first()
         if video:
-            video.status = "queued"  # type: ignore[assignment]
-            video.error_message = None  # type: ignore[assignment]
+            video.status = "queued"
+            video.error_message = None
         retried += 1
     db.commit()
     return {"message": f"已重設 {retried} 個失敗任務", "retried": retried}

@@ -42,8 +42,8 @@ def upsert_note(video_id: str, body: NoteUpsertRequest, db: Session = Depends(ge
 
     note = db.query(VideoNote).filter(VideoNote.video_id == video_id).first()
     if note:
-        note.content = body.content  # type: ignore[assignment]
-        note.updated_at = datetime.utcnow()  # type: ignore[assignment]
+        note.content = body.content
+        note.updated_at = datetime.utcnow()
     else:
         note = VideoNote(
             id=str(uuid.uuid4()),

@@ -9,14 +9,18 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
+import openai
 from openai import AzureOpenAI
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 _client: AzureOpenAI | None = None
+_client_lock = threading.Lock()
 
 # Whisper API 單次最大 25MB，保留 1MB 安全緩衝
 WHISPER_MAX_BYTES = 24 * 1024 * 1024
@@ -24,17 +28,18 @@ WHISPER_MAX_BYTES = 24 * 1024 * 1024
 
 def _get_client() -> AzureOpenAI:
     global _client
-    if _client is None:
-        if not settings.whisper_api_key or not settings.whisper_endpoint:
-            raise ValueError(
-                "AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定，請在 .env 中配置"
+    with _client_lock:
+        if _client is None:
+            if not settings.whisper_api_key or not settings.whisper_endpoint:
+                raise ValueError(
+                    "AZURE_OPENAI_API_KEY 或 AZURE_OPENAI_ENDPOINT 未設定，請在 .env 中配置"
+                )
+            _client = AzureOpenAI(
+                api_key=settings.whisper_api_key,
+                azure_endpoint=settings.whisper_endpoint,
+                api_version=settings.whisper_api_version,
+                timeout=settings.WHISPER_TIMEOUT,
             )
-        _client = AzureOpenAI(
-            api_key=settings.whisper_api_key,
-            azure_endpoint=settings.whisper_endpoint,
-            api_version=settings.whisper_api_version,
-            timeout=settings.WHISPER_TIMEOUT,
-        )
     return _client
 
 
@@ -55,9 +60,14 @@ def _get_audio_duration(audio_path: Path) -> float:
 
 
 def _split_audio(audio_path: Path) -> list[Path]:
-    """
-    若音頻超過 WHISPER_MAX_BYTES，用 FFmpeg 切割成多個 chunk。
-    回傳 chunk 路徑列表；若未超限則回傳 [audio_path]。
+    """Split oversized audio into chunks for Whisper API limits.
+
+    Args:
+        audio_path: Path to the source MP3 audio file.
+
+    Returns:
+        List of chunk file paths. Returns ``[audio_path]`` if the file is
+        within the ``WHISPER_MAX_BYTES`` limit (no split needed).
     """
     file_size = audio_path.stat().st_size
     if file_size <= WHISPER_MAX_BYTES:
@@ -148,6 +158,14 @@ def _transcribe_with_heartbeat(
     return result_holder[0]
 
 
+@retry(
+    retry=retry_if_exception_type(
+        (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)
+    ),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    stop=stop_after_attempt(3),
+    reraise=True,
+)
 def _transcribe_single(audio_path: Path, language: str) -> str:
     """對單一音頻檔案呼叫 Whisper API"""
     client = _get_client()
@@ -158,7 +176,8 @@ def _transcribe_single(audio_path: Path, language: str) -> str:
             language=language,
             response_format="text",
         )
-    return response if isinstance(response, str) else response.text  # type: ignore[attr-defined]
+    # response_format="text" always returns a plain str at runtime
+    return cast(str, response)
 
 
 def transcribe(
@@ -166,22 +185,21 @@ def transcribe(
     language: str = "zh",
     progress_callback: Callable[[int, int, int], None] | None = None,
 ) -> str:
-    """
-    使用 Azure OpenAI Whisper 將音頻轉為文字。
-    超過 25MB 的檔案會自動切割後分段轉錄再合併。
+    """Transcribe audio file to text using OpenAI Whisper API.
 
     Args:
-        audio_path: 音頻檔案路徑（MP3/WAV/M4A 等）
-        language: 語言代碼，預設 "zh"（中文）
-        progress_callback: 可選進度回呼，簽名為 (percent, chunk_idx, total_chunks)
+        audio_path: Path to the MP3 audio file to transcribe.
+        language: BCP-47 language code, defaults to "zh" (Chinese).
+        progress_callback: Optional callable(percent: int, chunk_idx: int, total_chunks: int)
+            for progress updates.
 
     Returns:
-        轉錄文字
+        Full transcript text as a single string.
 
     Raises:
-        FileNotFoundError: 音頻檔案不存在
-        ValueError: API Key 或 Endpoint 未設定
-        Exception: API 呼叫失敗
+        FileNotFoundError: If audio_path does not exist.
+        ValueError: If Whisper API credentials are not configured.
+        RuntimeError: If transcription fails after retries.
     """
     audio_path = Path(audio_path)
     if not audio_path.exists():

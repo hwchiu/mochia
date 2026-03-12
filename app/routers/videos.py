@@ -43,7 +43,7 @@ def _video_to_dict(v: Video) -> dict:
 @router.post("/upload")
 async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """上傳影片檔案"""
-    ext = Path(file.filename).suffix.lower()  # type: ignore[arg-type]
+    ext = Path(file.filename or "").suffix.lower()
     if ext not in settings.SUPPORTED_VIDEO_EXTENSIONS:
         raise HTTPException(400, f"不支援的檔案格式: {ext}")
 
@@ -94,23 +94,34 @@ def list_videos(
             lbl = db.query(Label).filter(Label.name == name).first()
             if lbl:
                 sub = db.query(VideoLabel.video_id).filter(VideoLabel.label_id == lbl.id).subquery()
-                query = query.filter(Video.id.in_(sub))  # type: ignore[arg-type]
+                query = query.filter(Video.id.in_(sub))
             else:
                 # 如果標籤不存在，沒有影片能匹配
                 query = query.filter(Video.id == None)  # noqa: E711
     total = query.count()
     videos = query.order_by(Video.upload_date.desc()).offset(skip).limit(limit).all()
 
-    # 為每部影片附帶標籤資訊
+    # Fetch all label associations for this page in two queries (avoids N+1)
+    video_ids = [v.id for v in videos]
+    vl_rows = db.query(VideoLabel).filter(VideoLabel.video_id.in_(video_ids)).all()
+    vl_by_video: dict[str, list[VideoLabel]] = {}
+    for vl in vl_rows:
+        vl_by_video.setdefault(vl.video_id, []).append(vl)
+
+    label_ids = list({vl.label_id for vl in vl_rows})
+    labels_map: dict[str, Label] = {}
+    if label_ids:
+        lbls = db.query(Label).filter(Label.id.in_(label_ids)).all()
+        labels_map = {lbl.id: lbl for lbl in lbls}
+
     items = []
     for v in videos:
         d = _video_to_dict(v)
-        vl_rows = db.query(VideoLabel).filter(VideoLabel.video_id == v.id).all()
-        d["labels"] = []
-        for row in vl_rows:
-            lbl = db.query(Label).filter(Label.id == row.label_id).first()
-            if lbl:
-                d["labels"].append({"id": lbl.id, "name": lbl.name, "color": lbl.color})
+        d["labels"] = [
+            {"id": labels_map[vl.label_id].id, "name": labels_map[vl.label_id].name, "color": labels_map[vl.label_id].color}
+            for vl in vl_by_video.get(v.id, [])
+            if vl.label_id in labels_map
+        ]
         items.append(d)
 
     return {"total": total, "items": items}

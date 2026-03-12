@@ -17,20 +17,18 @@ logger = logging.getLogger(__name__)
 def extract_audio(
     video_path: str | Path, progress_callback: Callable[[int], None] | None = None
 ) -> Path:
-    """
-    使用 FFmpeg 從影片提取音頻，輸出為 MP3 格式。
-    若提供 progress_callback，會即時回報提取進度（0-100）。
+    """Extract audio from video file using FFmpeg.
 
     Args:
-        video_path: 影片檔案的路徑
-        progress_callback: 可選的進度回呼，接受 int (0-100)
+        video_path: Path to the source video file.
+        progress_callback: Optional callable(percent: int) for progress updates.
 
     Returns:
-        提取的音頻檔案路徑（位於 AUDIO_TEMP_DIR）
+        Path to the extracted MP3 audio file.
 
     Raises:
-        FileNotFoundError: 影片檔案不存在
-        RuntimeError: FFmpeg 提取失敗
+        FileNotFoundError: If video_path does not exist.
+        RuntimeError: If FFmpeg extraction fails.
     """
     video_path = Path(video_path)
     if not video_path.exists():
@@ -62,14 +60,15 @@ def extract_audio(
 
     process = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, bufsize=1)
 
-    for line in process.stderr:  # type: ignore[union-attr]
-        if progress_callback and duration and "time=" in line:
-            m = re.search(r"time=(\d+):(\d+):(\d+\.\d+)", line)
-            if m:
-                h, mn, s = m.groups()
-                secs = int(h) * 3600 + int(mn) * 60 + float(s)
-                pct = min(int(secs / duration * 100), 99)
-                progress_callback(pct)
+    if process.stderr:
+        for line in process.stderr:
+            if progress_callback and duration and "time=" in line:
+                m = re.search(r"time=(\d+):(\d+):(\d+\.\d+)", line)
+                if m:
+                    h, mn, s = m.groups()
+                    secs = int(h) * 3600 + int(mn) * 60 + float(s)
+                    pct = min(int(secs / duration * 100), 99)
+                    progress_callback(pct)
 
     process.wait()
     if process.returncode != 0:
@@ -80,9 +79,13 @@ def extract_audio(
 
 
 def get_video_duration(video_path: str | Path) -> float | None:
-    """
-    使用 ffprobe 取得影片時長（秒）。
-    若失敗則回傳 None，不中斷流程。
+    """Get video duration in seconds using ffprobe.
+
+    Args:
+        video_path: Path to the video or audio file.
+
+    Returns:
+        Duration in seconds, or None if ffprobe fails.
     """
     try:
         cmd = [

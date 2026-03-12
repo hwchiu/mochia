@@ -1,6 +1,5 @@
 """全文搜尋 API — 基於 SQLite FTS5"""
 
-import json
 import logging
 import sqlite3
 
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import Classification, Label, Summary, Transcript, Video, VideoLabel, get_db
+from app.utils import safe_json_loads
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -32,18 +32,15 @@ def rebuild_fts_index(video_id: str, db: Session) -> None:
     transcript_text = (transcript_row.content or "")[:8000] if transcript_row else ""
     kp_text = ""
     if summary_row and summary_row.key_points:
-        try:
-            kps = json.loads(summary_row.key_points)  # type: ignore[arg-type]
-            parts = []
-            for kp in kps:
-                if isinstance(kp, dict):
-                    parts.append(kp.get("theme", ""))
-                    parts.extend(kp.get("points", []))
-                elif isinstance(kp, str):
-                    parts.append(kp)
-            kp_text = " ".join(parts)
-        except Exception:
-            pass
+        kps = safe_json_loads(summary_row.key_points, [])
+        parts = []
+        for kp in kps:
+            if isinstance(kp, dict):
+                parts.append(kp.get("theme", ""))
+                parts.extend(kp.get("points", []))
+            elif isinstance(kp, str):
+                parts.append(kp)
+        kp_text = " ".join(parts)
 
     conn = _get_fts_conn()
     cur = conn.cursor()
@@ -117,7 +114,7 @@ def search_videos(
     for vl in vl_rows:
         lbl = labels_map.get(vl.label_id)
         if lbl:
-            video_labels.setdefault(vl.video_id, []).append(  # type: ignore[arg-type]
+            video_labels.setdefault(vl.video_id, []).append(
                 {"id": lbl.id, "name": lbl.name, "color": lbl.color}
             )
 
@@ -161,7 +158,7 @@ def reindex_all(db: Session = Depends(get_db)):
     count = 0
     for video in videos:
         try:
-            rebuild_fts_index(video.id, db)  # type: ignore[arg-type]
+            rebuild_fts_index(video.id, db)
             count += 1
         except Exception as e:
             logger.error(f"FTS reindex 失敗 {video.id}: {e}")
