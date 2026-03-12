@@ -9,6 +9,17 @@
   - Worker：任務處理與恢復流程。
 - **測試環境**：以 in-memory SQLite + `StaticPool` 共享連線，全面 mock 外部 GPT/Whisper/FFmpeg 交互。
 
+## CI 管線的測試與檢查範圍（.github/workflows/ci.yml）
+
+- **Lint**：`ruff check .` + `ruff format --check .`
+- **型別**：`mypy app/ --ignore-missing-imports --no-error-summary`
+- **安全**：`bandit -r app/ worker.py -c pyproject.toml`
+- **單元/整合測試**：`pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=60`，於 Python 3.10/3.11/3.12 矩陣執行，並在 3.11 上上傳 coverage.xml。
+- **Docker 整合測試**：以 `Dockerfile.test` 建置，環境注入虛擬 AZURE_OPENAI 參數後執行內含測試。
+- **E2E 煙測**：以正式 `Dockerfile` 建置容器並啟動服務，執行 `smoke-test.sh`（HTTP 8000）。
+- **發佈門檻**：`publish` job 僅在 main 分支 push 觸發，需全部 lint/type/security/test/docker/smoke 成功。
+- **仍未涵蓋**：並發/負載/安全穿透測試、真實 GPT/Whisper/FFmpeg 整合、前端互動 UI、自動化遷移驗證。
+
 ---
 
 ## 做得好的地方
