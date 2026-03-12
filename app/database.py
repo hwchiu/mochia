@@ -59,13 +59,13 @@ class Video(Base):
     sr_next_review_at = Column(DateTime, nullable=True)
 
     # ORM-level cascade: deleting a Video automatically removes all child records
-    transcripts = relationship("Transcript", cascade="all, delete-orphan")
-    summaries = relationship("Summary", cascade="all, delete-orphan")
-    classifications = relationship("Classification", cascade="all, delete-orphan")
-    task_queue_entries = relationship("TaskQueue", cascade="all, delete-orphan")
-    video_labels = relationship("VideoLabel", cascade="all, delete-orphan")
-    review_records = relationship("ReviewRecord", cascade="all, delete-orphan")
-    notes = relationship("VideoNote", cascade="all, delete-orphan")
+    transcripts = relationship("Transcript", cascade="all, delete-orphan")  # type: ignore[misc]
+    summaries = relationship("Summary", cascade="all, delete-orphan")  # type: ignore[misc]
+    classifications = relationship("Classification", cascade="all, delete-orphan")  # type: ignore[misc]
+    task_queue_entries = relationship("TaskQueue", cascade="all, delete-orphan")  # type: ignore[misc]
+    video_labels = relationship("VideoLabel", cascade="all, delete-orphan")  # type: ignore[misc]
+    review_records = relationship("ReviewRecord", cascade="all, delete-orphan")  # type: ignore[misc]
+    notes = relationship("VideoNote", cascade="all, delete-orphan")  # type: ignore[misc]
 
 
 class Transcript(Base):

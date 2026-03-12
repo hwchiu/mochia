@@ -64,7 +64,7 @@ async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_d
         file_path=str(dest),
         source="uploaded",
         file_size=file_size,
-        duration=duration,
+        duration=duration,  # type: ignore[arg-type]
         status="pending",
     )
     db.add(video)
@@ -94,7 +94,7 @@ def list_videos(
             lbl = db.query(Label).filter(Label.name == name).first()
             if lbl:
                 sub = db.query(VideoLabel.video_id).filter(VideoLabel.label_id == lbl.id).subquery()
-                query = query.filter(Video.id.in_(sub))
+                query = query.filter(Video.id.in_(sub))  # type: ignore[arg-type]
             else:
                 # 如果標籤不存在，沒有影片能匹配
                 query = query.filter(Video.id == None)  # noqa: E711
@@ -106,13 +106,13 @@ def list_videos(
     vl_rows = db.query(VideoLabel).filter(VideoLabel.video_id.in_(video_ids)).all()
     vl_by_video: dict[str, list[VideoLabel]] = {}
     for vl in vl_rows:
-        vl_by_video.setdefault(vl.video_id, []).append(vl)
+        vl_by_video.setdefault(vl.video_id, []).append(vl)  # type: ignore[arg-type]
 
     label_ids = list({vl.label_id for vl in vl_rows})
     labels_map: dict[str, Label] = {}
     if label_ids:
         lbls = db.query(Label).filter(Label.id.in_(label_ids)).all()
-        labels_map = {lbl.id: lbl for lbl in lbls}
+        labels_map = {lbl.id: lbl for lbl in lbls}  # type: ignore[misc]
 
     items = []
     for v in videos:
@@ -123,7 +123,7 @@ def list_videos(
                 "name": labels_map[vl.label_id].name,
                 "color": labels_map[vl.label_id].color,
             }
-            for vl in vl_by_video.get(v.id, [])
+            for vl in vl_by_video.get(v.id, [])  # type: ignore[arg-type]
             if vl.label_id in labels_map
         ]
         items.append(d)

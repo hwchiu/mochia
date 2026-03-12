@@ -114,7 +114,7 @@ def search_videos(
     for vl in vl_rows:
         lbl = labels_map.get(vl.label_id)
         if lbl:
-            video_labels.setdefault(vl.video_id, []).append(
+            video_labels.setdefault(vl.video_id, []).append(  # type: ignore[arg-type]
                 {"id": lbl.id, "name": lbl.name, "color": lbl.color}
             )
 
@@ -158,7 +158,7 @@ def reindex_all(db: Session = Depends(get_db)):
     count = 0
     for video in videos:
         try:
-            rebuild_fts_index(video.id, db)
+            rebuild_fts_index(video.id, db)  # type: ignore[arg-type]
             count += 1
         except Exception as e:
             logger.error(f"FTS reindex 失敗 {video.id}: {e}")

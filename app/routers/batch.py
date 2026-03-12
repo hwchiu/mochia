@@ -48,7 +48,7 @@ def _scan_directory(scan_path: str, db: Session) -> dict:
                 file_path=abs_path,
                 source="local_scan",
                 file_size=file_size,
-                duration=duration,
+                duration=duration,  # type: ignore[arg-type]
                 status="pending",
             )
             db.add(video)
