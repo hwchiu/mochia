@@ -11,15 +11,16 @@ from app.routers import analysis, batch, labels, notes, review, search, stats, v
 
 
 def create_app() -> FastAPI:
+    async def lifespan(app: FastAPI):
+        init_db()
+        yield
+
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
         description="本地影片分析系統 - 支援批量分析與背景 Worker",
+        lifespan=lifespan,
     )
-
-    @app.on_event("startup")
-    async def startup():
-        init_db()
 
     # API Routers
     app.include_router(videos.router)
@@ -42,11 +43,11 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        return templates.TemplateResponse("index.html", {"request": request})
+        return templates.TemplateResponse(request, "index.html", {})
 
     @app.get("/video/{video_id}", response_class=HTMLResponse)
     async def video_detail(request: Request, video_id: str):
-        return templates.TemplateResponse("detail.html", {"request": request, "video_id": video_id})
+        return templates.TemplateResponse(request, "detail.html", {"video_id": video_id})
 
     @app.get("/health")
     async def health():

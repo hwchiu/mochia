@@ -1,10 +1,12 @@
 from pathlib import Path
 
-from pydantic import field_validator, model_validator
+from pydantic import ConfigDict, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file=".env")
+
     APP_NAME: str = "Video Analyzer"
     APP_VERSION: str = "0.1.0"
 
@@ -99,10 +101,6 @@ class Settings(BaseSettings):
         "綜合討論 (General Discussion)",
         "未分類 (Uncategorized)",
     ]
-
-    class Config:
-        env_file = ".env"
-
 
 settings = Settings()
 
