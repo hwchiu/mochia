@@ -13,8 +13,9 @@
 #    或直接修改下方 volumes 的 ${VIDEO_DIR} 路徑
 #
 #  Image 來源：
-#    預設從 ghcr.io/hwchiu/mochia:latest 拉取
-#    若要本地 build，執行：docker compose build
+#    從 Docker Hub hwchiu/mochia:latest 拉取
+#    支援 linux/amd64（Intel/AMD）與 linux/arm64（Apple Silicon、ARM 伺服器）
+#    Docker 會自動依本機 CPU 架構選擇正確的 image，無需手動指定
 # ============================================================
 services:
   web:
