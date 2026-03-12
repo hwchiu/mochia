@@ -1,4 +1,5 @@
 """Unit tests for the GPT analyzer service and utility helpers."""
+
 from __future__ import annotations
 
 from app.services.analyzer import MAX_TRANSCRIPT_CHARS, _prepare_transcript

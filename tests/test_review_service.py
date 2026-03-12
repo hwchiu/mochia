@@ -1,4 +1,5 @@
 """Unit tests for SM-2 spaced repetition algorithm."""
+
 from datetime import datetime
 
 from app.services.review_service import ReviewMetrics, calculate_next_review

@@ -1,4 +1,5 @@
 """Integration tests for video cascade delete behavior."""
+
 import json
 import uuid
 
@@ -73,7 +74,9 @@ class TestVideoCascadeDelete:
         resp = client.delete(f"/api/videos/{video.id}")
         assert resp.status_code == 200
 
-        remaining = db_session.query(Classification).filter(Classification.video_id == video.id).all()
+        remaining = (
+            db_session.query(Classification).filter(Classification.video_id == video.id).all()
+        )
         assert len(remaining) == 0
 
     def test_delete_video_removes_note(self, client: TestClient, db_session: Session):
@@ -92,7 +95,9 @@ class TestVideoCascadeDelete:
         remaining = db_session.query(VideoNote).filter(VideoNote.video_id == video.id).all()
         assert len(remaining) == 0
 
-    def test_delete_video_removes_all_related_records(self, client: TestClient, db_session: Session):
+    def test_delete_video_removes_all_related_records(
+        self, client: TestClient, db_session: Session
+    ):
         """Full cascade: transcript + summary + classification all removed together."""
         video = self._make_video(db_session, status="completed")
         vid_id = video.id
@@ -116,7 +121,9 @@ class TestVideoCascadeDelete:
 
         assert db_session.query(Transcript).filter(Transcript.video_id == vid_id).count() == 0
         assert db_session.query(Summary).filter(Summary.video_id == vid_id).count() == 0
-        assert db_session.query(Classification).filter(Classification.video_id == vid_id).count() == 0
+        assert (
+            db_session.query(Classification).filter(Classification.video_id == vid_id).count() == 0
+        )
 
     def test_delete_nonexistent_video_returns_404(self, client: TestClient):
         resp = client.delete("/api/videos/does_not_exist")

@@ -29,7 +29,7 @@ def get_note(video_id: str, db: Session = Depends(get_db)):
     return {
         "video_id": video_id,
         "content": note.content if note else "",
-        "updated_at": note.updated_at.isoformat() if note else None,
+        "updated_at": note.updated_at.isoformat() if note and note.updated_at else None,
     }
 
 
@@ -56,7 +56,7 @@ def upsert_note(video_id: str, body: NoteUpsertRequest, db: Session = Depends(ge
     return {
         "video_id": video_id,
         "content": note.content,
-        "updated_at": note.updated_at.isoformat(),
+        "updated_at": note.updated_at.isoformat() if note.updated_at else None,
     }
 
 

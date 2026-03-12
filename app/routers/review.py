@@ -25,11 +25,11 @@ def _sm2_update(video: Video, confidence: int) -> None:
     metrics = calculate_next_review(
         confidence=confidence,
         current_interval=video.sr_interval or 1,
-        current_ease_factor=video.sr_ease_factor or 2.5,
+        current_ease_factor=float(video.sr_ease_factor or 2.5),
         current_repetitions=video.sr_repetitions or 0,
     )
     video.sr_interval = metrics.interval
-    video.sr_ease_factor = metrics.ease_factor
+    video.sr_ease_factor = metrics.ease_factor  # type: ignore[assignment]
     video.sr_repetitions = metrics.repetitions
     video.sr_next_review_at = metrics.next_review_at
     video.last_reviewed_at = datetime.utcnow()
@@ -121,7 +121,9 @@ def mark_reviewed(
         "video_id": video_id,
         "confidence": body.confidence,
         "sr_interval": video.sr_interval,
-        "sr_next_review_at": video.sr_next_review_at.isoformat(),
+        "sr_next_review_at": video.sr_next_review_at.isoformat()
+        if video.sr_next_review_at
+        else None,
         "review_count": video.review_count,
     }
 
@@ -226,7 +228,7 @@ def get_review_history(
             {
                 "id": r.id,
                 "confidence": r.confidence,
-                "reviewed_at": r.reviewed_at.isoformat(),
+                "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
             }
             for r in records
         ],

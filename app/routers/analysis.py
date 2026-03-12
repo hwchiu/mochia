@@ -335,7 +335,7 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
         db.commit()
         return {"video_id": video_id, "mindmap": result}
     elif content_type == "faq":
-        result = generate_faq(transcript.content or "")
+        result = generate_faq(transcript.content or "")  # type: ignore[assignment]
         summary.faq = json.dumps(result, ensure_ascii=False)
         db.commit()
         return {"video_id": video_id, "faq": result}
@@ -374,14 +374,14 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     existing_cls = db.query(Classification).filter(Classification.video_id == video_id).first()
     if existing_cls:
         existing_cls.category = category
-        existing_cls.confidence = confidence
+        existing_cls.confidence = confidence  # type: ignore[assignment]
     else:
         db.add(
             Classification(
                 id=uuid.uuid4().hex,
                 video_id=video_id,
                 category=category,
-                confidence=confidence,
+                confidence=confidence,  # type: ignore[arg-type]
             )
         )
 

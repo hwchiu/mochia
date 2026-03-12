@@ -46,9 +46,7 @@ class Settings(BaseSettings):
 
         _logger = logging.getLogger(__name__)
         if not self.AZURE_OPENAI_API_KEY:
-            _logger.warning(
-                "AZURE_OPENAI_API_KEY is not set. GPT analysis features will not work."
-            )
+            _logger.warning("AZURE_OPENAI_API_KEY is not set. GPT analysis features will not work.")
         if not self.AZURE_OPENAI_ENDPOINT:
             _logger.warning(
                 "AZURE_OPENAI_ENDPOINT is not set. GPT analysis features will not work."
