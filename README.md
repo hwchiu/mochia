@@ -135,6 +135,40 @@ docker compose up -d
 
 ---
 
+## 📸 截圖
+
+### 分析中心
+管理影片分析任務，掌握佇列狀態
+
+![分析中心](docs/screenshots/01-analysis-center.png)
+
+### 複習中心
+已完成影片的卡片式瀏覽，支援搜尋與標籤篩選
+
+![複習中心](docs/screenshots/02-review-center.png)
+
+### 全文搜尋
+跨影片逐字稿全文搜尋
+
+![全文搜尋](docs/screenshots/03-search.png)
+
+### 學習統計
+追蹤學習進度、複習量與信心分布
+
+![學習統計](docs/screenshots/04-stats.png)
+
+### 標籤管理
+自訂標籤，12 色調色盤
+
+![標籤管理](docs/screenshots/05-labels.png)
+
+### 影片詳情
+摘要、重點、心智圖、FAQ、對話
+
+![影片詳情](docs/screenshots/06-video-detail.png)
+
+---
+
 ## 功能特色
 
 ### 分析能力
