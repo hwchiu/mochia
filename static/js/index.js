@@ -172,25 +172,76 @@ async function queueOne(id) {
   } catch (e) { toast("操作失敗: " + e.message, "error"); }
 }
 
-// ─── Scan (native folder picker) ───
-document.getElementById("btn-scan").addEventListener("click", async () => {
-  const btn = document.getElementById("btn-scan");
-  btn.disabled = true; btn.textContent = "請選擇目錄...";
+// ─── Scan Modal ───────────────────────────────────────────────────────────────
+const scanModal     = document.getElementById("scan-modal");
+const scanPathInput = document.getElementById("scan-path-input");
+
+function openScanModal() {
+  scanModal.style.display = "flex";
+  scanPathInput.value = "";
+  loadVideoSources();
+}
+
+function closeScanModal() {
+  scanModal.style.display = "none";
+}
+
+async function loadVideoSources() {
+  const list = document.getElementById("scan-sources-list");
+  list.innerHTML = '<div class="loading-text">偵測中...</div>';
   try {
-    const picked = await api("GET", "/api/batch/pick-directory");
-    if (picked.cancelled || !picked.path) {
-      return;  // 使用者取消，靜默忽略
+    const { sources } = await api("GET", "/api/batch/sources");
+    if (!sources.length) {
+      list.innerHTML = '<div class="scan-source-empty">⚠️ 尚未掛載任何影片來源。<br>請在 .env 設定 VIDEO_DIR_1 後重啟容器。</div>';
+      return;
     }
-    btn.textContent = "掃描中...";
-    const d = await api("POST", `/api/batch/scan?path=${encodeURIComponent(picked.path)}`);
+    list.innerHTML = sources.map(s => `
+      <div class="scan-source-card" data-path="${s.container_path}"
+           onclick="selectSource(this)">
+        <span class="scan-source-icon">📂</span>
+        <div class="scan-source-info">
+          <div style="font-weight:600;font-size:14px">${s.display_name}</div>
+          <div class="scan-source-path">${s.container_path}</div>
+        </div>
+        <span class="scan-source-count">${s.video_count} 支影片</span>
+      </div>
+    `).join("");
+  } catch {
+    list.innerHTML = '<div class="scan-source-empty">無法取得來源資訊</div>';
+  }
+}
+
+function selectSource(card) {
+  document.querySelectorAll(".scan-source-card").forEach(c => c.classList.remove("selected"));
+  card.classList.add("selected");
+  scanPathInput.value = card.dataset.path;
+}
+
+async function runScan() {
+  const path = scanPathInput.value.trim();
+  if (!path) { toast("請選擇或輸入目錄路徑", "error"); return; }
+
+  const btn = document.getElementById("scan-confirm-btn");
+  btn.disabled = true; btn.textContent = "掃描中...";
+  try {
+    const d = await api("POST", `/api/batch/scan?path=${encodeURIComponent(path)}`);
     toast(`掃描完成：新登錄 ${d.registered} 支，跳過 ${d.skipped} 支`, "success");
+    closeScanModal();
     loadStats(); loadVideos();
   } catch (e) {
     toast("掃描失敗: " + e.message, "error");
   } finally {
-    btn.disabled = false; btn.textContent = "📁 掃描目錄";
+    btn.disabled = false; btn.textContent = "掃描";
   }
+}
+
+document.getElementById("btn-scan").addEventListener("click", openScanModal);
+document.getElementById("scan-modal-close").addEventListener("click", closeScanModal);
+document.getElementById("scan-confirm-btn").addEventListener("click", runScan);
+document.getElementById("scan-modal").addEventListener("click", e => {
+  if (e.target === scanModal) closeScanModal();
 });
+scanPathInput.addEventListener("keydown", e => { if (e.key === "Enter") runScan(); });
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 複習中心

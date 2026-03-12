@@ -69,6 +69,43 @@
   </div>
 </aside>
 
+<!-- ── Scan Modal ── -->
+<div id="scan-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+      <h3>📁 掃描影片目錄</h3>
+      <button class="modal-close" id="scan-modal-close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- 偵測到的來源 -->
+      <div id="scan-sources-section">
+        <p class="modal-label">已掛載的影片來源</p>
+        <div id="scan-sources-list" class="scan-sources-list">
+          <div class="loading-text">偵測中...</div>
+        </div>
+      </div>
+
+      <!-- 分隔線 -->
+      <div class="modal-divider">
+        <span>或手動輸入容器內路徑</span>
+      </div>
+
+      <!-- 手動輸入 -->
+      <div class="scan-manual-row">
+        <input type="text" id="scan-path-input" class="input-field"
+               placeholder="/videos/source1"
+               style="flex:1;font-family:monospace;font-size:13px" />
+        <button class="btn btn-primary btn-sm" id="scan-confirm-btn">掃描</button>
+      </div>
+
+      <p class="modal-hint">
+        💡 路徑對應宿主機目錄，在 <code>.env</code> 設定 <code>VIDEO_DIR_1</code>~<code>VIDEO_DIR_5</code> 後重啟容器即可新增來源。
+      </p>
+    </div>
+  </div>
+</div>
+
 <!-- ── Main Content ── -->
 <main class="main-content">
 

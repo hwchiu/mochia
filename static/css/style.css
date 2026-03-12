@@ -724,3 +724,92 @@ mark {
   color: var(--muted, #888);
   margin: 8px 0;
 }
+
+/* ── 掃描 Modal ─────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.modal-box {
+  background: var(--surface, #fff);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  width: 100%; padding: 0;
+  animation: modal-in .15s ease;
+}
+@keyframes modal-in {
+  from { transform: scale(.95); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.modal-header h3 { margin: 0; font-size: 16px; }
+.modal-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; color: var(--muted, #9ca3af);
+  padding: 4px 8px; border-radius: 6px;
+}
+.modal-close:hover { background: var(--hover-bg, #f3f4f6); }
+.modal-body { padding: 16px 20px 20px; }
+.modal-label {
+  font-size: 12px; font-weight: 600; color: var(--muted, #6b7280);
+  text-transform: uppercase; letter-spacing: .05em;
+  margin: 0 0 10px;
+}
+.scan-sources-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 4px;
+}
+.scan-source-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border, #e5e7eb);
+  border-radius: 8px; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.scan-source-card:hover {
+  border-color: var(--primary, #6366f1);
+  background: var(--hover-bg, #f5f3ff);
+}
+.scan-source-card.selected {
+  border-color: var(--primary, #6366f1);
+  background: var(--hover-bg, #eef2ff);
+}
+.scan-source-icon { font-size: 20px; }
+.scan-source-info { flex: 1; min-width: 0; }
+.scan-source-path {
+  font-family: monospace; font-size: 12px;
+  color: var(--muted, #6b7280);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.scan-source-count {
+  font-size: 12px; color: var(--muted, #9ca3af); white-space: nowrap;
+}
+.scan-source-empty {
+  padding: 12px; text-align: center;
+  color: var(--muted, #9ca3af); font-size: 13px;
+}
+.modal-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 16px 0 12px; color: var(--muted, #9ca3af); font-size: 12px;
+}
+.modal-divider::before, .modal-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border, #e5e7eb);
+}
+.scan-manual-row {
+  display: flex; gap: 8px; align-items: center;
+}
+.modal-hint {
+  margin: 12px 0 0; font-size: 12px; color: var(--muted, #6b7280);
+  line-height: 1.6;
+}
+.modal-hint code {
+  background: var(--code-bg, #f3f4f6); padding: 1px 4px;
+  border-radius: 3px; font-size: 11px;
+}
+.loading-text { color: var(--muted, #9ca3af); font-size: 13px; padding: 8px 0; }

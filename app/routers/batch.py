@@ -1,7 +1,6 @@
 """批量操作 API：目錄掃描、全部加入佇列、佇列統計"""
 
 import logging
-import subprocess
 import uuid
 from pathlib import Path
 
@@ -193,23 +192,85 @@ def retry_failed(db: Session = Depends(get_db)):
     db.commit()
     return {"message": f"已重設 {retried} 個失敗任務", "retried": retried}
 
+@router.get("/sources")
+def list_video_sources():
+    """
+    列出所有已掛載的影片來源目錄。
 
-@router.get("/pick-directory")
-def pick_directory():
-    """打開原生 macOS 資料夾選擇器，回傳選擇的路徑"""
-    try:
-        result = subprocess.run(
-            ["osascript", "-e", 'POSIX path of (choose folder with prompt "選擇影片目錄")'],
-            capture_output=True,
-            text=True,
-            timeout=60,
+    掃描 /videos/source1~5，回傳實際有內容（非空）的目錄清單。
+    未設定 VIDEO_DIR_N 的項目會對應到空的 .docker-empty，自動排除。
+    """
+    sources = []
+    videos_root = Path("/videos")
+
+    if not videos_root.exists():
+        return {"sources": []}
+
+    for slot in range(1, 6):
+        source_path = videos_root / f"source{slot}"
+        if not source_path.exists() or not source_path.is_dir():
+            continue
+
+        # 排除空目錄（未設定的 VIDEO_DIR_N 掛載到 .docker-empty）
+        try:
+            entries = list(source_path.iterdir())
+        except PermissionError:
+            continue
+
+        if not entries:
+            continue
+
+        # 計算影片數量（只數直接子項，避免遞迴耗時）
+        video_count = sum(
+            1 for f in source_path.rglob("*")
+            if f.suffix.lower() in settings.SUPPORTED_VIDEO_EXTENSIONS
         )
-        if result.returncode != 0:
-            # 使用者按了取消
-            return {"cancelled": True, "path": None}
-        path = result.stdout.strip()
-        return {"cancelled": False, "path": path}
-    except subprocess.TimeoutExpired:
-        return {"cancelled": True, "path": None}
-    except Exception as e:
-        raise HTTPException(500, f"無法開啟目錄選擇器: {e}") from e
+
+        sources.append({
+            "slot": slot,
+            "container_path": str(source_path),
+            "display_name": f"來源 {slot}",
+            "video_count": video_count,
+        })
+
+    return {"sources": sources}
+
+
+@router.get("/browse")
+def browse_directory(path: str = "/videos"):
+    """
+    列出指定路徑下的子目錄（僅限 /videos 範圍內）。
+    用於 UI 提供目錄瀏覽功能。
+    """
+    # 安全邊界：只允許瀏覽 /videos 下的路徑
+    requested = Path(path).resolve()
+    allowed_root = Path("/videos").resolve()
+
+    try:
+        requested.relative_to(allowed_root)
+    except ValueError:
+        raise HTTPException(400, f"不允許瀏覽 /videos 以外的路徑: {path}") from None
+
+    if not requested.exists():
+        raise HTTPException(404, f"路徑不存在: {path}")
+    if not requested.is_dir():
+        raise HTTPException(400, f"不是目錄: {path}")
+
+    subdirs = []
+    try:
+        for entry in sorted(requested.iterdir()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                subdirs.append({
+                    "name": entry.name,
+                    "path": str(entry),
+                })
+    except PermissionError:
+        raise HTTPException(403, "無讀取權限") from None
+
+    return {
+        "current": str(requested),
+        "parent": str(requested.parent) if requested != allowed_root else None,
+        "subdirs": subdirs,
+    }
+
+
