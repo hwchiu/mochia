@@ -116,21 +116,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # QEMU enables building/running arm64 images on amd64 CI runners
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
+      # Build for the host platform only (amd64) — multi-arch is tested in publish.
+      # docker buildx --load is incompatible with multi-platform builds.
       - name: Build Docker test image (Python ${{ matrix.python-version }})
         run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+          docker build \
             --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
             -f Dockerfile.test \
             -t mochia-test:${{ matrix.python-version }} \
-            --load \
             .
       
       - name: Run tests in Docker (Python ${{ matrix.python-version }})
