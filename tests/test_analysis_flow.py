@@ -1,4 +1,5 @@
 """Integration tests for analysis status and results flow."""
+
 import json
 import uuid
 
@@ -107,9 +108,7 @@ class TestAnalysisStatusFlow:
         body = resp.json()
         assert body["key_points"] == []
 
-    def test_queue_adds_task_and_sets_status_queued(
-        self, client: TestClient, db_session: Session
-    ):
+    def test_queue_adds_task_and_sets_status_queued(self, client: TestClient, db_session: Session):
         video = self._make_video(db_session)
         resp = client.post(f"/api/analysis/{video.id}/queue")
         assert resp.status_code == 200

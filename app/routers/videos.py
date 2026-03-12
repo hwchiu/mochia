@@ -118,7 +118,11 @@ def list_videos(
     for v in videos:
         d = _video_to_dict(v)
         d["labels"] = [
-            {"id": labels_map[vl.label_id].id, "name": labels_map[vl.label_id].name, "color": labels_map[vl.label_id].color}
+            {
+                "id": labels_map[vl.label_id].id,
+                "name": labels_map[vl.label_id].name,
+                "color": labels_map[vl.label_id].color,
+            }
             for vl in vl_by_video.get(v.id, [])
             if vl.label_id in labels_map
         ]

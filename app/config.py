@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from pydantic import ConfigDict, field_validator, model_validator
-from pydantic_settings import BaseSettings
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = ConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env")
 
     APP_NAME: str = "Video Analyzer"
     APP_VERSION: str = "0.1.0"
@@ -48,9 +48,7 @@ class Settings(BaseSettings):
 
         _logger = logging.getLogger(__name__)
         if not self.AZURE_OPENAI_API_KEY:
-            _logger.warning(
-                "AZURE_OPENAI_API_KEY is not set. GPT analysis features will not work."
-            )
+            _logger.warning("AZURE_OPENAI_API_KEY is not set. GPT analysis features will not work.")
         if not self.AZURE_OPENAI_ENDPOINT:
             _logger.warning(
                 "AZURE_OPENAI_ENDPOINT is not set. GPT analysis features will not work."
@@ -101,6 +99,7 @@ class Settings(BaseSettings):
         "綜合討論 (General Discussion)",
         "未分類 (Uncategorized)",
     ]
+
 
 settings = Settings()
 

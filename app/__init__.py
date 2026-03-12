@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -11,6 +12,7 @@ from app.routers import analysis, batch, labels, notes, review, search, stats, v
 
 
 def create_app() -> FastAPI:
+    @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db()
         yield

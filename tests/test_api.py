@@ -99,7 +99,9 @@ class TestVideosAPI:
         src.write_bytes(payload)
 
         with open(src, "rb") as fh:
-            response = client.post("/api/videos/upload", files={"file": ("../../evil.mp4", fh, "video/mp4")})
+            response = client.post(
+                "/api/videos/upload", files={"file": ("../../evil.mp4", fh, "video/mp4")}
+            )
 
         assert response.status_code == 200
         body = response.json()
@@ -110,9 +112,9 @@ class TestVideosAPI:
         assert ".." not in body["filename"]
 
         dest = Path(body["file_path"])
-        assert dest.exists()
-        assert dest.parent.resolve() == settings.UPLOAD_DIR.resolve()
         try:
+            assert dest.exists()
+            assert dest.parent.resolve() == settings.UPLOAD_DIR.resolve()
             assert dest.read_bytes() == payload
         finally:
             dest.unlink(missing_ok=True)

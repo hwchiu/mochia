@@ -1,6 +1,6 @@
 ## 測試現況（基於 `pytest` 全套測試）
 
-- **執行結果**：`pytest` 全部 **281** 個測試 **通過**，但出現 **663** 則警告（主要是 Pydantic/SQLAlchemy/FastAPI 的棄用警告與 `datetime.utcnow()` 使用）。
+- **執行結果**：2026-03-12 以 `python -m pytest -q`（commit `bc57e4d`）執行，全數測試通過；仍存在大量棄用警告（Pydantic/SQLAlchemy/FastAPI 與 `datetime.utcnow()` 使用）。
 - **測試類型分佈**：
   - 單元 / 服務層：SM-2 間隔重複演算法、分析服務、搜尋、筆記、統計等。
   - 整合 / API：影片上傳、分析流程、搜尋、NotebookLM、複習、統計等 FastAPI 端點。

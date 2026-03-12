@@ -28,6 +28,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base: Any = declarative_base()
 
@@ -143,9 +144,7 @@ class VideoLabel(Base):
     label_id = Column(String, ForeignKey("labels.id", ondelete="CASCADE"), index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (
-        UniqueConstraint("video_id", "label_id", name="uq_video_label"),
-    )
+    __table_args__ = (UniqueConstraint("video_id", "label_id", name="uq_video_label"),)
 
 
 class ReviewRecord(Base):
