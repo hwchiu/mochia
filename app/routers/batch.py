@@ -192,6 +192,7 @@ def retry_failed(db: Session = Depends(get_db)):
     db.commit()
     return {"message": f"已重設 {retried} 個失敗任務", "retried": retried}
 
+
 @router.get("/sources")
 def list_video_sources():
     """
@@ -222,16 +223,19 @@ def list_video_sources():
 
         # 計算影片數量（只數直接子項，避免遞迴耗時）
         video_count = sum(
-            1 for f in source_path.rglob("*")
+            1
+            for f in source_path.rglob("*")
             if f.suffix.lower() in settings.SUPPORTED_VIDEO_EXTENSIONS
         )
 
-        sources.append({
-            "slot": slot,
-            "container_path": str(source_path),
-            "display_name": f"來源 {slot}",
-            "video_count": video_count,
-        })
+        sources.append(
+            {
+                "slot": slot,
+                "container_path": str(source_path),
+                "display_name": f"來源 {slot}",
+                "video_count": video_count,
+            }
+        )
 
     return {"sources": sources}
 
@@ -260,10 +264,12 @@ def browse_directory(path: str = "/videos"):
     try:
         for entry in sorted(requested.iterdir()):
             if entry.is_dir() and not entry.name.startswith("."):
-                subdirs.append({
-                    "name": entry.name,
-                    "path": str(entry),
-                })
+                subdirs.append(
+                    {
+                        "name": entry.name,
+                        "path": str(entry),
+                    }
+                )
     except PermissionError:
         raise HTTPException(403, "無讀取權限") from None
 
@@ -272,5 +278,3 @@ def browse_directory(path: str = "/videos"):
         "parent": str(requested.parent) if requested != allowed_root else None,
         "subdirs": subdirs,
     }
-
-
