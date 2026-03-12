@@ -325,7 +325,7 @@ def ask_question(transcript: str, question: str, chat_history: list[dict]) -> st
     logger.info("開始 ask_question...")
     response = client.chat.completions.create(
         model=settings.AZURE_OPENAI_DEPLOYMENT,
-        messages=messages,
+        messages=messages,  # type: ignore[arg-type]
     )
     content = response.choices[0].message.content
     answer = content.strip() if content else ""
