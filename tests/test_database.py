@@ -62,15 +62,38 @@ class TestVideoModel:
             db_session.commit()
             assert db_session.query(Video).filter_by(id=sample_video.id).first().status == status
 
-    def test_unique_filename_constraint(self, db_session):
-        """相同 filename 不能重複"""
+    def test_same_filename_allowed_different_paths(self, db_session):
+        """同名檔案在不同路徑下可以共存（local scan 多目錄場景）"""
+        v1 = Video(
+            id=uuid.uuid4().hex,
+            filename="meeting_01.mp4",
+            original_filename="meeting_01.mp4",
+            file_path="/videos/source1/course_a/meeting_01.mp4",
+            source="local_scan",
+            file_size=1,
+        )
+        v2 = Video(
+            id=uuid.uuid4().hex,
+            filename="meeting_01.mp4",
+            original_filename="meeting_01.mp4",
+            file_path="/videos/source1/course_b/meeting_01.mp4",
+            source="local_scan",
+            file_size=1,
+        )
+        db_session.add_all([v1, v2])
+        db_session.commit()
+        count = db_session.query(Video).filter(Video.filename == "meeting_01.mp4").count()
+        assert count == 2
+
+    def test_unique_file_path_constraint(self, db_session):
+        """相同 file_path 不能重複（去重依據）"""
         from sqlalchemy.exc import IntegrityError
 
         v1 = Video(
             id=uuid.uuid4().hex,
             filename="dup.mp4",
             original_filename="dup.mp4",
-            file_path="/a/dup.mp4",
+            file_path="/videos/source1/dup.mp4",
             source="local_scan",
             file_size=1,
         )
@@ -78,7 +101,7 @@ class TestVideoModel:
             id=uuid.uuid4().hex,
             filename="dup.mp4",
             original_filename="dup.mp4",
-            file_path="/b/dup.mp4",
+            file_path="/videos/source1/dup.mp4",  # 同一路徑
             source="local_scan",
             file_size=1,
         )

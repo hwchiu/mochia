@@ -109,6 +109,13 @@
 <!-- ── Main Content ── -->
 <main class="main-content">
 
+  <!-- 自動掃描狀態 banner（容器啟動後顯示，完成後自動消失）-->
+  <div id="auto-scan-banner" style="display:none;background:var(--surface,#f5f7fa);border:1px solid var(--border,#e0e0e0);border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px">
+    <span id="auto-scan-icon">⏳</span>
+    <span id="auto-scan-msg" style="flex:1;color:var(--text)">正在掃描影片目錄...</span>
+    <span id="auto-scan-progress" style="color:var(--muted);font-size:12px"></span>
+  </div>
+
   <!-- ══ 分析中心 ══ -->
   <section id="section-analysis" class="app-section active">
     <div class="section-header">

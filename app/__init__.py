@@ -1,3 +1,4 @@
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,6 +16,9 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db()
+        # 容器啟動後在背景自動掃描所有掛載的影片目錄
+        t = threading.Thread(target=batch.run_auto_scan, daemon=True, name="auto-scan")
+        t.start()
         yield
 
     app = FastAPI(
