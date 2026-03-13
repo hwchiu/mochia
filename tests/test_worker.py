@@ -180,13 +180,20 @@ class TestProcessTask:
             patch("worker.extract_audio", return_value=audio_file) as mock_extract,
             patch("worker.transcribe", return_value="測試逐字稿") as mock_transcribe,
             patch(
-                "worker.analyze",
-                return_value=("摘要", ["重點一", "重點二"], "占星學 (Astrology)", 0.9),
-            ) as mock_analyze,
-            patch("worker.generate_mindmap", return_value="# 測試\n## 分支"),
-            patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]),
-            patch("worker.generate_study_notes", return_value="## 核心概念\n測試"),
-            patch("worker.extract_case_analysis", return_value=""),
+                "worker.analyze_all",
+                return_value=(
+                    "摘要",
+                    ["重點一", "重點二"],
+                    "占星學 (Astrology)",
+                    0.9,
+                    "# 測試\n## 分支",
+                    [{"question": "Q", "answer": "A"}],
+                ),
+            ) as mock_analyze_all,
+            patch(
+                "worker.generate_deep_content",
+                return_value=("## 核心概念\n測試", ""),
+            ),
             patch("worker.cleanup_audio") as mock_cleanup,
         ):
             from worker import _process_task
@@ -196,7 +203,7 @@ class TestProcessTask:
         # 驗證呼叫順序
         mock_extract.assert_called_once()
         mock_transcribe.assert_called_once_with(audio_file, progress_callback=ANY)
-        mock_analyze.assert_called_once_with("測試逐字稿")
+        mock_analyze_all.assert_called_once_with("測試逐字稿")
         mock_cleanup.assert_called_once_with(audio_file)
 
         # 驗證資料庫結果
@@ -304,11 +311,18 @@ class TestProcessTask:
         with (
             patch("worker.extract_audio", return_value=audio_file),
             patch("worker.transcribe", return_value="新逐字稿"),
-            patch("worker.analyze", return_value=("新摘要", ["新重點"], "風水 (Feng Shui)", 0.95)),
-            patch("worker.generate_mindmap", return_value="# 新\n## 分支"),
-            patch("worker.generate_faq", return_value=[{"question": "Q", "answer": "A"}]),
-            patch("worker.generate_study_notes", return_value="## 核心概念\n新內容"),
-            patch("worker.extract_case_analysis", return_value=""),
+            patch(
+                "worker.analyze_all",
+                return_value=(
+                    "新摘要",
+                    ["新重點"],
+                    "風水 (Feng Shui)",
+                    0.95,
+                    "# 新\n## 分支",
+                    [{"question": "Q", "answer": "A"}],
+                ),
+            ),
+            patch("worker.generate_deep_content", return_value=("## 核心概念\n新內容", "")),
             patch("worker.cleanup_audio"),
         ):
             from worker import _process_task

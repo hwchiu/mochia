@@ -33,11 +33,8 @@ from app.config import settings
 from app.database import Classification, SessionLocal, Summary, TaskQueue, Transcript, Video
 from app.routers.search import rebuild_fts_index
 from app.services.analyzer import (
-    analyze,
-    extract_case_analysis,
-    generate_faq,
-    generate_mindmap,
-    generate_study_notes,
+    analyze_all,
+    generate_deep_content,
 )
 from app.services.audio_extractor import cleanup_audio, extract_audio, get_video_duration
 from app.services.transcriber import transcribe
@@ -83,9 +80,11 @@ def _set_progress(video: Video, db: Session, step: int, message: str, sub: int =
 
 def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: str) -> None:
     """執行 Step 3+4：GPT 分析 + NotebookLM 功能生成（可獨立重跑）"""
-    # Step 3: GPT 分析
+    # Step 3: GPT 合併分析（摘要 + 分類 + 心智圖 + FAQ）
     _set_progress(video, db, 3, f"GPT 分析中... ({len(transcript_text)} 字)", sub=0)
-    summary_text, key_points, category, confidence = analyze(transcript_text)
+    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(
+        transcript_text
+    )
     _set_progress(video, db, 3, f"GPT 分析完成 → {category}", sub=100)
 
     existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
@@ -116,15 +115,10 @@ def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: 
             )
         )
 
-    # Step 4: 生成 NotebookLM 功能
-    _set_progress(video, db, 4, "生成心智圖...", sub=0)
-    mindmap = generate_mindmap(transcript_text)
-    _set_progress(video, db, 4, "生成 FAQ...", sub=25)
-    faq_list = generate_faq(transcript_text)
-    _set_progress(video, db, 4, "生成學習筆記...", sub=50)
-    study_notes = generate_study_notes(transcript_text)
-    _set_progress(video, db, 4, "擷取案例分析...", sub=75)
-    case_analysis = extract_case_analysis(transcript_text)
+    # Step 4: 深度內容（學習筆記 + 案例分析）
+    _set_progress(video, db, 4, "生成學習筆記與案例分析...", sub=0)
+    study_notes, case_analysis = generate_deep_content(transcript_text)
+    _set_progress(video, db, 4, "深度內容生成完成", sub=100)
 
     existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
     if existing_summary:

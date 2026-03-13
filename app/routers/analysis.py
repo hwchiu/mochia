@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.database import ChatMessage, Classification, Summary, TaskQueue, Transcript, Video, get_db
 from app.services.analyzer import (
-    analyze,
+    analyze_all,
     ask_question,
-    extract_case_analysis,
+    generate_deep_content,
     generate_faq,
     generate_mindmap,
 )
@@ -352,13 +352,18 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     if not transcript or not transcript.content:
         raise HTTPException(409, "逐字稿不存在，請先完成語音辨識")
 
-    summary_text, key_points, category, confidence = analyze(transcript.content or "")
-    case_analysis_text = extract_case_analysis(transcript.content or "")
+    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(
+        transcript.content or ""
+    )
+    study_notes, case_analysis_text = generate_deep_content(transcript.content or "")
 
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if summary:
         summary.summary = summary_text
         summary.key_points = json.dumps(key_points, ensure_ascii=False)
+        summary.mindmap = mindmap
+        summary.faq = json.dumps(faq_list, ensure_ascii=False)
+        summary.study_notes = study_notes
         summary.case_analysis = case_analysis_text or None
     else:
         db.add(
@@ -367,6 +372,9 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
                 video_id=video_id,
                 summary=summary_text,
                 key_points=json.dumps(key_points, ensure_ascii=False),
+                mindmap=mindmap,
+                faq=json.dumps(faq_list, ensure_ascii=False),
+                study_notes=study_notes,
                 case_analysis=case_analysis_text or None,
             )
         )

@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 _client: AzureOpenAI | None = None
 _client_lock = threading.Lock()
 
-# Whisper API 單次最大 25MB；超過此長度的逐字稿需截斷再送 GPT
-MAX_TRANSCRIPT_CHARS = 12000
+# 逐字稿截斷上限：8000 字足以涵蓋主要內容，降低每次送出的 token 量
+MAX_TRANSCRIPT_CHARS = 8000
 
 
 def _prepare_transcript(transcript: str) -> str:
@@ -354,6 +354,139 @@ def suggest_labels(summary: str) -> list[str]:
     except json.JSONDecodeError:
         logger.warning("suggest_labels JSON 解析失敗: %r", raw)
         return []
+
+
+def analyze_all(
+    transcript: str,
+) -> tuple[str, list[dict], str, float, str, list[dict]]:
+    """Single GPT call combining analyze + mindmap + faq to reduce token usage.
+
+    Returns:
+        Tuple of (summary, key_points, category, confidence, mindmap, faq_list)
+    """
+    transcript_for_gpt = _prepare_transcript(transcript)
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        logger.info(f"逐字稿過長 ({len(transcript)} 字)，已截斷送分析")
+
+    categories_str = "\n".join(f"- {c}" for c in settings.CATEGORIES)
+
+    system_prompt = """你是一位專業的玄學內容分析師，擅長占星學、風水、奇門遁甲等東方玄學領域。
+請根據影片逐字稿，以 JSON 格式一次回傳所有分析結果，不要有任何額外文字。"""
+
+    user_content = f"""請分析以下影片逐字稿，以 JSON 格式回傳（所有欄位必填）：
+
+逐字稿：
+{transcript_for_gpt}
+
+JSON 格式：
+{{
+  "summary": "影片內容完整摘要（繁體中文，600-1000字）",
+  "key_points": [
+    {{
+      "theme": "主題名稱（4-12字）",
+      "points": ["具體說明", "..."]
+    }}
+  ],
+  "category": "從可選類別選一",
+  "confidence": 0.85,
+  "mindmap": "# 影片主題\\n## 主要分支1\\n### 子項目\\n## 主要分支2",
+  "faq": [
+    {{"question": "問題1", "answer": "回答1"}}
+  ]
+}}
+
+可選類別：
+{categories_str}
+
+注意：
+- summary 詳盡完整，600-1000字，繁體中文，段落間有邏輯銜接
+- key_points 列出 5-8 個主題，每個主題 3-5 條具體說明
+- mindmap 使用 Markmap Markdown：# 根節點，## 主分支（3-5個），### 子分支
+- faq 提供 5-8 個問答，問題有教育價值，回答簡潔完整
+- category 必須完全符合可選類別之一
+- confidence 為 0-1 之間的浮點數"""
+
+    logger.info("開始 GPT 合併分析（摘要 + 分類 + 心智圖 + FAQ）")
+    raw = _chat(system_prompt, user_content, max_tokens=4500)
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        raw = raw.rsplit("```", 1)[0].strip()
+
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.error("analyze_all GPT 回傳無效 JSON，raw=%r", raw[:200])
+        raise ValueError(f"GPT 回傳無效 JSON: {raw[:100]}") from exc
+
+    summary = result.get("summary", "")
+    raw_kp = result.get("key_points", [])
+    if raw_kp and isinstance(raw_kp[0], str):
+        key_points = [{"theme": "重點整理", "points": raw_kp}]
+    else:
+        key_points = raw_kp
+
+    category = result.get("category", "未分類 (Uncategorized)")
+    confidence = float(result.get("confidence", 0.5))
+    if category not in settings.CATEGORIES:
+        logger.warning(f"GPT 回傳未知分類 '{category}'，改用未分類")
+        category = "未分類 (Uncategorized)"
+        confidence = 0.0
+
+    mindmap = result.get("mindmap", "")
+    faq_raw = result.get("faq", [])
+    faq_list = faq_raw if isinstance(faq_raw, list) else []
+
+    logger.info(f"合併分析完成 - 分類: {category} ({confidence:.0%})")
+    return summary, key_points, category, confidence, mindmap, faq_list
+
+
+def generate_deep_content(transcript: str) -> tuple[str, str]:
+    """Single GPT call combining study_notes + case_analysis to reduce token usage.
+
+    Returns:
+        Tuple of (study_notes, case_analysis) where case_analysis is empty string
+        if no cases are found in the transcript.
+    """
+    transcript_for_gpt = _prepare_transcript(transcript)
+
+    system_prompt = """你是一位專業的學習顧問與玄學分析師。
+請根據影片逐字稿，以 JSON 格式同時回傳學習筆記與案例分析，不要有任何額外文字。"""
+
+    user_content = f"""請根據以下逐字稿生成學習筆記和案例分析，以 JSON 格式回傳：
+
+{transcript_for_gpt}
+
+JSON 格式：
+{{
+  "study_notes": "## 核心概念\\n（影片的核心思想）\\n\\n## 重要術語\\n（術語及解釋）\\n\\n## 學習重點\\n（條列重點）\\n\\n## 實踐建議\\n（應用建議）\\n\\n## 延伸思考\\n（深度思考問題）",
+  "case_analysis": "## 案例1\\n（若無案例請填入字串 NO_CASE_ANALYSIS）"
+}}
+
+study_notes 要求：包含核心概念、重要術語、學習重點、實踐建議、延伸思考，繁體中文 Markdown。
+case_analysis 要求：若有案例詳細記錄（背景、分析要點、推論、結論）；若完全無案例填 NO_CASE_ANALYSIS。"""
+
+    logger.info("開始生成深度內容（學習筆記 + 案例分析）")
+    raw = _chat(system_prompt, user_content, max_tokens=2500)
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        raw = raw.rsplit("```", 1)[0].strip()
+
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("generate_deep_content JSON 解析失敗，返回空結果")
+        return "", ""
+
+    study_notes = result.get("study_notes", "")
+    case_raw = result.get("case_analysis", "").strip()
+    case_analysis = "" if case_raw == "NO_CASE_ANALYSIS" or not case_raw else case_raw
+
+    logger.info("深度內容生成完成")
+    return study_notes, case_analysis
 
 
 def extract_case_analysis(transcript: str) -> str:
