@@ -152,6 +152,8 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64 \
+            --build-arg GIT_SHA=${{ github.sha }} \
+            --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
             -t mochia:smoke \
             --load \
             .
@@ -225,5 +227,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
