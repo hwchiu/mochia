@@ -196,15 +196,16 @@ def retry_failed(db: Session = Depends(get_db)):
 @router.get("/sources")
 def list_video_sources():
     """
-    列出所有已掛載的影片來源目錄。
+    列出所有已掛載的影片來源目錄（快速版本，不計算影片數量）。
 
-    掃描 /videos/source1~5，回傳實際有內容（非空）的目錄清單。
-    未設定 VIDEO_DIR_N 的項目會對應到空的 .docker-empty，自動排除。
+    只確認目錄存在且非空，立即回傳。影片數量請另呼叫
+    GET /api/batch/sources/{slot}/count（非同步，逐一取得）。
     """
     sources = []
     videos_root = Path("/videos")
 
     if not videos_root.exists():
+        logger.info("/videos 根目錄不存在，請確認 docker-compose volumes 設定")
         return {"sources": []}
 
     for slot in range(1, 6):
@@ -216,30 +217,49 @@ def list_video_sources():
         try:
             entries = list(source_path.iterdir())
         except PermissionError:
+            logger.warning("來源 %d 無讀取權限: %s", slot, source_path)
             continue
 
         if not entries:
             continue
 
-        # 計算影片數量（遞迴掃描，大型目錄需數秒，進度可在 docker logs 觀察）
-        logger.info("正在統計來源 %d 的影片數量: %s", slot, source_path)
-        video_count = sum(
-            1
-            for f in source_path.rglob("*")
-            if f.suffix.lower() in settings.SUPPORTED_VIDEO_EXTENSIONS
-        )
-        logger.info("來源 %d 統計完成: 共 %d 支影片", slot, video_count)
-
+        logger.info("偵測到來源 %d: %s", slot, source_path)
         sources.append(
             {
                 "slot": slot,
                 "container_path": str(source_path),
                 "display_name": f"來源 {slot}",
-                "video_count": video_count,
+                "video_count": None,  # 由前端呼叫 /sources/{slot}/count 非同步取得
             }
         )
 
+    logger.info("共偵測到 %d 個影片來源", len(sources))
     return {"sources": sources}
+
+
+@router.get("/sources/{slot}/count")
+def count_source_videos(slot: int):
+    """
+    計算指定來源的影片數量（遞迴掃描）。
+
+    影片多時可能需數秒，請由前端以非同步方式逐一呼叫，
+    避免 /sources 端點阻塞。進度可在 docker logs 觀察。
+    """
+    if not 1 <= slot <= 5:
+        raise HTTPException(status_code=400, detail="slot 必須介於 1~5")
+
+    source_path = Path("/videos") / f"source{slot}"
+    if not source_path.exists() or not source_path.is_dir():
+        raise HTTPException(status_code=404, detail=f"來源 {slot} 不存在")
+
+    logger.info("開始統計來源 %d 的影片數量: %s", slot, source_path)
+    video_count = sum(
+        1
+        for f in source_path.rglob("*")
+        if f.suffix.lower() in settings.SUPPORTED_VIDEO_EXTENSIONS
+    )
+    logger.info("來源 %d 統計完成: 共 %d 支影片", slot, video_count)
+    return {"slot": slot, "video_count": video_count}
 
 
 @router.get("/browse")
