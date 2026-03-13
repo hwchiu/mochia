@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
     APP_NAME: str = "Video Analyzer"
-    APP_VERSION: str = "dev"   # overridden by Docker build-arg GIT_SHA at build time
+    APP_VERSION: str = "dev"  # overridden by Docker build-arg GIT_SHA at build time
     BUILD_DATE: str = "unknown"  # overridden by Docker build-arg BUILD_DATE at build time
 
     # Server
