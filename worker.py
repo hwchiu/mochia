@@ -39,7 +39,7 @@ from app.services.analyzer import (
     generate_mindmap,
     generate_study_notes,
 )
-from app.services.audio_extractor import cleanup_audio, extract_audio
+from app.services.audio_extractor import cleanup_audio, extract_audio, get_video_duration
 from app.services.transcriber import transcribe
 
 # ──────────────────────────── Logging ────────────────────────────
@@ -176,7 +176,11 @@ def _process_task(task: TaskQueue, db: Session) -> None:
         _run_gpt_steps(video, task, db, transcript_text)
         return
 
-    # Step 1: 提取音頻
+    # Step 1: 提取音頻；順便補上 duration（掃描時不跑 ffprobe，此時才填入）
+    if video.duration is None:
+        video.duration = get_video_duration(video_path)
+        db.commit()
+
     def ffmpeg_cb(pct: int) -> None:
         _set_progress(video, db, 1, f"提取音頻中... ({pct}%)", sub=pct)
 

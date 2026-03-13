@@ -195,19 +195,33 @@ async function loadVideoSources() {
       list.innerHTML = '<div class="scan-source-empty">⚠️ 尚未掛載任何影片來源。<br>請在 .env 設定 VIDEO_DIR_1 後重啟容器。</div>';
       return;
     }
+    // 立即渲染卡片（video_count 先顯示 "計算中..."）
     list.innerHTML = sources.map(s => `
-      <div class="scan-source-card" data-path="${s.container_path}"
+      <div class="scan-source-card" id="source-card-${s.slot}" data-path="${s.container_path}"
            onclick="selectSource(this)">
         <span class="scan-source-icon">📂</span>
         <div class="scan-source-info">
           <div style="font-weight:600;font-size:14px">${s.display_name}</div>
           <div class="scan-source-path">${s.container_path}</div>
         </div>
-        <span class="scan-source-count">${s.video_count} 支影片</span>
+        <span class="scan-source-count" id="count-${s.slot}">計算中...</span>
       </div>
     `).join("");
+    // 非同步逐一載入每個來源的影片數量（不阻塞 UI）
+    sources.forEach(s => loadSourceCount(s.slot));
   } catch {
     list.innerHTML = '<div class="scan-source-empty">無法取得來源資訊</div>';
+  }
+}
+
+async function loadSourceCount(slot) {
+  try {
+    const { video_count } = await api("GET", `/api/batch/sources/${slot}/count`);
+    const el = document.getElementById(`count-${slot}`);
+    if (el) el.textContent = `${video_count} 支影片`;
+  } catch {
+    const el = document.getElementById(`count-${slot}`);
+    if (el) el.textContent = "無法取得";
   }
 }
 
