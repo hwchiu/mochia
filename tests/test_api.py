@@ -1,9 +1,11 @@
 """API 端點整合測試"""
 
 import uuid
+from pathlib import Path
 
 import pytest
 
+from app.config import settings
 from app.database import TaskQueue, Video
 
 # ─────────────────────── Videos API ───────────────────────
@@ -90,6 +92,32 @@ class TestVideosAPI:
             r = client.post("/api/videos/upload", files={"file": ("test.txt", fh, "text/plain")})
         assert r.status_code == 400
         assert "不支援" in r.json()["detail"]
+
+    def test_upload_sanitizes_traversal_filename(self, client, tmp_path):
+        src = tmp_path / "video.mp4"
+        payload = b"dummy video content"
+        src.write_bytes(payload)
+
+        with open(src, "rb") as fh:
+            response = client.post(
+                "/api/videos/upload", files={"file": ("../../evil.mp4", fh, "video/mp4")}
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+
+        # Original filename is preserved, but stored filename must be randomized and path-safe
+        assert body["original_filename"] == "../../evil.mp4"
+        assert body["filename"].endswith(".mp4")
+        assert ".." not in body["filename"]
+
+        dest = Path(body["file_path"])
+        try:
+            assert dest.exists()
+            assert dest.parent.resolve() == settings.UPLOAD_DIR.resolve()
+            assert dest.read_bytes() == payload
+        finally:
+            dest.unlink(missing_ok=True)
 
 
 # ─────────────────────── Analysis API ───────────────────────
