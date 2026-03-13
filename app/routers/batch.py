@@ -221,12 +221,14 @@ def list_video_sources():
         if not entries:
             continue
 
-        # 計算影片數量（只數直接子項，避免遞迴耗時）
+        # 計算影片數量（遞迴掃描，大型目錄需數秒，進度可在 docker logs 觀察）
+        logger.info("正在統計來源 %d 的影片數量: %s", slot, source_path)
         video_count = sum(
             1
             for f in source_path.rglob("*")
             if f.suffix.lower() in settings.SUPPORTED_VIDEO_EXTENSIONS
         )
+        logger.info("來源 %d 統計完成: 共 %d 支影片", slot, video_count)
 
         sources.append(
             {
