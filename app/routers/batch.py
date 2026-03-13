@@ -252,9 +252,7 @@ def count_source_videos(slot: int):
 
     logger.info("開始統計來源 %d 的影片數量: %s", slot, source_path)
     video_count = sum(
-        1
-        for f in source_path.rglob("*")
-        if f.suffix.lower() in settings.SUPPORTED_VIDEO_EXTENSIONS
+        1 for f in source_path.rglob("*") if f.suffix.lower() in settings.SUPPORTED_VIDEO_EXTENSIONS
     )
     logger.info("來源 %d 統計完成: 共 %d 支影片", slot, video_count)
     return {"slot": slot, "video_count": video_count}
