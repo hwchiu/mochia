@@ -109,11 +109,21 @@ function renderPagination(total) {
   const pages = Math.ceil(total / PAGE_SIZE);
   const el = document.getElementById("pagination");
   if (pages <= 1) { el.innerHTML = ""; return; }
-  let html = `<button class="btn btn-sm btn-ghost" onclick="goPage(${currentPage - 1})" ${currentPage === 0 ? "disabled" : ""}>‹</button>`;
-  for (let i = 0; i < pages; i++) {
-    html += `<button class="btn btn-sm btn-ghost ${i === currentPage ? "current" : ""}" onclick="goPage(${i})">${i + 1}</button>`;
+
+  const cur = currentPage;
+  // 計算要顯示的頁碼集合（首尾各1頁 + 當前頁 ±2）
+  const show = new Set([0, pages - 1]);
+  for (let i = Math.max(0, cur - 2); i <= Math.min(pages - 1, cur + 2); i++) show.add(i);
+
+  let html = `<button class="btn btn-sm btn-ghost" onclick="goPage(${cur - 1})" ${cur === 0 ? "disabled" : ""}>‹</button>`;
+  let prev = -1;
+  for (const i of [...show].sort((a, b) => a - b)) {
+    if (i - prev > 1) html += `<span class="pag-ellipsis">…</span>`;
+    html += `<button class="btn btn-sm btn-ghost ${i === cur ? "current" : ""}" onclick="goPage(${i})">${i + 1}</button>`;
+    prev = i;
   }
-  html += `<button class="btn btn-sm btn-ghost" onclick="goPage(${currentPage + 1})" ${currentPage >= pages - 1 ? "disabled" : ""}>›</button>`;
+  html += `<button class="btn btn-sm btn-ghost" onclick="goPage(${cur + 1})" ${cur >= pages - 1 ? "disabled" : ""}>›</button>`;
+  html += `<span class="pag-info">第 ${cur + 1} / ${pages} 頁，共 ${total} 支</span>`;
   el.innerHTML = html;
 }
 
@@ -424,12 +434,20 @@ function renderReviewPagination(total) {
   const pages = Math.ceil(total / REVIEW_PAGE_SIZE);
   const el = document.getElementById("review-pagination");
   if (pages <= 1) { el.innerHTML = ""; return; }
-  let html = `<button class="btn btn-sm btn-ghost" onclick="goReviewPage(${reviewPage - 1})" ${reviewPage === 0 ? "disabled" : ""}>‹</button>`;
-  for (let i = 0; i < Math.min(pages, 10); i++) {
-    html += `<button class="btn btn-sm btn-ghost ${i === reviewPage ? "current" : ""}" onclick="goReviewPage(${i})">${i + 1}</button>`;
+
+  const cur = reviewPage;
+  const show = new Set([0, pages - 1]);
+  for (let i = Math.max(0, cur - 2); i <= Math.min(pages - 1, cur + 2); i++) show.add(i);
+
+  let html = `<button class="btn btn-sm btn-ghost" onclick="goReviewPage(${cur - 1})" ${cur === 0 ? "disabled" : ""}>‹</button>`;
+  let prev = -1;
+  for (const i of [...show].sort((a, b) => a - b)) {
+    if (i - prev > 1) html += `<span class="pag-ellipsis">…</span>`;
+    html += `<button class="btn btn-sm btn-ghost ${i === cur ? "current" : ""}" onclick="goReviewPage(${i})">${i + 1}</button>`;
+    prev = i;
   }
-  if (pages > 10) html += `<span style="padding:0 8px;color:var(--muted)">... ${pages} 頁</span>`;
-  html += `<button class="btn btn-sm btn-ghost" onclick="goReviewPage(${reviewPage + 1})" ${reviewPage >= pages - 1 ? "disabled" : ""}>›</button>`;
+  html += `<button class="btn btn-sm btn-ghost" onclick="goReviewPage(${cur + 1})" ${cur >= pages - 1 ? "disabled" : ""}>›</button>`;
+  html += `<span class="pag-info">第 ${cur + 1} / ${pages} 頁，共 ${total} 支</span>`;
   el.innerHTML = html;
 }
 
