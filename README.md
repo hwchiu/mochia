@@ -61,7 +61,10 @@ bash update.sh                 # 升級到最新版本
 
 ```bash
 bash update.sh
-# 等同於：docker compose pull && docker compose up -d
+# 執行順序：
+#   1. git pull --ff-only origin main  （拉取最新 docker-compose.yml 設定）
+#   2. docker compose pull             （拉取最新 image hwchiu/mochia:latest）
+#   3. docker compose up -d            （滾動重啟）
 # 資料（SQLite、逐字稿）完整保留，不受影響
 ```
 
