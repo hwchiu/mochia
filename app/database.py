@@ -37,9 +37,9 @@ class Video(Base):
     __tablename__ = "videos"
 
     id = Column(String, primary_key=True)
-    filename = Column(String, unique=True, index=True)
+    filename = Column(String, index=True)  # 不唯一：本地掃描多目錄可有同名檔案
     original_filename = Column(String)
-    file_path = Column(String, nullable=True)
+    file_path = Column(String, nullable=True, unique=True)  # 本地掃描去重依據
     source = Column(String, default="uploaded")
     upload_date = Column(DateTime, default=datetime.utcnow)
     file_size = Column(Integer)
@@ -222,6 +222,26 @@ def _migrate_db():
         )
     """)
 
+    conn.commit()
+    conn.close()
+
+    # 移除 videos.filename 的舊 UNIQUE index（local scan 多目錄可有同名檔案）
+    # SQLite 不支援 DROP INDEX ON table，需直接 DROP INDEX by index name
+    _drop_filename_unique_index()
+
+
+def _drop_filename_unique_index():
+    """移除 videos.filename 的 UNIQUE index（如果存在）。"""
+    import sqlite3
+
+    db_path = str(settings.DATA_DIR / "video_analyzer.db")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='videos'")
+    for index_name, index_sql in cursor.fetchall():
+        if index_sql and "filename" in index_sql and "UNIQUE" in (index_sql or "").upper():
+            cursor.execute(f"DROP INDEX IF EXISTS {index_name}")
+            print(f"[migration] dropped UNIQUE index on videos.filename: {index_name}")
     conn.commit()
     conn.close()
 

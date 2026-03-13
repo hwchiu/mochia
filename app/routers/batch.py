@@ -107,43 +107,59 @@ def run_auto_scan() -> None:
 
 
 def _scan_directory(scan_path: str, db: Session) -> dict:
-    """掃描目錄，將新影片登錄到資料庫（不複製檔案）"""
+    """掃描目錄，將新影片登錄到資料庫（不複製檔案）。
+
+    演算法：
+    - 單次 rglob("*") 走完目錄樹，副檔名用 set lookup（O(1)）過濾
+    - 預先載入 DB 所有 file_path 到 set，避免 N 次 SELECT
+    - 批次 add + 一次 commit
+    """
     base = Path(scan_path)
     if not base.exists():
         raise ValueError(f"目錄不存在: {scan_path}")
     if not base.is_dir():
         raise ValueError(f"路徑不是目錄: {scan_path}")
 
+    ext_set = {e.lower() for e in settings.SUPPORTED_VIDEO_EXTENSIONS}
+
+    # 一次 query 取得所有已登錄路徑，避免每個檔案都打 DB
+    existing_paths: set[str] = {
+        row[0] for row in db.query(Video.file_path).filter(Video.file_path.isnot(None)).all()
+    }
+
     found = skipped = registered = 0
+    new_videos = []
 
-    for ext in settings.SUPPORTED_VIDEO_EXTENSIONS:
-        for video_file in base.rglob(f"*{ext}"):
-            found += 1
-            abs_path = str(video_file.resolve())
+    # 單次遍歷，副檔名 set lookup
+    for video_file in base.rglob("*"):
+        if video_file.suffix.lower() not in ext_set:
+            continue
+        found += 1
+        abs_path = str(video_file.resolve())
 
-            # 以絕對路徑檢查是否已登錄
-            existing = db.query(Video).filter(Video.file_path == abs_path).first()
-            if existing:
-                skipped += 1
-                continue
+        if abs_path in existing_paths:
+            skipped += 1
+            continue
 
-            file_size = video_file.stat().st_size
-            video_id = uuid.uuid4().hex
-
-            video = Video(
-                id=video_id,
+        new_videos.append(
+            Video(
+                id=uuid.uuid4().hex,
                 filename=video_file.name,
                 original_filename=video_file.name,
                 file_path=abs_path,
                 source="local_scan",
-                file_size=file_size,
+                file_size=video_file.stat().st_size,
                 duration=None,  # 分析時由 ffprobe 取得
                 status="pending",
             )
-            db.add(video)
-            registered += 1
+        )
+        existing_paths.add(abs_path)  # 防止同一次掃描內重複
+        registered += 1
 
-    db.commit()
+    if new_videos:
+        db.add_all(new_videos)
+        db.commit()
+
     logger.info(f"掃描完成: 發現 {found}，新登錄 {registered}，跳過 {skipped}")
     return {"found": found, "registered": registered, "skipped": skipped}
 
