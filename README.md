@@ -30,8 +30,11 @@ cd mochia
 cp .env.example .env
 nano .env   # 填入 AZURE_OPENAI_API_KEY、OPENAI_API_KEY
 
-# 3. 設定影片目錄
-echo 'VIDEO_DIR=/path/to/your/videos' >> .env
+# 3. 設定影片目錄（支援最多 5 個來源）
+# 在 .env 加入：
+#   VIDEO_DIR_1=/Users/yourname/Movies
+#   VIDEO_DIR_2=/Volumes/ExternalDrive/Videos   （外接硬碟，選填）
+nano .env
 
 # 4. 啟動（Docker 自動偵測並使用符合本機架構的 image）
 docker compose up -d
@@ -39,8 +42,9 @@ docker compose up -d
 # 5. 開啟瀏覽器
 open http://localhost:8000
 
-# 6. 掃描影片目錄
-docker compose exec web python cli.py scan /videos
+# 6. 掃描影片目錄（點選側欄「📁 掃描目錄」→ Modal 自動列出來源 → 點選掃描）
+#    或用 CLI：
+docker compose exec web python cli.py scan /videos/source1
 ```
 
 ### 日常操作
@@ -57,7 +61,10 @@ bash update.sh                 # 升級到最新版本
 
 ```bash
 bash update.sh
-# 等同於：docker compose pull && docker compose up -d
+# 執行順序：
+#   1. git pull --ff-only origin main  （拉取最新 docker-compose.yml 設定）
+#   2. docker compose pull             （拉取最新 image hwchiu/mochia:latest）
+#   3. docker compose up -d            （滾動重啟）
 # 資料（SQLite、逐字稿）完整保留，不受影響
 ```
 
@@ -108,7 +115,7 @@ docker run --rm \
 docker compose up -d
 ```
 
-> **影片檔案本身不在 volume 內**（系統只存路徑，不複製檔案），需確認新機器上影片路徑相同，或更新 `.env` 的 `VIDEO_DIR`。
+> **影片檔案本身不在 volume 內**（系統只存路徑，不複製檔案），需確認新機器上影片路徑相同，或更新 `.env` 的 `VIDEO_DIR_1`~`VIDEO_DIR_5`。
 
 ---
 
@@ -134,8 +141,9 @@ docker compose up -d
     cp .env.example .env
     # 編輯 .env，填入 Azure OpenAI API Key
 
-    # 2. 設定影片目錄（選填）
-    echo 'VIDEO_DIR=/path/to/your/videos' >> .env
+    # 2. 設定影片目錄（支援最多 5 個來源）
+    # 在 .env 加入 VIDEO_DIR_1, VIDEO_DIR_2 ... 最多 VIDEO_DIR_5
+    echo 'VIDEO_DIR_1=/path/to/your/videos' >> .env
 
     # 3. 啟動
     docker compose up -d
@@ -143,8 +151,9 @@ docker compose up -d
     # 4. 開啟瀏覽器
     open http://localhost:8000
 
-    # 5. 掃描影片（影片掛載到 /videos）
-    docker compose exec web python cli.py scan /videos
+    # 5. 掃描影片（點選側欄「📁 掃描目錄」→ Modal 列出來源 → 點選掃描）
+    #    或用 CLI：
+    docker compose exec web python cli.py scan /videos/source1
 
 ---
 
