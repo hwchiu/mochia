@@ -118,6 +118,12 @@ echo "=== 分析 API ==="
 check "GET /api/analysis/nonexistent/status (404)" "404" "$BASE_URL/api/analysis/nonexistent/status"
 
 echo ""
+echo "=== 版本 API ==="
+check "GET /api/version" "200" "$BASE_URL/api/version"
+check_json_field "版本回應有 version 欄位" "$BASE_URL/api/version" "version"
+check_json_field "版本回應有 build_date 欄位" "$BASE_URL/api/version" "build_date"
+
+echo ""
 echo "=== 批量操作 API ==="
 check "GET /api/batch/status (批量狀態)" "200" "$BASE_URL/api/batch/status"
 

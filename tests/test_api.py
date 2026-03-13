@@ -347,3 +347,25 @@ class TestPages:
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
         assert sample_video.id in r.text
+
+
+# ─────────────────────── Version API ───────────────────────
+
+
+class TestVersionAPI:
+    def test_version_returns_200(self, client):
+        r = client.get("/api/version")
+        assert r.status_code == 200
+
+    def test_version_has_required_fields(self, client):
+        body = client.get("/api/version").json()
+        assert "version" in body
+        assert "build_date" in body
+        assert "app_name" in body
+
+    def test_version_default_values(self, client):
+        body = client.get("/api/version").json()
+        assert body["app_name"] == "Video Analyzer"
+        # 測試環境未注入 build-arg，應為預設值
+        assert body["version"] == "dev"
+        assert body["build_date"] == "unknown"

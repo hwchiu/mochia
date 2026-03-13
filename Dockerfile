@@ -22,5 +22,12 @@ COPY . .
 # 建立必要目錄（volumes 掛載後仍會保留）
 RUN mkdir -p data uploads logs data/audio_temp
 
+# 版本資訊：由 CI 在 build 時注入 git SHA 與建置時間
+# 本地直接 build 時預設顯示 "dev"
+ARG GIT_SHA=dev
+ARG BUILD_DATE=unknown
+ENV APP_VERSION=${GIT_SHA}
+ENV BUILD_DATE=${BUILD_DATE}
+
 # 預設啟動 web server（docker-compose 中 worker 會覆寫此指令）
 CMD ["python", "main.py"]
