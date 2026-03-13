@@ -503,6 +503,7 @@ function startPoll() {
 loadStats();
 loadVideos();
 startPoll();
+startAutoScanPoll();
 
 // 從 URL ?section= 恢復選中的頁面（從 detail 頁返回時）
 const _initSection = new URLSearchParams(window.location.search).get("section");
@@ -657,4 +658,57 @@ async function loadStatsPage() {
   } catch (e) {
     console.error("loadStatsPage error:", e);
   }
+}
+
+// ─── 自動掃描狀態 Banner ──────────────────────────────────────────────────────
+let _autoScanDone = false;
+
+async function pollAutoScan() {
+  if (_autoScanDone) return;
+  try {
+    const d = await api("GET", "/api/batch/scan-status");
+    const banner = document.getElementById("auto-scan-banner");
+    const icon   = document.getElementById("auto-scan-icon");
+    const msg    = document.getElementById("auto-scan-msg");
+    const prog   = document.getElementById("auto-scan-progress");
+
+    if (d.status === "idle") {
+      // 尚未啟動（測試環境 / 沒有 /videos）
+      banner.style.display = "none";
+      _autoScanDone = true;
+      return;
+    }
+
+    banner.style.display = "flex";
+
+    if (d.status === "running") {
+      icon.textContent = "⏳";
+      const src = d.current_source ? d.current_source.split("/").pop() : "...";
+      msg.textContent  = `掃描中：${src}`;
+      prog.textContent = `${d.sources_done} / ${d.sources_total} 個來源`;
+    } else if (d.status === "done") {
+      icon.textContent = "✅";
+      msg.textContent  = `掃描完成：發現 ${d.total_found} 支影片，新登錄 ${d.total_registered} 支，跳過 ${d.total_skipped} 支`;
+      prog.textContent = "";
+      _autoScanDone = true;
+      // 更新影片列表
+      loadStats(); loadVideos();
+      // 3 秒後收起 banner
+      setTimeout(() => { banner.style.display = "none"; }, 3000);
+    } else if (d.status === "error") {
+      icon.textContent = "❌";
+      msg.textContent  = `掃描失敗：${d.error}`;
+      _autoScanDone = true;
+    }
+  } catch (e) {
+    console.warn("auto-scan poll error", e);
+  }
+}
+
+function startAutoScanPoll() {
+  pollAutoScan();
+  const t = setInterval(async () => {
+    await pollAutoScan();
+    if (_autoScanDone) clearInterval(t);
+  }, 2000);
 }

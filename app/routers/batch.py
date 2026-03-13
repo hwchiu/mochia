@@ -1,17 +1,109 @@
 """批量操作 API：目錄掃描、全部加入佇列、佇列統計"""
 
 import logging
+import threading
 import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import TaskQueue, Video, get_db
+from app.database import SessionLocal, TaskQueue, Video, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/batch", tags=["batch"])
+
+
+# ─── 自動掃描狀態（容器啟動時背景執行）────────────────────────
+
+
+@dataclass
+class AutoScanState:
+    status: str = "idle"  # idle | running | done | error
+    current_source: str | None = None
+    sources_total: int = 0
+    sources_done: int = 0
+    total_found: int = 0
+    total_registered: int = 0
+    total_skipped: int = 0
+    error: str | None = None
+    results: list = field(default_factory=list)
+
+
+_auto_scan = AutoScanState()
+_auto_scan_lock = threading.Lock()
+
+
+def run_auto_scan() -> None:
+    """容器啟動後在背景執行，掃描所有 /videos/source1~5 並登錄影片。"""
+    videos_root = Path("/videos")
+    if not videos_root.exists():
+        logger.info("[auto-scan] /videos 目錄不存在，跳過自動掃描")
+        return
+
+    sources = []
+    for slot in range(1, 6):
+        p = videos_root / f"source{slot}"
+        if p.exists() and p.is_dir():
+            try:
+                if list(p.iterdir()):  # 非空
+                    sources.append(p)
+            except PermissionError:
+                logger.warning("[auto-scan] 無權限讀取: %s", p)
+
+    if not sources:
+        logger.info("[auto-scan] 未偵測到任何影片來源，跳過")
+        return
+
+    with _auto_scan_lock:
+        _auto_scan.status = "running"
+        _auto_scan.sources_total = len(sources)
+        _auto_scan.sources_done = 0
+        _auto_scan.results = []
+
+    logger.info("[auto-scan] 開始掃描 %d 個來源", len(sources))
+
+    for src in sources:
+        with _auto_scan_lock:
+            _auto_scan.current_source = str(src)
+        logger.info("[auto-scan] 掃描中: %s", src)
+        try:
+            db = SessionLocal()
+            try:
+                result = _scan_directory(str(src), db)
+            finally:
+                db.close()
+            with _auto_scan_lock:
+                _auto_scan.sources_done += 1
+                _auto_scan.total_found += result["found"]
+                _auto_scan.total_registered += result["registered"]
+                _auto_scan.total_skipped += result["skipped"]
+                _auto_scan.results.append({"source": str(src), **result})
+            logger.info(
+                "[auto-scan] %s 完成: 發現 %d，新登錄 %d，跳過 %d",
+                src.name,
+                result["found"],
+                result["registered"],
+                result["skipped"],
+            )
+        except Exception as e:
+            logger.error("[auto-scan] %s 掃描失敗: %s", src, e)
+            with _auto_scan_lock:
+                _auto_scan.sources_done += 1
+                _auto_scan.results.append({"source": str(src), "error": str(e)})
+
+    with _auto_scan_lock:
+        _auto_scan.status = "done"
+        _auto_scan.current_source = None
+
+    logger.info(
+        "[auto-scan] 全部完成: 共發現 %d，新登錄 %d，跳過 %d",
+        _auto_scan.total_found,
+        _auto_scan.total_registered,
+        _auto_scan.total_skipped,
+    )
 
 
 def _scan_directory(scan_path: str, db: Session) -> dict:
@@ -189,6 +281,23 @@ def retry_failed(db: Session = Depends(get_db)):
         retried += 1
     db.commit()
     return {"message": f"已重設 {retried} 個失敗任務", "retried": retried}
+
+
+@router.get("/scan-status")
+def get_scan_status():
+    """回傳容器啟動時自動掃描的即時進度。"""
+    with _auto_scan_lock:
+        return {
+            "status": _auto_scan.status,
+            "current_source": _auto_scan.current_source,
+            "sources_total": _auto_scan.sources_total,
+            "sources_done": _auto_scan.sources_done,
+            "total_found": _auto_scan.total_found,
+            "total_registered": _auto_scan.total_registered,
+            "total_skipped": _auto_scan.total_skipped,
+            "error": _auto_scan.error,
+            "results": _auto_scan.results,
+        }
 
 
 @router.get("/sources")
