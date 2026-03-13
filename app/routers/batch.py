@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import TaskQueue, Video, get_db
-from app.services.audio_extractor import get_video_duration
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/batch", tags=["batch"])
@@ -37,7 +36,6 @@ def _scan_directory(scan_path: str, db: Session) -> dict:
                 continue
 
             file_size = video_file.stat().st_size
-            duration = get_video_duration(video_file)
             video_id = uuid.uuid4().hex
 
             video = Video(
@@ -47,7 +45,7 @@ def _scan_directory(scan_path: str, db: Session) -> dict:
                 file_path=abs_path,
                 source="local_scan",
                 file_size=file_size,
-                duration=duration,  # type: ignore[arg-type]
+                duration=None,  # 分析時由 ffprobe 取得
                 status="pending",
             )
             db.add(video)

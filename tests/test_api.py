@@ -221,10 +221,8 @@ class TestBatchAPI:
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(b"\x00" * 100)
 
-        with pytest.MonkeyPatch.context() as mp:
-            # mock get_video_duration 避免呼叫真實 ffprobe
-            mp.setattr("app.routers.batch.get_video_duration", lambda p: 60.0)
-            r = client.post(f"/api/batch/scan?path={tmp_path}")
+        # scan 只記錄路徑，不呼叫 ffprobe，直接執行
+        r = client.post(f"/api/batch/scan?path={tmp_path}")
 
         assert r.status_code == 200
         body = r.json()
@@ -238,15 +236,11 @@ class TestBatchAPI:
         f.write_bytes(b"\x00" * 100)
 
         # 先登錄一次
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("app.routers.batch.get_video_duration", lambda p: 60.0)
-            r1 = client.post(f"/api/batch/scan?path={tmp_path}")
+        r1 = client.post(f"/api/batch/scan?path={tmp_path}")
         assert r1.json()["registered"] == 1
 
         # 再掃描一次
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("app.routers.batch.get_video_duration", lambda p: 60.0)
-            r2 = client.post(f"/api/batch/scan?path={tmp_path}")
+        r2 = client.post(f"/api/batch/scan?path={tmp_path}")
         assert r2.json()["registered"] == 0
         assert r2.json()["skipped"] == 1
 
