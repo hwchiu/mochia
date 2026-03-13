@@ -9,7 +9,6 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import cast
 
 import openai
 from openai import AzureOpenAI
@@ -114,7 +113,7 @@ def _transcribe_with_heartbeat(
     progress_callback: Callable[[int, int, int], None],
     chunk_idx: int,
     total_chunks: int,
-) -> str:
+) -> tuple[str, list[dict]]:
     """
     呼叫 Whisper API，同時用背景執行緒每 5 秒發送一次心跳進度更新。
     因為 Whisper 不支援 streaming，用時間估算進度（上限 90%，完成後推到 100%）。
@@ -124,7 +123,7 @@ def _transcribe_with_heartbeat(
     estimated_audio_sec = file_size_mb * 1024 * 8 / 32
     estimated_wait_sec = max(20.0, estimated_audio_sec * 0.08)
 
-    result_holder: list[str] = []
+    result_holder: list[tuple[str, list[dict]]] = []
     error_holder: list[Exception] = []
     stop_event = threading.Event()
     start_time = time.time()
@@ -145,8 +144,8 @@ def _transcribe_with_heartbeat(
     t.start()
 
     try:
-        text = _transcribe_single(audio_path, language)
-        result_holder.append(text)
+        text, segments = _transcribe_single(audio_path, language)
+        result_holder.append((text, segments))
     except Exception as e:
         error_holder.append(e)
     finally:
@@ -166,25 +165,29 @@ def _transcribe_with_heartbeat(
     stop=stop_after_attempt(3),
     reraise=True,
 )
-def _transcribe_single(audio_path: Path, language: str) -> str:
-    """對單一音頻檔案呼叫 Whisper API"""
+def _transcribe_single(audio_path: Path, language: str) -> tuple[str, list[dict]]:
+    """對單一音頻檔案呼叫 Whisper API，回傳 (text, segments)。"""
     client = _get_client()
     with open(audio_path, "rb") as f:
         response = client.audio.transcriptions.create(
             model=settings.AZURE_OPENAI_WHISPER_DEPLOYMENT,
             file=f,
             language=language,
-            response_format="text",
+            response_format="verbose_json",
         )
-    # response_format="text" always returns a plain str at runtime
-    return cast(str, response)
+    text = response.text
+    segments = [
+        {"start": float(s.start), "end": float(s.end), "text": s.text.strip()}
+        for s in (response.segments or [])
+    ]
+    return text, segments
 
 
 def transcribe(
     audio_path: str | Path,
     language: str = "zh",
     progress_callback: Callable[[int, int, int], None] | None = None,
-) -> str:
+) -> tuple[str, list[dict]]:
     """Transcribe audio file to text using OpenAI Whisper API.
 
     Args:
@@ -194,7 +197,8 @@ def transcribe(
             for progress updates.
 
     Returns:
-        Full transcript text as a single string.
+        Tuple of (transcript_text, segments) where segments is a list of
+        dicts with 'start', 'end', and 'text' keys.
 
     Raises:
         FileNotFoundError: If audio_path does not exist.
@@ -216,28 +220,42 @@ def transcribe(
         if total == 1:
             if progress_callback:
                 progress_callback(0, 1, 1)
-                transcript = _transcribe_with_heartbeat(
+                text, segments = _transcribe_with_heartbeat(
                     chunks[0], language, progress_callback, 1, 1
                 )
             else:
-                transcript = _transcribe_single(chunks[0], language)
+                text, segments = _transcribe_single(chunks[0], language)
             if progress_callback:
                 progress_callback(100, 1, 1)
+            transcript = text
         else:
-            parts: list[str] = []
+            chunk_duration = _get_audio_duration(audio_path) / total
+            all_parts: list[str] = []
+            all_segments: list[dict] = []
             for idx, chunk in enumerate(chunks, 1):
                 if progress_callback:
                     progress_callback(int((idx - 1) / total * 100), idx, total)
                     logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
-                    parts.append(
-                        _transcribe_with_heartbeat(chunk, language, progress_callback, idx, total)
+                    chunk_text, chunk_segs = _transcribe_with_heartbeat(
+                        chunk, language, progress_callback, idx, total
                     )
                 else:
                     logger.info(f"轉錄片段 {idx}/{total}: {chunk.name}")
-                    parts.append(_transcribe_single(chunk, language))
+                    chunk_text, chunk_segs = _transcribe_single(chunk, language)
+                chunk_offset = (idx - 1) * chunk_duration
+                for seg in chunk_segs:
+                    all_segments.append(
+                        {
+                            "start": seg["start"] + chunk_offset,
+                            "end": seg["end"] + chunk_offset,
+                            "text": seg["text"],
+                        }
+                    )
+                all_parts.append(chunk_text)
             if progress_callback:
                 progress_callback(100, total, total)
-            transcript = " ".join(parts)
+            transcript = " ".join(all_parts)
+            segments = all_segments
     finally:
         # 清理 chunk 暫存目錄
         if chunk_dir and chunk_dir.exists():
@@ -245,5 +263,5 @@ def transcribe(
                 c.unlink(missing_ok=True)
             chunk_dir.rmdir()
 
-    logger.info(f"轉錄完成: {len(transcript)} 字元")
-    return transcript
+    logger.info(f"轉錄完成: {len(transcript)} 字元，{len(segments)} 個片段")
+    return transcript, segments

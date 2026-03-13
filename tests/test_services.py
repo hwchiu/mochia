@@ -100,28 +100,56 @@ class TestAudioExtractor:
 
 class TestTranscriber:
     def test_transcribe_success(self, fake_audio_file):
-        """Azure Whisper API 成功呼叫時回傳文字"""
+        """Azure Whisper API 成功呼叫時回傳文字與空段落列表"""
+        mock_response = MagicMock()
+        mock_response.text = "測試逐字稿內容"
+        mock_response.segments = []
+
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        from app.services import transcriber
+
         with (
+            patch.object(transcriber, "_get_client", return_value=mock_client),
             patch("app.services.transcriber.settings") as mock_settings,
-            patch("app.services.transcriber._client", None),
-            patch("app.services.transcriber.AzureOpenAI") as MockAzureOpenAI,
         ):
-            mock_settings.AZURE_OPENAI_API_KEY = "test-key"
-            mock_settings.AZURE_OPENAI_ENDPOINT = "https://test.openai.azure.com/"
-            mock_settings.AZURE_OPENAI_API_VERSION = "2024-02-01"
             mock_settings.AZURE_OPENAI_WHISPER_DEPLOYMENT = "whisper"
+            text, segments = transcriber.transcribe(fake_audio_file)
+            assert text == "測試逐字稿內容"
+            assert segments == []
 
-            mock_client = MagicMock()
-            MockAzureOpenAI.return_value = mock_client
-            mock_client.audio.transcriptions.create.return_value = "測試逐字稿內容"
+    def test_transcribe_returns_segments(self, fake_audio_file):
+        """Whisper verbose_json segments 應正確回傳到呼叫端"""
+        seg1 = MagicMock()
+        seg1.start = 0.0
+        seg1.end = 5.0
+        seg1.text = " 第一段 "
+        seg2 = MagicMock()
+        seg2.start = 5.5
+        seg2.end = 10.0
+        seg2.text = " 第二段 "
 
-            from app.services import transcriber
+        mock_response = MagicMock()
+        mock_response.text = "第一段 第二段"
+        mock_response.segments = [seg1, seg2]
 
-            transcriber._client = None  # 強制重新建立 client
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = mock_response
 
-            with patch.object(transcriber, "_get_client", return_value=mock_client):
-                result = transcriber.transcribe(fake_audio_file)
-                assert result == "測試逐字稿內容"
+        from app.services import transcriber
+
+        with (
+            patch.object(transcriber, "_get_client", return_value=mock_client),
+            patch("app.services.transcriber.settings") as mock_settings,
+        ):
+            mock_settings.AZURE_OPENAI_WHISPER_DEPLOYMENT = "whisper"
+            text, segments = transcriber.transcribe(fake_audio_file)
+
+        assert text == "第一段 第二段"
+        assert len(segments) == 2
+        assert segments[0] == {"start": 0.0, "end": 5.0, "text": "第一段"}
+        assert segments[1] == {"start": 5.5, "end": 10.0, "text": "第二段"}
 
     def test_transcribe_file_not_found(self, tmp_path):
         """音頻不存在時拋出 FileNotFoundError"""
@@ -185,7 +213,7 @@ class TestTranscriber:
         assert len(chunks) > 1
 
     def test_transcribe_large_file_chunks_merged(self, tmp_path):
-        """大檔案切割後各段轉錄結果應合併為一段文字"""
+        """大檔案切割後各段轉錄結果應合併為一段文字，並包含 segments"""
         from app.services import transcriber
 
         large_audio = tmp_path / "large.mp3"
@@ -196,20 +224,31 @@ class TestTranscriber:
         chunk1.write_bytes(b"\x00" * 10)
         chunk2.write_bytes(b"\x00" * 10)
 
+        def make_response(text_val: str):
+            r = MagicMock()
+            r.text = text_val
+            r.segments = []
+            return r
+
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.side_effect = ["第一段文字", "第二段文字"]
+        mock_client.audio.transcriptions.create.side_effect = [
+            make_response("第一段文字"),
+            make_response("第二段文字"),
+        ]
 
         with (
             patch("app.services.transcriber.WHISPER_MAX_BYTES", 50),
             patch.object(transcriber, "_split_audio", return_value=[chunk1, chunk2]),
             patch.object(transcriber, "_get_client", return_value=mock_client),
+            patch.object(transcriber, "_get_audio_duration", return_value=20.0),
             patch("app.services.transcriber.settings") as mock_settings,
         ):
             mock_settings.AZURE_OPENAI_WHISPER_DEPLOYMENT = "whisper"
-            result = transcriber.transcribe(large_audio)
+            text, segments = transcriber.transcribe(large_audio)
 
-        assert "第一段文字" in result
-        assert "第二段文字" in result
+        assert "第一段文字" in text
+        assert "第二段文字" in text
+        assert isinstance(segments, list)
 
 
 class TestAnalyzer:

@@ -178,7 +178,7 @@ class TestProcessTask:
 
         with (
             patch("worker.extract_audio", return_value=audio_file) as mock_extract,
-            patch("worker.transcribe", return_value="測試逐字稿") as mock_transcribe,
+            patch("worker.transcribe", return_value=("測試逐字稿", [])) as mock_transcribe,
             patch(
                 "worker.analyze_all",
                 return_value=(
@@ -310,7 +310,7 @@ class TestProcessTask:
 
         with (
             patch("worker.extract_audio", return_value=audio_file),
-            patch("worker.transcribe", return_value="新逐字稿"),
+            patch("worker.transcribe", return_value=("新逐字稿", [])),
             patch(
                 "worker.analyze_all",
                 return_value=(

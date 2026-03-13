@@ -3,7 +3,7 @@
 """
 
 import uuid
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -93,15 +93,26 @@ class TestVideoStream:
         r = client.get(f"/api/videos/{vid.id}/stream")
         assert len(r.content) == f.stat().st_size
 
-    def test_stream_wmv_returns_415(self, client, wmv_video):
+    def test_stream_wmv_transcodes_to_mp4(self, client, wmv_video):
+        """WMV 格式應透過 FFmpeg 轉碼後以 video/mp4 回傳（200）"""
         vid, _ = wmv_video
-        r = client.get(f"/api/videos/{vid.id}/stream")
-        assert r.status_code == 415
+        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+            mock_proc = MagicMock()
+            mock_proc.stdout.read.side_effect = [b"fake_mp4_data", b""]
+            mock_popen.return_value = mock_proc
+            r = client.get(f"/api/videos/{vid.id}/stream")
+        assert r.status_code == 200
+        assert "video/mp4" in r.headers.get("content-type", "")
 
-    def test_stream_wmv_error_message(self, client, wmv_video):
+    def test_stream_wmv_transcoded_header(self, client, wmv_video):
+        """轉碼串流應包含 X-Transcoded 標頭"""
         vid, _ = wmv_video
-        r = client.get(f"/api/videos/{vid.id}/stream")
-        assert "WMV" in r.json()["detail"].upper() or "wmv" in r.json()["detail"].lower()
+        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+            mock_proc = MagicMock()
+            mock_proc.stdout.read.side_effect = [b"", b""]
+            mock_popen.return_value = mock_proc
+            r = client.get(f"/api/videos/{vid.id}/stream")
+        assert r.headers.get("x-transcoded") == "1"
 
     def test_stream_video_not_found(self, client):
         r = client.get("/api/videos/nonexistent/stream")
@@ -129,7 +140,8 @@ class TestVideoStream:
         assert r.status_code == 200
         assert "quicktime" in r.headers.get("content-type", "").lower()
 
-    def test_stream_mkv_returns_415(self, client, db_session, tmp_path):
+    def test_stream_mkv_transcodes_to_mp4(self, client, db_session, tmp_path):
+        """MKV 格式應透過 FFmpeg 轉碼後以 video/mp4 回傳（200）"""
         f = tmp_path / "test.mkv"
         f.write_bytes(b"\x00" * 512)
         vid = Video(
@@ -143,10 +155,16 @@ class TestVideoStream:
         )
         db_session.add(vid)
         db_session.commit()
-        r = client.get(f"/api/videos/{vid.id}/stream")
-        assert r.status_code == 415
+        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+            mock_proc = MagicMock()
+            mock_proc.stdout.read.side_effect = [b"", b""]
+            mock_popen.return_value = mock_proc
+            r = client.get(f"/api/videos/{vid.id}/stream")
+        assert r.status_code == 200
+        assert "video/mp4" in r.headers.get("content-type", "")
 
-    def test_stream_avi_returns_415(self, client, db_session, tmp_path):
+    def test_stream_avi_transcodes_to_mp4(self, client, db_session, tmp_path):
+        """AVI 格式應透過 FFmpeg 轉碼後以 video/mp4 回傳（200）"""
         f = tmp_path / "test.avi"
         f.write_bytes(b"\x00" * 512)
         vid = Video(
@@ -160,8 +178,13 @@ class TestVideoStream:
         )
         db_session.add(vid)
         db_session.commit()
-        r = client.get(f"/api/videos/{vid.id}/stream")
-        assert r.status_code == 415
+        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+            mock_proc = MagicMock()
+            mock_proc.stdout.read.side_effect = [b"", b""]
+            mock_popen.return_value = mock_proc
+            r = client.get(f"/api/videos/{vid.id}/stream")
+        assert r.status_code == 200
+        assert "video/mp4" in r.headers.get("content-type", "")
 
     def test_stream_video_with_null_file_path(self, client, db_session):
         vid = Video(

@@ -200,6 +200,7 @@
       <button class="tab-btn" data-tab="mindmap" onclick="switchTab('mindmap')">🧠 心智圖</button>
       <button class="tab-btn" data-tab="faq" onclick="switchTab('faq')">❓ FAQ</button>
       <button class="tab-btn" data-tab="case-analysis" onclick="switchTab('case-analysis')">🔍 案例分析</button>
+      <button class="tab-btn" data-tab="split-view" onclick="switchTab('split-view')">🎬 影片+案例</button>
       <button class="tab-btn" data-tab="qa-chat" onclick="switchTab('qa-chat')">💬 對話</button>
       <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">📓 筆記</button>
       <button class="tab-btn" data-tab="transcript" onclick="switchTab('transcript')">📄 逐字稿</button>
@@ -313,6 +314,32 @@
         <div class="card-title">🔍 案例分析</div>
         <div id="case-analysis-content" class="markdown-body case-analysis-body">
           <p class="loading-text">載入中...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Split View Tab: video player + case analysis side by side -->
+    <div id="tab-split-view" class="tab-panel">
+      <div class="split-view-container">
+        <div class="split-view-player">
+          <video id="split-video-player" controls preload="metadata"
+            style="width:100%;border-radius:8px;background:#000;display:block">
+            <source id="split-video-source" src="" type="video/mp4">
+            你的瀏覽器不支援 HTML5 影片播放。
+          </video>
+          <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+            💡 點擊右側 <strong>[MM:SS]</strong> 時間戳可跳轉到對應片段
+          </div>
+        </div>
+        <div class="split-view-content">
+          <div style="font-weight:600;font-size:14px;margin-bottom:12px;color:var(--text)">🔍 案例分析</div>
+          <div id="split-case-analysis" class="markdown-body case-analysis-body"></div>
+          <div id="split-no-timestamps" style="display:none;padding:12px;background:var(--surface);border-radius:6px;margin-bottom:12px;font-size:12px;color:var(--muted)">
+            ⚠️ 此影片在舊版分析時建立，不含時間戳。重新分析後可取得時間戳。
+          </div>
+          <div id="split-no-case" style="display:none;color:var(--muted);text-align:center;padding:40px">
+            此影片無案例分析內容
+          </div>
         </div>
       </div>
     </div>

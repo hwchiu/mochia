@@ -815,3 +815,46 @@ mark {
   border-radius: 3px; font-size: 11px;
 }
 .loading-text { color: var(--muted, #9ca3af); font-size: 13px; padding: 8px 0; }
+
+/* Split View */
+.split-view-container {
+  display: flex;
+  gap: 16px;
+  min-height: 500px;
+}
+.split-view-player {
+  flex: 0 0 42%;
+  max-width: 42%;
+  position: sticky;
+  top: 80px;
+  align-self: flex-start;
+}
+.split-view-content {
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 160px);
+  padding-right: 4px;
+}
+.ts-link {
+  display: inline-block;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.82em;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 0 4px;
+  text-decoration: none;
+  transition: background 0.15s;
+  vertical-align: middle;
+}
+.ts-link:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+@media (max-width: 768px) {
+  .split-view-container { flex-direction: column; }
+  .split-view-player { flex: 0 0 auto; max-width: 100%; position: static; }
+  .split-view-content { max-height: none; }
+}

@@ -164,6 +164,7 @@ function switchTab(tabName) {
     else if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
+    else if (tabName === "split-view") loadSplitView();
     else if (tabName === "notes") loadNote();
     else if (tabName === "qa-chat") { /* chat history already loaded */ }
   }
@@ -510,6 +511,75 @@ async function loadCaseAnalysis() {
     renderCaseAnalysis(data.case_analysis);
   } catch (e) {
     el.innerHTML = `<p style="color:var(--muted)">載入失敗：${e.message}</p>`;
+  }
+}
+
+function _renderMarkdown(text) {
+  if (!text) return "";
+  if (window.marked) return marked.parse(text);
+  return text
+    .replace(/^## (.+)$/gm, '<h2 class="ca-h2">$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3 class="ca-h3">$1</h3>')
+    .replace(/^\*\*(.+?)\*\*(.*)$/gm, '<p><strong>$1</strong>$2</p>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+    .replace(/^(?!<[hpul]).+$/gm, '<p>$&</p>')
+    .replace(/<\/ul>\n?<ul>/g, "");
+}
+
+function _tsToSec(ts) {
+  const parts = ts.split(':').map(Number);
+  return parts.length === 3
+    ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+    : parts[0] * 60 + parts[1];
+}
+
+function _injectTimestampLinks(html) {
+  return html.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (_, ts) => {
+    const sec = _tsToSec(ts);
+    return `<a class="ts-link" data-sec="${sec}" title="跳到 ${ts}">[${ts}]</a>`;
+  });
+}
+
+function loadSplitView() {
+  const splitVideo = document.getElementById('split-video-player');
+  const splitSource = document.getElementById('split-video-source');
+  const container = document.getElementById('split-case-analysis');
+  const noCase = document.getElementById('split-no-case');
+  const noTs = document.getElementById('split-no-timestamps');
+
+  if (splitVideo && splitSource && !splitSource.getAttribute('src')) {
+    splitSource.setAttribute('src', `/api/videos/${videoId}/stream`);
+    splitVideo.load();
+  }
+
+  if (container && !container.dataset.loaded) {
+    fetch(`/api/analysis/${videoId}/case-analysis`)
+      .then(r => r.json())
+      .then(data => {
+        const content = data.case_analysis;
+        if (!content) {
+          noCase && (noCase.style.display = 'block');
+          return;
+        }
+        const html = _renderMarkdown(content);
+        const hasTimestamps = /\[\d{1,2}:\d{2}/.test(content);
+        if (!hasTimestamps) {
+          noTs && (noTs.style.display = 'block');
+        }
+        container.innerHTML = _injectTimestampLinks(html);
+        container.dataset.loaded = 'true';
+        container.querySelectorAll('.ts-link').forEach(link => {
+          link.addEventListener('click', () => {
+            if (!splitVideo) return;
+            splitVideo.currentTime = parseFloat(link.dataset.sec);
+            splitVideo.play().catch(() => {});
+          });
+        });
+      })
+      .catch(() => {
+        noCase && (noCase.style.display = 'block');
+      });
   }
 }
 
