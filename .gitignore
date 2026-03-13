@@ -21,3 +21,5 @@ logs/
 
 # macOS
 .DS_Store
+
+# Docker empty dir - 作為未設定的 VIDEO_DIR_N 的空白掛載佔位

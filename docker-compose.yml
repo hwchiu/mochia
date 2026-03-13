@@ -6,17 +6,36 @@
 #    停止：  docker compose down
 #    升級：  docker compose pull && docker compose up -d
 #    日誌：  docker compose logs -f worker
-#    CLI：   docker compose exec web python cli.py scan /videos
+#    CLI：   docker compose exec web python cli.py scan /videos/source1
 #
-#  影片掛載（必須）：
-#    在 .env 設定 VIDEO_DIR=/path/to/your/videos
-#    或直接修改下方 volumes 的 ${VIDEO_DIR} 路徑
+#  影片來源設定（支援最多 5 個目錄）：
+#    在 .env 設定 VIDEO_DIR_1=/path/to/main/videos
+#    可選填 VIDEO_DIR_2 ~ VIDEO_DIR_5 增加更多來源（含外接硬碟）
+#    未設定的項目不會掛載（使用 .docker-empty 作為空白佔位）
+#    容器內路徑：/videos/source1 ~ /videos/source5
+#
+#    範例：
+#      VIDEO_DIR_1=/Users/hwchiu/Movies
+#      VIDEO_DIR_2=/Volumes/ExternalDrive/Videos
+#      VIDEO_DIR_3=/Users/hwchiu/Downloads/課程
 #
 #  Image 來源：
 #    從 Docker Hub hwchiu/mochia:latest 拉取
 #    支援 linux/amd64（Intel/AMD）與 linux/arm64（Apple Silicon、ARM 伺服器）
 #    Docker 會自動依本機 CPU 架構選擇正確的 image，無需手動指定
 # ============================================================
+
+# YAML anchor — web 與 worker 共用相同 volumes 設定
+x-app-volumes: &app-volumes
+  - mochia-data:/app/data
+  - mochia-uploads:/app/uploads
+  - mochia-logs:/app/logs
+  - ${VIDEO_DIR_1:-./.docker-empty}:/videos/source1:ro
+  - ${VIDEO_DIR_2:-./.docker-empty}:/videos/source2:ro
+  - ${VIDEO_DIR_3:-./.docker-empty}:/videos/source3:ro
+  - ${VIDEO_DIR_4:-./.docker-empty}:/videos/source4:ro
+  - ${VIDEO_DIR_5:-./.docker-empty}:/videos/source5:ro
+
 services:
   web:
     image: hwchiu/mochia:latest
@@ -26,13 +45,7 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    volumes:
-      - mochia-data:/app/data
-      - mochia-uploads:/app/uploads
-      - mochia-logs:/app/logs
-      # 本地影片目錄（唯讀掛載，供掃描與串流播放）
-      # 若不需要，可刪除這行
-      - ${VIDEO_DIR:-/tmp/videos}:/videos:ro
+    volumes: *app-volumes
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -49,11 +62,7 @@ services:
     command: python worker.py
     env_file:
       - .env
-    volumes:
-      - mochia-data:/app/data
-      - mochia-uploads:/app/uploads
-      - mochia-logs:/app/logs
-      - ${VIDEO_DIR:-/tmp/videos}:/videos:ro
+    volumes: *app-volumes
 
 volumes:
   mochia-data:
