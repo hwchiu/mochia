@@ -100,6 +100,14 @@ class Settings(BaseSettings):
         "未分類 (Uncategorized)",
     ]
 
+    # 影片來源目錄（對應 docker-compose.yml 的 VIDEO_DIR_1~5）
+    # 未設定時預設為空字串，由 docker-compose 自動掛載 .docker-empty 佔位
+    VIDEO_DIR_1: str = ""
+    VIDEO_DIR_2: str = ""
+    VIDEO_DIR_3: str = ""
+    VIDEO_DIR_4: str = ""
+    VIDEO_DIR_5: str = ""
+
 
 settings = Settings()
 
