@@ -11,21 +11,20 @@ from openai import AzureOpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
+from app.constants import ASK_CONTEXT_CHARS, MAX_TRANSCRIPT_CHARS
 
 logger = logging.getLogger(__name__)
 
 _client: AzureOpenAI | None = None
 _client_lock = threading.Lock()
 
-# 逐字稿截斷上限：8000 字足以涵蓋主要內容，降低每次送出的 token 量
-MAX_TRANSCRIPT_CHARS = 8000
 
-
-def _prepare_transcript(transcript: str) -> str:
+def _prepare_transcript(transcript: str, max_chars: int | None = None) -> str:
     """Truncate transcript to fit GPT context window, preserving start and end."""
-    if len(transcript) <= MAX_TRANSCRIPT_CHARS:
+    limit = max_chars if max_chars is not None else MAX_TRANSCRIPT_CHARS
+    if len(transcript) <= limit:
         return transcript
-    half = MAX_TRANSCRIPT_CHARS // 2
+    half = limit // 2
     return transcript[:half] + "\n\n[... 中間內容省略 ...]\n\n" + transcript[-half:]
 
 
@@ -63,105 +62,6 @@ def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
     )
     content = response.choices[0].message.content
     return content.strip() if content else ""
-
-
-def analyze(transcript: str) -> tuple[str, list[dict], str, float]:
-    """Analyze transcript using GPT to generate summary, key points, and classification.
-
-    Args:
-        transcript: Full transcript text from Whisper.
-
-    Returns:
-        Tuple of (summary, key_points, category, confidence) where:
-        - summary: Text summary of the content
-        - key_points: List of dicts with 'theme' and 'points' keys
-        - category: One of the predefined CATEGORIES
-        - confidence: Float 0.0-1.0 classification confidence
-
-    Raises:
-        ValueError: If GPT returns invalid JSON response.
-        openai.APIError: If API call fails after retries.
-    """
-    # 逐字稿太長時截取前後各部分送 GPT
-    transcript_for_gpt = _prepare_transcript(transcript)
-    if len(transcript) > MAX_TRANSCRIPT_CHARS:
-        logger.info(f"逐字稿過長 ({len(transcript)} 字)，已截斷送分析")
-
-    categories_str = "\n".join(f"- {c}" for c in settings.CATEGORIES)
-
-    system_prompt = """你是一位專業的玄學內容分析師，擅長占星學、風水、奇門遁甲等東方玄學領域。
-請根據影片逐字稿，以 JSON 格式回傳分析結果，不要有任何額外文字。"""
-
-    user_content = f"""請分析以下影片逐字稿，並以 JSON 格式回傳：
-
-逐字稿：
-{transcript_for_gpt}
-
-請回傳以下 JSON 格式（所有欄位必填）：
-{{
-  "summary": "影片內容完整摘要（繁體中文）",
-  "key_points": [
-    {{
-      "theme": "主題名稱（4-12字）",
-      "points": ["具體說明或重點敘述", "..."]
-    }}
-  ],
-  "category": "從以下類別選擇最符合的一個",
-  "confidence": 0.85
-}}
-
-可選類別：
-{categories_str}
-
-注意：
-- summary 要詳盡完整，至少 600 字，最多 1200 字，繁體中文
-  * 第一段：概述影片整體主題、講師立場與核心論點（3-4句）
-  * 中間多個段落：依序詳細介紹影片各重要段落的內容、概念說明與觀點（每段落至少3-4句）
-  * 最後一段：總結影片整體的實用價值、學習重點與核心結論（2-3句）
-  * 段落與段落之間要有明確的邏輯銜接
-- key_points 列出 5-8 個主題，涵蓋影片所有重要段落
-  * 主題名稱要精準概括該段落的核心概念
-  * 每個主題下至少 3-5 條敘述說明
-  * 每條敘述要完整具體，至少 2-3 句話，包含概念說明、背景脈絡或實際應用
-  * 讓讀者光看重點就能完整複習整部影片的內容
-- category 必須完全符合可選類別之一
-- confidence 為 0-1 之間的浮點數"""
-
-    logger.info("開始 GPT 分析（摘要 + 重點 + 分類）")
-    raw = _chat(system_prompt, user_content, max_tokens=5000)
-
-    # 清除可能的 markdown code block
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-        raw = raw.rsplit("```", 1)[0].strip()
-
-    try:
-        result = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.error("GPT 回傳無效 JSON，raw=%r", raw[:200])
-        raise ValueError(f"GPT 回傳無效 JSON: {raw[:100]}") from exc
-
-    summary = result.get("summary", "")
-    raw_kp = result.get("key_points", [])
-
-    # 相容舊格式（字串陣列）自動轉換為新格式
-    if raw_kp and isinstance(raw_kp[0], str):
-        key_points = [{"theme": "重點整理", "points": raw_kp}]
-    else:
-        key_points = raw_kp
-
-    category = result.get("category", "未分類 (Uncategorized)")
-    confidence = float(result.get("confidence", 0.5))
-
-    # 確保 category 在合法清單內
-    if category not in settings.CATEGORIES:
-        logger.warning(f"GPT 回傳未知分類 '{category}'，改用未分類")
-        category = "未分類 (Uncategorized)"
-        confidence = 0.0
-
-    logger.info(f"分析完成 - 分類: {category} ({confidence:.0%})")
-    return summary, key_points, category, confidence
 
 
 def generate_mindmap(transcript: str) -> str:
@@ -258,46 +158,14 @@ def generate_faq(transcript: str) -> list[dict]:
     return faq_list
 
 
-def generate_study_notes(transcript: str) -> str:
-    """Generate structured study notes in Markdown."""
-    transcript_for_gpt = _prepare_transcript(transcript)
-
-    system_prompt = """你是一位專業的學習顧問，擅長將影片內容整理成結構化的學習筆記。
-請根據影片逐字稿，生成完整的學習筆記。
-使用繁體中文，直接輸出 Markdown 格式。"""
-
-    user_content = f"""請將以下逐字稿整理成學習筆記：
-
-{transcript_for_gpt}
-
-請以 Markdown 格式輸出，包含以下章節：
-
-## 核心概念
-（影片的核心思想和主要概念）
-
-## 重要術語
-（列出重要的術語及其解釋）
-
-## 學習重點
-（條列式的學習重點）
-
-## 實踐建議
-（如何應用所學的具體建議）
-
-## 延伸思考
-（引發深度思考的問題或觀點）"""
-
-    logger.info("開始生成學習筆記...")
-    result = _chat(system_prompt, user_content)
-    logger.info("學習筆記生成完成")
-    return result
-
-
 def ask_question(transcript: str, question: str, chat_history: list[dict]) -> str:
     """Answer a question about the video using multi-turn conversation.
 
     Args:
-        transcript: Full transcript text used as context for answers.
+        transcript: Context string for the answer — ideally a pre-built summary
+            (summary + key_points) passed from the router, which is much shorter
+            than a raw transcript and cuts input tokens by ~70-80% per call.
+            Falls back gracefully to raw transcript if summary is unavailable.
         question: The user's question string.
         chat_history: List of previous message dicts with 'role' and 'content' keys.
 
@@ -308,28 +176,33 @@ def ask_question(transcript: str, question: str, chat_history: list[dict]) -> st
         ValueError: If Azure OpenAI credentials are not configured.
         openai.APIError: If the API call fails.
     """
-    transcript_for_gpt = _prepare_transcript(transcript)
+    # Use a smaller context window for Q&A — we don't need the full raw transcript
+    # because the caller passes summary + key_points as context (see analysis.py).
+    context = _prepare_transcript(transcript, max_chars=ASK_CONTEXT_CHARS)
 
     system_prompt = f"""你是一位專業的影片內容助手，負責回答關於這支影片的問題。
-請根據以下影片逐字稿來回答問題，使用繁體中文。
+請根據以下影片內容來回答問題，使用繁體中文。
 如果問題與影片內容無關，請禮貌地重新引導回影片相關話題。
 
-影片逐字稿：
-{transcript_for_gpt}"""
+影片內容：
+{context}"""
 
     client = _get_client()
-    messages = [{"role": "system", "content": system_prompt}]
+    # list[Any] satisfies OpenAI's Iterable[ChatCompletionMessageParam] without
+    # requiring a full cast chain for the mixed message dicts we build here.
+    from typing import Any
+
+    messages: list[Any] = [{"role": "system", "content": system_prompt}]
     messages.extend(chat_history[-10:])
     messages.append({"role": "user", "content": question})
 
     logger.info("開始 ask_question...")
     response = client.chat.completions.create(
         model=settings.AZURE_OPENAI_DEPLOYMENT,
-        messages=messages,  # type: ignore[arg-type]
+        messages=messages,
     )
     content = response.choices[0].message.content
-    answer = content.strip() if content else ""
-    return answer
+    return content.strip() if content else ""
 
 
 def suggest_labels(summary: str) -> list[str]:
@@ -442,41 +315,51 @@ JSON 格式：
     return summary, key_points, category, confidence, mindmap, faq_list
 
 
+def _seg_to_line(seg: dict) -> str:
+    """Convert a Whisper segment dict to a '[MM:SS] text' line."""
+    mm, ss = divmod(int(seg.get("start", 0)), 60)
+    return f"[{mm:02d}:{ss:02d}] {seg.get('text', '').strip()}"
+
+
 def _format_timestamped_transcript(
     segments: list[dict], max_chars: int = MAX_TRANSCRIPT_CHARS
 ) -> str:
     """Format Whisper segments as [MM:SS] timestamped lines, truncated to max_chars.
+
+    When the full text exceeds max_chars, keeps the first half and last half of
+    lines with an ellipsis marker in between to preserve context for the LLM.
 
     Args:
         segments: List of Whisper segment dicts with 'start', 'end', and 'text' keys.
         max_chars: Maximum total characters to include in the output.
 
     Returns:
-        Newline-joined string of "[MM:SS] text" lines, with middle content
-        omitted (and replaced by an ellipsis marker) when over the limit.
+        Newline-joined string of "[MM:SS] text" lines.
     """
-    lines: list[str] = []
-    total = 0
+    all_lines = [_seg_to_line(s) for s in segments]
+    full_text = "\n".join(all_lines)
+    if len(full_text) <= max_chars:
+        return full_text
+
     half = max_chars // 2
-    for seg in segments:
-        mm, ss = divmod(int(seg.get("start", 0)), 60)
-        line = f"[{mm:02d}:{ss:02d}] {seg.get('text', '').strip()}"
-        if total + len(line) + 1 > half and len(lines) > 0:
-            tail_lines: list[str] = []
-            tail_total = 0
-            for seg2 in reversed(segments):
-                mm2, ss2 = divmod(int(seg2.get("start", 0)), 60)
-                l2 = f"[{mm2:02d}:{ss2:02d}] {seg2.get('text', '').strip()}"
-                if tail_total + len(l2) + 1 > half:
-                    break
-                tail_lines.insert(0, l2)
-                tail_total += len(l2) + 1
-            lines.append("\n[... 中間內容省略 ...]\n")
-            lines.extend(tail_lines)
+
+    head: list[str] = []
+    head_chars = 0
+    for line in all_lines:
+        if head_chars + len(line) + 1 > half:
             break
-        lines.append(line)
-        total += len(line) + 1
-    return "\n".join(lines)
+        head.append(line)
+        head_chars += len(line) + 1
+
+    tail: list[str] = []
+    tail_chars = 0
+    for line in reversed(all_lines):
+        if tail_chars + len(line) + 1 > half:
+            break
+        tail.insert(0, line)
+        tail_chars += len(line) + 1
+
+    return "\n".join(head) + "\n\n[... 中間內容省略 ...]\n\n" + "\n".join(tail)
 
 
 def generate_deep_content(transcript: str, segments: list[dict] | None = None) -> tuple[str, str]:

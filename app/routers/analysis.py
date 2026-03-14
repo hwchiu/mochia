@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.constants import CHAT_HISTORY_LIMIT
 from app.database import ChatMessage, Classification, Summary, TaskQueue, Transcript, Video, get_db
 from app.services.analyzer import (
     analyze_all,
@@ -27,6 +28,27 @@ router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 class AskRequest(BaseModel):
     question: str
+
+
+def _build_qa_context(summary: Summary | None, transcript_content: str) -> str:
+    """Build a compact context string for Q&A to minimise input tokens.
+
+    Uses summary + key_points (~1-2 K chars) instead of the raw transcript
+    (~8 K chars), cutting per-question input tokens by ~70-80%.
+    Falls back to the raw transcript when no summary is available.
+    """
+    if summary and summary.summary:
+        kp_lines: list[str] = []
+        kp_list = safe_json_loads(summary.key_points or "[]", [])
+        for kp in kp_list:
+            if not isinstance(kp, dict):
+                continue
+            kp_lines.append(f"- {kp.get('theme', '')}")
+            for pt in kp.get("points", [])[:2]:
+                kp_lines.append(f"  • {pt}")
+        kp_text = "\n".join(kp_lines)
+        return f"## 影片摘要\n{summary.summary}\n\n## 重點整理\n{kp_text}".strip()
+    return transcript_content
 
 
 @router.post("/{video_id}/queue")
@@ -241,16 +263,22 @@ def ask_video_question(video_id: str, req: AskRequest, db: Session = Depends(get
     if not question:
         raise HTTPException(400, "問題不能為空")
 
-    # Load last 10 chat messages BEFORE saving new ones
+    # Load last 10 chat messages BEFORE saving new ones.
+    # Bound the DB query to prevent OOM on very long conversations.
     history_records = (
         db.query(ChatMessage)
         .filter(ChatMessage.video_id == video_id)
         .order_by(ChatMessage.created_at.asc())
+        .limit(CHAT_HISTORY_LIMIT)
         .all()
     )
     chat_history = [{"role": m.role, "content": m.content} for m in history_records[-10:]]
 
-    answer = ask_question(transcript.content or "", question, chat_history)
+    # Build compact Q&A context from summary + key_points to minimise input tokens
+    summary_record = db.query(Summary).filter(Summary.video_id == video_id).first()
+    qa_context = _build_qa_context(summary_record, transcript.content or "")
+
+    answer = ask_question(qa_context, question, chat_history)
 
     # Save user message
     db.add(
@@ -285,6 +313,7 @@ def get_chat_history(video_id: str, db: Session = Depends(get_db)):
         db.query(ChatMessage)
         .filter(ChatMessage.video_id == video_id)
         .order_by(ChatMessage.created_at.asc())
+        .limit(CHAT_HISTORY_LIMIT)
         .all()
     )
     return {
@@ -332,16 +361,20 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
     if not summary:
         raise HTTPException(404, "摘要記錄不存在")
 
+    # Use summary as context — it's a concise distillation and much cheaper than
+    # sending the full raw transcript (which can be up to 8 K chars) per request.
+    context = _build_qa_context(summary, transcript.content or "")
+
     if content_type == "mindmap":
-        result = generate_mindmap(transcript.content or "")
-        summary.mindmap = result
+        mindmap_result: str = generate_mindmap(context)
+        summary.mindmap = mindmap_result
         db.commit()
-        return {"video_id": video_id, "mindmap": result}
+        return {"video_id": video_id, "mindmap": mindmap_result}
     elif content_type == "faq":
-        result = generate_faq(transcript.content or "")  # type: ignore[assignment]
-        summary.faq = json.dumps(result, ensure_ascii=False)
+        faq_result: list = generate_faq(context)
+        summary.faq = json.dumps(faq_result, ensure_ascii=False)
         db.commit()
-        return {"video_id": video_id, "faq": result}
+        return {"video_id": video_id, "faq": faq_result}
 
 
 @router.post("/{video_id}/reanalyze")
