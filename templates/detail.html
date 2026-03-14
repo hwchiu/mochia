@@ -97,115 +97,127 @@
   </div>
 
   <div class="detail-grid">
-    <div class="card">
-      <div class="card-title">📋 基本資訊</div>
-      <div class="kv-list">
-        <div class="kv-row"><div class="kv-key">狀態</div><div class="kv-val" id="kv-status-dup">—</div></div>
-        <div class="kv-row"><div class="kv-key">來源</div><div class="kv-val" id="kv-source">—</div></div>
-        <div class="kv-row"><div class="kv-key">大小</div><div class="kv-val" id="kv-size">—</div></div>
-        <div class="kv-row"><div class="kv-key">時長</div><div class="kv-val" id="kv-duration">—</div></div>
-        <div class="kv-row"><div class="kv-key">分類</div><div class="kv-val" id="kv-category">—</div></div>
-        <div class="kv-row"><div class="kv-key">登錄日期</div><div class="kv-val" id="kv-date">—</div></div>
-        <div class="kv-row"><div class="kv-key">複習次數</div><div class="kv-val" id="kv-review-count">—</div></div>
-        <div class="kv-row"><div class="kv-key">上次複習</div><div class="kv-val" id="kv-last-reviewed">—</div></div>
-        <div class="kv-row"><div class="kv-key">下次複習</div><div class="kv-val" id="kv-next-review">—</div></div>
-        <div class="kv-row"><div class="kv-key">路徑</div>
-          <div class="kv-val" id="kv-path" style="font-size:11px;color:var(--muted,#888)">—</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Labels Card -->
-    <div class="card" id="labels-card">
-      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-        🏷️ 標籤
-        <button class="btn btn-ghost btn-xs" onclick="suggestLabels()" id="btn-suggest-labels">✨ GPT 建議</button>
-      </div>
-      <div id="video-labels-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:22px">
-        <span style="color:var(--muted);font-size:12px">無標籤</span>
-      </div>
-      <div style="display:flex;gap:6px;position:relative">
-        <input type="text" id="label-input" placeholder="新增標籤..." style="flex:1;font-size:12px;padding:5px 10px" autocomplete="off"
-               oninput="showLabelSuggestions(this.value)" onkeydown="handleLabelKeydown(event)">
-        <button class="btn btn-primary btn-sm" onclick="addLabelFromInput()">＋</button>
-        <div id="label-autocomplete" class="label-autocomplete-box hidden"></div>
-      </div>
-    </div>
-
-    <!-- Video Player Card — always visible, timestamps in tabs seek here -->
-    <div class="card" id="player-card">
-      <div class="card-title" style="display:flex;align-items:center;gap:8px">
-        <span>▶️ 影片</span>
-        <span id="player-format-badge" style="font-size:11px;color:var(--muted);font-weight:400"></span>
-      </div>
-      <video id="video-player" controls preload="metadata"
-        style="width:100%;max-height:300px;border-radius:8px;background:#000;display:block">
-        <source id="video-source" src="" type="video/mp4">
-        你的瀏覽器不支援 HTML5 影片播放。
-      </video>
-      <p style="margin-top:8px;font-size:11px;color:var(--muted)">
-        💡 點擊案例分析或逐字稿中的 <strong>[MM:SS]</strong> 時間戳可直接跳轉
-      </p>
-    </div>
-
-    <div class="card hidden" id="task-section">
-      <div class="card-title">⚙️ 分析任務</div>
-      <div class="kv-list">
-        <div class="kv-row"><div class="kv-key">任務狀態</div><div class="kv-val" id="task-status">—</div></div>
-        <div class="kv-row"><div class="kv-key">開始時間</div><div class="kv-val" id="task-started">—</div></div>
-        <div class="kv-row"><div class="kv-key">完成時間</div><div class="kv-val" id="task-completed">—</div></div>
-        <div class="kv-row"><div class="kv-key">重試次數</div><div class="kv-val" id="task-retries">—</div></div>
-      </div>
-
-      <!-- Progress Bar (shown while processing) -->
-      <div id="progress-section" class="hidden" style="margin-top:16px">
-        <div class="progress-steps">
-          <div class="progress-step" id="pstep-1">
-            <div class="pstep-icon">
-              <span class="pstep-emoji">🎵</span>
-              <span class="pstep-check" style="display:none">✓</span>
-            </div>
-            <div class="pstep-label">提取音頻</div>
-          </div>
-          <div class="progress-connector" id="pconn-1"></div>
-          <div class="progress-step" id="pstep-2">
-            <div class="pstep-icon">
-              <span class="pstep-emoji">🎙️</span>
-              <span class="pstep-check" style="display:none">✓</span>
-            </div>
-            <div class="pstep-label">語音轉文字</div>
-          </div>
-          <div class="progress-connector" id="pconn-2"></div>
-          <div class="progress-step" id="pstep-3">
-            <div class="pstep-icon">
-              <span class="pstep-emoji">🤖</span>
-              <span class="pstep-check" style="display:none">✓</span>
-            </div>
-            <div class="pstep-label">GPT 分析</div>
-          </div>
-          <div class="progress-connector" id="pconn-3"></div>
-          <div class="progress-step" id="pstep-4">
-            <div class="pstep-icon">
-              <span class="pstep-emoji">📚</span>
-              <span class="pstep-check" style="display:none">✓</span>
-            </div>
-            <div class="pstep-label">生成摘要功能</div>
-          </div>
-        </div>
-        <div style="margin-top:10px">
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" id="progress-bar-fill" style="width:0%"></div>
-          </div>
-          <div class="progress-sub-track" id="progress-sub-track" style="display:none">
-            <div class="progress-sub-fill" id="progress-sub-fill" style="width:0%"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:13px;color:#666">
-            <span id="progress-message">等待中...</span>
-            <span id="progress-percent">0%</span>
+    <!-- Left column: info cards stacked -->
+    <div class="detail-col-left">
+      <div class="card">
+        <div class="card-title">📋 基本資訊</div>
+        <div class="kv-list">
+          <div class="kv-row"><div class="kv-key">狀態</div><div class="kv-val" id="kv-status-dup">—</div></div>
+          <div class="kv-row"><div class="kv-key">來源</div><div class="kv-val" id="kv-source">—</div></div>
+          <div class="kv-row"><div class="kv-key">大小</div><div class="kv-val" id="kv-size">—</div></div>
+          <div class="kv-row"><div class="kv-key">時長</div><div class="kv-val" id="kv-duration">—</div></div>
+          <div class="kv-row"><div class="kv-key">分類</div><div class="kv-val" id="kv-category">—</div></div>
+          <div class="kv-row"><div class="kv-key">登錄日期</div><div class="kv-val" id="kv-date">—</div></div>
+          <div class="kv-row"><div class="kv-key">複習次數</div><div class="kv-val" id="kv-review-count">—</div></div>
+          <div class="kv-row"><div class="kv-key">上次複習</div><div class="kv-val" id="kv-last-reviewed">—</div></div>
+          <div class="kv-row"><div class="kv-key">下次複習</div><div class="kv-val" id="kv-next-review">—</div></div>
+          <div class="kv-row"><div class="kv-key">路徑</div>
+            <div class="kv-val" id="kv-path" style="font-size:11px;color:var(--muted,#888)">—</div>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- Labels Card -->
+      <div class="card" id="labels-card">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          🏷️ 標籤
+          <button class="btn btn-ghost btn-xs" onclick="suggestLabels()" id="btn-suggest-labels">✨ GPT 建議</button>
+        </div>
+        <div id="video-labels-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:22px">
+          <span style="color:var(--muted);font-size:12px">無標籤</span>
+        </div>
+        <div style="display:flex;gap:6px;position:relative">
+          <input type="text" id="label-input" placeholder="新增標籤..." style="flex:1;font-size:12px;padding:5px 10px" autocomplete="off"
+                 oninput="showLabelSuggestions(this.value)" onkeydown="handleLabelKeydown(event)">
+          <button class="btn btn-primary btn-sm" onclick="addLabelFromInput()">＋</button>
+          <div id="label-autocomplete" class="label-autocomplete-box hidden"></div>
+        </div>
+      </div>
+
+      <!-- Task / Progress Card -->
+      <div class="card hidden" id="task-section">
+        <div class="card-title">⚙️ 分析任務</div>
+        <div class="kv-list">
+          <div class="kv-row"><div class="kv-key">任務狀態</div><div class="kv-val" id="task-status">—</div></div>
+          <div class="kv-row"><div class="kv-key">開始時間</div><div class="kv-val" id="task-started">—</div></div>
+          <div class="kv-row"><div class="kv-key">完成時間</div><div class="kv-val" id="task-completed">—</div></div>
+          <div class="kv-row"><div class="kv-key">重試次數</div><div class="kv-val" id="task-retries">—</div></div>
+        </div>
+
+        <!-- Progress Bar (shown while processing) -->
+        <div id="progress-section" class="hidden" style="margin-top:16px">
+          <div class="progress-steps">
+            <div class="progress-step" id="pstep-1">
+              <div class="pstep-icon">
+                <span class="pstep-emoji">🎵</span>
+                <span class="pstep-check" style="display:none">✓</span>
+              </div>
+              <div class="pstep-label">提取音頻</div>
+            </div>
+            <div class="progress-connector" id="pconn-1"></div>
+            <div class="progress-step" id="pstep-2">
+              <div class="pstep-icon">
+                <span class="pstep-emoji">🎙️</span>
+                <span class="pstep-check" style="display:none">✓</span>
+              </div>
+              <div class="pstep-label">語音轉文字</div>
+            </div>
+            <div class="progress-connector" id="pconn-2"></div>
+            <div class="progress-step" id="pstep-3">
+              <div class="pstep-icon">
+                <span class="pstep-emoji">🤖</span>
+                <span class="pstep-check" style="display:none">✓</span>
+              </div>
+              <div class="pstep-label">GPT 分析</div>
+            </div>
+            <div class="progress-connector" id="pconn-3"></div>
+            <div class="progress-step" id="pstep-4">
+              <div class="pstep-icon">
+                <span class="pstep-emoji">📚</span>
+                <span class="pstep-check" style="display:none">✓</span>
+              </div>
+              <div class="pstep-label">生成摘要</div>
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="progress-bar-fill" style="width:0%"></div>
+            </div>
+            <div class="progress-sub-track" id="progress-sub-track" style="display:none">
+              <div class="progress-sub-fill" id="progress-sub-fill" style="width:0%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:13px;color:#666">
+              <span id="progress-message">等待中...</span>
+              <span style="display:flex;gap:12px">
+                <span id="progress-elapsed" style="color:var(--muted,#888)"></span>
+                <span id="progress-percent">0%</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /detail-col-left -->
+
+    <!-- Right column: sticky video player -->
+    <div class="detail-col-right">
+      <div class="card" id="player-card">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px">
+          <span>▶️ 影片</span>
+          <span id="player-format-badge" style="font-size:11px;color:var(--muted);font-weight:400"></span>
+          <span style="margin-left:auto;font-size:11px;color:var(--muted)">
+            <abbr title="Space 播放/暫停 · ← → 快退/快進 10s · M 靜音 · F 全螢幕" style="cursor:help;text-decoration:none">⌨️ 快捷鍵</abbr>
+          </span>
+        </div>
+        <video id="video-player" controls preload="metadata"
+          style="width:100%;border-radius:8px;background:#000;display:block">
+          <source id="video-source" src="" type="video/mp4">
+          你的瀏覽器不支援 HTML5 影片播放。
+        </video>
+        <p style="margin-top:8px;font-size:11px;color:var(--muted)">
+          💡 點擊案例分析或逐字稿中的 <strong>[MM:SS]</strong> 時間戳可直接跳轉
+        </p>
+      </div>
+    </div><!-- /detail-col-right -->
   </div>
 
   <!-- NotebookLM Tabs (only shown when completed) -->
@@ -225,7 +237,7 @@
       <div class="card" style="margin-bottom:16px">
         <div class="card-title" style="display:flex;align-items:center">
           <span>📝 摘要</span>
-          <button class="btn btn-sm btn-ghost regen-btn" onclick="reanalyze()" id="btn-reanalyze" style="display:none">🔄 重新分析</button>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="confirmReanalyze()" id="btn-reanalyze" style="display:none">🔄 重新分析</button>
         </div>
         <p id="summary-text" style="line-height:1.8;color:var(--text,#333)">—</p>
       </div>
@@ -243,7 +255,7 @@
           <button class="btn btn-sm btn-ghost" onclick="resetMindmapZoom()" title="重置縮放">⟳ 重置</button>
           <button class="btn btn-sm btn-ghost" onclick="openMindmapFullscreen()">⛶ 放大</button>
           <button class="btn btn-sm btn-ghost" onclick="downloadMindmap()">⬇ 下載</button>
-          <button class="btn btn-sm btn-ghost regen-btn" onclick="regenerate('mindmap')">🔄 重新生成</button>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="confirmRegenerate('mindmap')">🔄 重新生成</button>
           <span style="margin-left:auto;font-size:12px;color:var(--muted,#888)">滾輪縮放・拖曳移動</span>
         </div>
         <div id="mindmap-loading" class="loading-text">載入中...</div>
@@ -263,7 +275,7 @@
       <div class="card">
         <div class="card-title" style="display:flex;align-items:center">
           <span>❓ FAQ</span>
-          <button class="btn btn-sm btn-ghost regen-btn" onclick="regenerate('faq')">🔄 重新生成</button>
+          <button class="btn btn-sm btn-ghost regen-btn" onclick="confirmRegenerate('faq')">🔄 重新生成</button>
         </div>
         <div id="faq-loading" class="loading-text">載入中...</div>
         <div id="faq-list"></div>
@@ -402,6 +414,16 @@
       <button class="btn btn-primary" id="confirm-review-btn" onclick="confirmReview()" disabled style="min-width:120px">確認複習</button>
     </div>
     <div id="review-result-msg" style="margin-top:16px;font-size:13px;color:var(--success,#22c55e);display:none"></div>
+  </div>
+</div>
+
+<!-- Mini player — appears when main player scrolls off-screen -->
+<div id="mini-player">
+  <video id="mini-video" muted playsinline></video>
+  <div id="mini-player-bar">
+    <span id="mini-player-title">影片播放中</span>
+    <button onclick="miniPlayerJumpBack()" title="跳回主播放器">⬆</button>
+    <button onclick="closeMiniPlayer()" title="關閉">✕</button>
   </div>
 </div>
 
