@@ -442,7 +442,9 @@ JSON 格式：
     return summary, key_points, category, confidence, mindmap, faq_list
 
 
-def _format_timestamped_transcript(segments: list[dict], max_chars: int = MAX_TRANSCRIPT_CHARS) -> str:
+def _format_timestamped_transcript(
+    segments: list[dict], max_chars: int = MAX_TRANSCRIPT_CHARS
+) -> str:
     """Format Whisper segments as [MM:SS] timestamped lines, truncated to max_chars.
 
     Args:
@@ -477,9 +479,7 @@ def _format_timestamped_transcript(segments: list[dict], max_chars: int = MAX_TR
     return "\n".join(lines)
 
 
-def generate_deep_content(
-    transcript: str, segments: list[dict] | None = None
-) -> tuple[str, str]:
+def generate_deep_content(transcript: str, segments: list[dict] | None = None) -> tuple[str, str]:
     """Single GPT call combining study_notes + case_analysis to reduce token usage.
 
     Args:
@@ -494,9 +494,7 @@ def generate_deep_content(
     """
     if segments:
         transcript_for_gpt = _format_timestamped_transcript(segments)
-        timestamp_instruction = (
-            "在案例分析中，請以 [MM:SS] 格式標注每個案例的對應影片時間點"
-        )
+        timestamp_instruction = "在案例分析中，請以 [MM:SS] 格式標注每個案例的對應影片時間點"
     else:
         transcript_for_gpt = _prepare_transcript(transcript)
         timestamp_instruction = ""

@@ -31,7 +31,9 @@ class TestFormatTimestampedTranscript:
         from app.services.analyzer import _format_timestamped_transcript
 
         long_text = "測" * 200
-        segs = [{"start": float(i * 10), "end": float(i * 10 + 5), "text": long_text} for i in range(20)]
+        segs = [
+            {"start": float(i * 10), "end": float(i * 10 + 5), "text": long_text} for i in range(20)
+        ]
         result = _format_timestamped_transcript(segs, max_chars=500)
         assert "省略" in result
 

@@ -88,9 +88,7 @@ def _run_gpt_steps(
     """執行 Step 3+4：GPT 分析 + NotebookLM 功能生成（可獨立重跑）"""
     # Step 3: GPT 合併分析（摘要 + 分類 + 心智圖 + FAQ）
     _set_progress(video, db, 3, f"GPT 分析中... ({len(transcript_text)} 字)", sub=0)
-    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(
-        transcript_text
-    )
+    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(transcript_text)
     _set_progress(video, db, 3, f"GPT 分析完成 → {category}", sub=100)
 
     existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
