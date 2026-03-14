@@ -177,14 +177,10 @@ def _ffmpeg_transcode_stream(file_path: str) -> Generator[bytes, None, None]:
     """On-the-fly FFmpeg transcode to fragmented MP4 for browser streaming.
 
     Pipes FFmpeg stdout directly to the HTTP response with no intermediate file,
-    so no extra disk space is consumed.
-
-    Raises:
-        HTTPException 503: If FFmpeg is not installed on the system.
+    so no extra disk space is consumed.  The caller must verify FFmpeg is
+    available before creating the StreamingResponse (HTTPException cannot be
+    raised safely once streaming has started).
     """
-    if not shutil.which("ffmpeg"):
-        raise HTTPException(503, "FFmpeg 未安裝，無法串流此格式")
-
     cmd = [
         "ffmpeg",
         "-i",
@@ -239,7 +235,11 @@ def stream_video(video_id: str, request: Request, db: Session = Depends(get_db))
     mime = _MIME_MAP.get(ext)
 
     # 瀏覽器不原生支援的格式 → on-the-fly FFmpeg transcode，不儲存暫存檔
+    # Guard must happen HERE before StreamingResponse starts — HTTPException
+    # cannot be raised safely once the generator has begun yielding bytes.
     if ext in BROWSER_UNSUPPORTED_FORMATS:
+        if not shutil.which("ffmpeg"):
+            raise HTTPException(503, "FFmpeg 未安裝，無法串流此格式")
         logger.info(f"轉碼串流: {ext} → fragmented MP4 ({file_path})")
         return StreamingResponse(
             _ffmpeg_transcode_stream(file_path),

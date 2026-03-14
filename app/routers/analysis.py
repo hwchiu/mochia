@@ -366,15 +366,15 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
     context = _build_qa_context(summary, transcript.content or "")
 
     if content_type == "mindmap":
-        result = generate_mindmap(context)
-        summary.mindmap = result
+        mindmap_result: str = generate_mindmap(context)
+        summary.mindmap = mindmap_result
         db.commit()
-        return {"video_id": video_id, "mindmap": result}
+        return {"video_id": video_id, "mindmap": mindmap_result}
     elif content_type == "faq":
-        result: list = generate_faq(context)
-        summary.faq = json.dumps(result, ensure_ascii=False)
+        faq_result: list = generate_faq(context)
+        summary.faq = json.dumps(faq_result, ensure_ascii=False)
         db.commit()
-        return {"video_id": video_id, "faq": result}
+        return {"video_id": video_id, "faq": faq_result}
 
 
 @router.post("/{video_id}/reanalyze")

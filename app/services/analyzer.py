@@ -188,7 +188,11 @@ def ask_question(transcript: str, question: str, chat_history: list[dict]) -> st
 {context}"""
 
     client = _get_client()
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    # list[Any] satisfies OpenAI's Iterable[ChatCompletionMessageParam] without
+    # requiring a full cast chain for the mixed message dicts we build here.
+    from typing import Any
+
+    messages: list[Any] = [{"role": "system", "content": system_prompt}]
     messages.extend(chat_history[-10:])
     messages.append({"role": "user", "content": question})
 
