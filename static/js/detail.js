@@ -147,6 +147,17 @@ function renderProgress(p) {
 // Per-tab scroll position memory: restore reading position when switching back
 const _tabScrollPos = {};
 
+// Fixed alternating widths — deterministic
+const _SKEL_WIDTHS = ['90%', '75%', '85%', '65%'];
+function _contentSkeletonHtml() {
+  return `<div style="padding:20px">
+    ${_SKEL_WIDTHS.map(w =>
+      `<div class="skeleton skel-text" style="width:${w}"></div>`
+    ).join('')}
+    <div class="skeleton skel-text skel-text-sm"></div>
+  </div>`;
+}
+
 function switchTab(tabName) {
   // Save current tab's scroll position before switching away
   const currentPanel = document.querySelector(".tab-panel.active");
@@ -172,6 +183,8 @@ function switchTab(tabName) {
   // Lazy load
   if (!tabLoaded[tabName]) {
     tabLoaded[tabName] = true;
+    const panelEl = document.getElementById("tab-" + tabName);
+    if (panelEl && tabName !== "qa-chat") panelEl.innerHTML = _contentSkeletonHtml();
     if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();

@@ -1066,3 +1066,38 @@ mark {
   color: var(--primary);
   border-bottom-color: var(--primary);
 }
+
+/* ── Skeleton Loader ──────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--border-subtle) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes skeleton-shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
+}
+
+/* Pre-built skeleton shapes */
+.skel-text   { height: 14px; margin-bottom: 8px; }
+.skel-text-sm { height: 11px; margin-bottom: 6px; width: 60%; }
+.skel-row    { height: 44px; margin-bottom: 4px; border-radius: var(--radius); }
+.skel-card   { height: 80px; border-radius: var(--radius-lg); margin-bottom: 12px; }
+.skel-para > .skel-text:last-child { width: 70%; }
+
+/* ── Dark mode component overrides ───────────────────────────────────── */
+[data-theme="dark"] .modal-box { box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: var(--surface-2);
+  color: var(--text);
+}
+[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--surface-2); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }

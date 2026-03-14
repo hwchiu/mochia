@@ -64,7 +64,17 @@ const PAGE_SIZE = 50;
 let filterStatus = "";
 let filterSource = "";
 
+function _tableSkeletonHtml(rows = 6) {
+  return Array.from({ length: rows }, () =>
+    `<tr>${Array.from({ length: 6 }, () =>
+      `<td><div class="skeleton skel-text"></div></td>`
+    ).join('')}</tr>`
+  ).join('');
+}
+
 async function loadVideos() {
+  const tbody = document.querySelector('#video-table tbody');
+  if (tbody) tbody.innerHTML = _tableSkeletonHtml();
   try {
     const params = new URLSearchParams({ skip: currentPage * PAGE_SIZE, limit: PAGE_SIZE });
     if (filterStatus) params.set("status", filterStatus);
