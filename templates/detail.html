@@ -4,7 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>影片詳情 - Video Analyzer</title>
+  <!-- Design tokens -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/theme.css">
   <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/theme.js"></script>
   <!-- Markmap -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.16"></script>
@@ -59,21 +65,42 @@
 <body class="app-layout">
 
 <!-- ── Sidebar ── -->
-<aside class="sidebar">
-  <div class="sidebar-logo">🎬 Video Analyzer</div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <i data-lucide="clapperboard" class="sidebar-logo-icon" aria-hidden="true"></i>
+      <span class="sidebar-logo-text">Video Analyzer</span>
+    </div>
+    <button id="sidebar-toggle" class="icon-btn" onclick="toggleSidebar()"
+            title="收合側欄" aria-label="收合側欄">
+      <i data-lucide="panel-left-close" aria-hidden="true"></i>
+    </button>
+  </div>
+
   <nav class="sidebar-nav">
-    <a class="nav-item" href="/">
-      <span class="nav-icon">🔬</span> 分析中心
-    </a>
-    <a class="nav-item" href="/?section=review">
-      <span class="nav-icon">📚</span> 複習中心
-    </a>
-    <a class="nav-item" href="/?section=labels">
-      <span class="nav-icon">🏷️</span> 標籤管理
-    </a>
+    <button class="nav-item" onclick="location.href='/'" data-section="analysis" title="分析中心">
+      <i data-lucide="microscope" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">分析中心</span>
+    </button>
+    <button class="nav-item" onclick="location.href='/?section=review'" data-section="review" title="複習中心">
+      <i data-lucide="book-open" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">複習中心</span>
+    </button>
+    <button class="nav-item" onclick="location.href='/?section=labels'" data-section="labels" title="標籤管理">
+      <i data-lucide="tag" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">標籤管理</span>
+    </button>
   </nav>
+
+  <div class="sidebar-status" id="sidebar-status">
+    <!-- populated by loadStats() -->
+  </div>
+
   <div class="sidebar-footer">
-    <a class="btn btn-ghost btn-sm" href="/" style="width:100%;justify-content:center">← 返回列表</a>
+    <button id="theme-toggle" class="icon-btn" onclick="toggleTheme()"
+            title="切換暗色模式" aria-label="切換暗色模式">
+      <i data-lucide="moon" aria-hidden="true"></i>
+    </button>
   </div>
 </aside>
 
@@ -435,5 +462,7 @@ function copyTranscript() {
   navigator.clipboard.writeText(text).then(() => toast("已複製到剪貼簿", "success"));
 }
 </script>
+<script src="https://unpkg.com/lucide@0.378.0/dist/umd/lucide.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => lucide.createIcons());</script>
 </body>
 </html>

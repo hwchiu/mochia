@@ -4,68 +4,61 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Video Analyzer - 影片分析系統</title>
+  <!-- Design tokens -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/theme.css">
   <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/theme.js"></script>
 </head>
 <body class="app-layout">
 
 <!-- ── Sidebar ── -->
-<aside class="sidebar">
-  <div class="sidebar-logo">🎬 Video Analyzer</div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <i data-lucide="clapperboard" class="sidebar-logo-icon" aria-hidden="true"></i>
+      <span class="sidebar-logo-text">Video Analyzer</span>
+    </div>
+    <button id="sidebar-toggle" class="icon-btn" onclick="toggleSidebar()"
+            title="收合側欄" aria-label="收合側欄">
+      <i data-lucide="panel-left-close" aria-hidden="true"></i>
+    </button>
+  </div>
 
   <nav class="sidebar-nav">
-    <a class="nav-item active" data-section="analysis" href="#">
-      <span class="nav-icon">🔬</span> 分析中心
-    </a>
-    <a class="nav-item" data-section="review" href="#">
-      <span class="nav-icon">📚</span> 複習中心
-    </a>
-    <a class="nav-item" data-section="search" href="#">
-      <span class="nav-icon">🔍</span> 全文搜尋
-    </a>
-    <a class="nav-item" data-section="stats" href="#">
-      <span class="nav-icon">📊</span> 學習統計
-    </a>
-    <a class="nav-item" data-section="labels" href="#">
-      <span class="nav-icon">🏷️</span> 標籤管理
-    </a>
+    <button class="nav-item active" onclick="showSection('analysis')" data-section="analysis" title="分析中心">
+      <i data-lucide="microscope" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">分析中心</span>
+    </button>
+    <button class="nav-item" onclick="showSection('review')" data-section="review" title="複習中心">
+      <i data-lucide="book-open" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">複習中心</span>
+    </button>
+    <button class="nav-item" onclick="showSection('search')" data-section="search" title="全文搜尋">
+      <i data-lucide="search" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">全文搜尋</span>
+    </button>
+    <button class="nav-item" onclick="showSection('stats')" data-section="stats" title="學習統計">
+      <i data-lucide="bar-chart-2" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">學習統計</span>
+    </button>
+    <button class="nav-item" onclick="showSection('labels')" data-section="labels" title="標籤管理">
+      <i data-lucide="tag" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">標籤管理</span>
+    </button>
   </nav>
 
-  <div class="sidebar-stats">
-    <div class="sidebar-stat-title">系統狀態</div>
-    <div class="sidebar-stat-row">
-      <span>總計</span>
-      <span id="sb-stat-total">—</span>
-    </div>
-    <div class="sidebar-stat-row">
-      <span>完成</span>
-      <span id="sb-stat-completed" style="color:var(--success)">—</span>
-    </div>
-    <div class="sidebar-stat-row">
-      <span>佇列中</span>
-      <span id="sb-stat-queued" style="color:var(--info)">—</span>
-    </div>
-    <div class="sidebar-stat-row">
-      <span>分析中</span>
-      <span id="sb-stat-processing" style="color:var(--warning)">—</span>
-    </div>
-    <div class="sidebar-stat-row">
-      <span>待處理</span>
-      <span id="sb-stat-pending" style="color:var(--muted)">—</span>
-    </div>
-    <div class="sidebar-stat-row">
-      <span>失敗</span>
-      <span id="sb-stat-failed" style="color:var(--danger)">—</span>
-    </div>
-    <div style="margin-top:8px;border-top:1px solid var(--border,#eee);padding-top:8px">
-      <div class="sidebar-stat-row">
-        <span>今日待複習</span>
-        <span id="sb-stat-due" style="color:var(--warning,#f59e0b);font-weight:600">—</span>
-      </div>
-    </div>
+  <div class="sidebar-status" id="sidebar-status">
+    <!-- populated by loadStats() -->
   </div>
 
   <div class="sidebar-footer">
-    <button class="btn btn-ghost btn-sm" id="btn-scan" style="width:100%">📁 掃描目錄</button>
+    <button id="theme-toggle" class="icon-btn" onclick="toggleTheme()"
+            title="切換暗色模式" aria-label="切換暗色模式">
+      <i data-lucide="moon" aria-hidden="true"></i>
+    </button>
   </div>
 </aside>
 
@@ -316,5 +309,7 @@
 
 <script src="/static/js/common.js"></script>
 <script src="/static/js/index.js"></script>
+<script src="https://unpkg.com/lucide@0.378.0/dist/umd/lucide.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => lucide.createIcons());</script>
 </body>
 </html>
