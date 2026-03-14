@@ -1149,6 +1149,20 @@ mark {
 [data-theme="dark"] ::-webkit-scrollbar-track { background: var(--surface-2); }
 [data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border); }
 
+/* Key-point cards: in dark mode the JS inlines light pastel --kp-bg values,
+   override to a subtle dark tint so text remains readable */
+[data-theme="dark"] .kp-theme {
+  background: rgba(255,255,255,.04);
+}
+[data-theme="dark"] .kp-theme li {
+  color: var(--text);
+}
+[data-theme="dark"] .kp-theme-title {
+  color: var(--kp-title, var(--primary));
+  /* keep the hue but lighten slightly so it reads on dark bg */
+  filter: brightness(1.4);
+}
+
 /* ── Focus Accessibility ─────────────────────────────────────────────── */
 .skip-link {
   position: absolute;
