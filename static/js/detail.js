@@ -146,9 +146,25 @@ function renderProgress(p) {
   // Message and percent
   document.getElementById("progress-message").textContent = p.message || "等待中...";
   document.getElementById("progress-percent").textContent = overallPct + "%";
+
+  // Elapsed timer — start on first active step, stop when done
+  if (step > 0 && step <= 4 && !_elapsedTimer) {
+    startElapsedTimer(p.started_at);
+  } else if (step === 0 || overallPct >= 100) {
+    stopElapsedTimer();
+  }
 }
 
+// Per-tab scroll position memory: restore reading position when switching back
+const _tabScrollPos = {};
+
 function switchTab(tabName) {
+  // Save current tab's scroll position before switching away
+  const currentPanel = document.querySelector(".tab-panel.active");
+  if (currentPanel) {
+    _tabScrollPos[currentPanel.id] = window.scrollY;
+  }
+
   // Update buttons
   document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tab === tabName);
@@ -159,6 +175,10 @@ function switchTab(tabName) {
   });
   const panel = document.getElementById("tab-" + tabName);
   if (panel) panel.classList.add("active");
+
+  // Restore saved scroll position for this tab (or scroll to tabs top)
+  const saved = _tabScrollPos["tab-" + tabName];
+  window.scrollTo({ top: saved !== undefined ? saved : (panel?.offsetTop ?? 0) - 16, behavior: "instant" });
 
   // Lazy load
   if (!tabLoaded[tabName]) {
@@ -575,7 +595,6 @@ function _injectTimestampLinks(html) {
 }
 
 async function reanalyze() {
-  if (!confirm("重新執行 GPT 分析？逐字稿不會重新辨識，僅更新摘要、重點、分類和案例分析。")) return;
   const btn = document.getElementById("btn-reanalyze");
   btn.disabled = true;
   btn.textContent = "分析中...";
@@ -593,6 +612,21 @@ async function reanalyze() {
   } finally {
     btn.disabled = false;
     btn.textContent = "🔄 重新分析";
+  }
+}
+
+/** Confirm before burning GPT tokens on reanalysis */
+function confirmReanalyze() {
+  if (confirm("重新執行 GPT 分析將消耗 API token，逐字稿不會重新辨識。確定繼續嗎？")) {
+    reanalyze();
+  }
+}
+
+/** Confirm before burning GPT tokens on regeneration */
+function confirmRegenerate(type) {
+  const label = type === "mindmap" ? "心智圖" : "FAQ";
+  if (confirm(`重新生成${label}將消耗 API token。確定繼續嗎？`)) {
+    regenerate(type);
   }
 }
 
@@ -619,6 +653,172 @@ async function queueVideo(vid) {
 window.addEventListener("load", () => { loadDetail(); loadAllLabels(); });
 window.addEventListener("beforeunload", () => { if (pollTimer) clearTimeout(pollTimer); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeFullscreen(); });
+
+// ─── Keyboard shortcuts ───────────────────────────────────────────────────────
+// Space = play/pause · ← → = ±10s · J/L = ±10s · K = play/pause · M = mute · F = fullscreen
+document.addEventListener("keydown", e => {
+  const tag = e.target.tagName.toLowerCase();
+  if (["input", "textarea", "select"].includes(tag)) return;
+  const video = document.getElementById("video-player");
+  if (!video) return;
+  switch (e.key) {
+    case " ":
+      e.preventDefault();
+      video.paused ? video.play() : video.pause();
+      break;
+    case "ArrowLeft":
+    case "j":
+      e.preventDefault();
+      video.currentTime = Math.max(0, video.currentTime - 10);
+      break;
+    case "ArrowRight":
+    case "l":
+      e.preventDefault();
+      video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10);
+      break;
+    case "k":
+      video.paused ? video.play() : video.pause();
+      break;
+    case "m":
+      video.muted = !video.muted;
+      toast(video.muted ? "🔇 靜音" : "🔊 取消靜音", "info");
+      break;
+    case "f":
+      e.preventDefault();
+      video.requestFullscreen?.() ?? video.webkitRequestFullscreen?.();
+      break;
+  }
+});
+
+// ─── Transcript ↔ video bidirectional sync ────────────────────────────────────
+// timeupdate: highlight the segment whose timestamp is closest to currentTime
+function initTranscriptSync() {
+  const video = document.getElementById("video-player");
+  if (!video) return;
+
+  let _lastActiveSeg = null;
+
+  video.addEventListener("timeupdate", () => {
+    const segs = document.querySelectorAll(".transcript-seg");
+    if (!segs.length) return;
+
+    const t = video.currentTime;
+    let bestEl = null;
+    let bestSec = -1;
+
+    segs.forEach(seg => {
+      const link = seg.querySelector(".ts-link");
+      if (!link) return;
+      const sec = parseFloat(link.dataset.sec);
+      if (sec <= t && sec > bestSec) { bestSec = sec; bestEl = seg; }
+    });
+
+    if (bestEl === _lastActiveSeg) return;
+    if (_lastActiveSeg) _lastActiveSeg.classList.remove("active");
+    if (bestEl) {
+      bestEl.classList.add("active");
+      // Auto-scroll the transcript body only when that tab is visible
+      const transcriptPanel = document.getElementById("tab-transcript");
+      if (transcriptPanel?.classList.contains("active")) {
+        const body = document.querySelector(".transcript-body");
+        if (body) {
+          const top = bestEl.offsetTop - body.offsetTop - body.clientHeight / 3;
+          body.scrollTo({ top, behavior: "smooth" });
+        }
+      }
+    }
+    _lastActiveSeg = bestEl;
+  });
+}
+
+// ─── Progress elapsed time counter ───────────────────────────────────────────
+let _progressStartTime = null;
+let _elapsedTimer = null;
+
+function startElapsedTimer(startedAt) {
+  _progressStartTime = startedAt ? new Date(startedAt) : new Date();
+  if (_elapsedTimer) clearInterval(_elapsedTimer);
+  const el = document.getElementById("progress-elapsed");
+  if (!el) return;
+  const tick = () => {
+    const secs = Math.floor((Date.now() - _progressStartTime) / 1000);
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    el.textContent = `⏱ ${m}m ${s}s`;
+  };
+  tick();
+  _elapsedTimer = setInterval(tick, 1000);
+}
+
+function stopElapsedTimer() {
+  if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+  const el = document.getElementById("progress-elapsed");
+  if (el) el.textContent = "";
+}
+
+// ─── Mini floating player ────────────────────────────────────────────────────
+// Appears as a compact bottom-right pip when the main player scrolls off screen
+let _miniPlayerActive = false;
+let _miniPlayerDismissed = false;
+
+function initMiniPlayer() {
+  const mainVideo = document.getElementById("video-player");
+  const playerCard = document.getElementById("player-card");
+  const miniPlayer = document.getElementById("mini-player");
+  const miniVideo = document.getElementById("mini-video");
+  if (!mainVideo || !playerCard || !miniPlayer || !miniVideo) return;
+
+  // Sync mini video source once main is ready
+  mainVideo.addEventListener("loadedmetadata", () => {
+    miniVideo.src = mainVideo.currentSrc || mainVideo.src;
+    miniVideo.load();
+  });
+
+  // Keep mini video in sync with main
+  mainVideo.addEventListener("timeupdate", () => {
+    if (_miniPlayerActive && Math.abs(miniVideo.currentTime - mainVideo.currentTime) > 1) {
+      miniVideo.currentTime = mainVideo.currentTime;
+    }
+  });
+  mainVideo.addEventListener("play", () => { if (_miniPlayerActive) miniVideo.play().catch(() => {}); });
+  mainVideo.addEventListener("pause", () => { if (_miniPlayerActive) miniVideo.pause(); });
+
+  // Show/hide mini player based on visibility of main player card
+  const observer = new IntersectionObserver(entries => {
+    const isVisible = entries[0].isIntersecting;
+    if (!isVisible && !_miniPlayerDismissed && !mainVideo.paused) {
+      _miniPlayerActive = true;
+      miniVideo.currentTime = mainVideo.currentTime;
+      miniPlayer.classList.add("visible");
+      miniVideo.muted = true;   // mini is muted; audio comes from main
+      miniVideo.play().catch(() => {});
+    } else if (isVisible) {
+      _miniPlayerActive = false;
+      miniPlayer.classList.remove("visible");
+      miniVideo.pause();
+    }
+  }, { threshold: 0.1 });
+
+  observer.observe(playerCard);
+
+  // Set title
+  const titleEl = document.getElementById("mini-player-title");
+  if (titleEl) titleEl.textContent = document.getElementById("video-name")?.textContent || "影片播放中";
+}
+
+function miniPlayerJumpBack() {
+  const video = document.getElementById("video-player");
+  if (video) video.scrollIntoView({ behavior: "smooth", block: "center" });
+  _miniPlayerActive = false;
+  document.getElementById("mini-player").classList.remove("visible");
+}
+
+function closeMiniPlayer() {
+  _miniPlayerDismissed = true;
+  _miniPlayerActive = false;
+  document.getElementById("mini-player").classList.remove("visible");
+  document.getElementById("mini-video").pause();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Label 管理
@@ -900,6 +1100,10 @@ function initEmbeddedPlayer(filename) {
   source.type = mimeMap[ext] || "video/mp4";
   source.src = `/api/videos/${videoId}/stream`;
   video.load();
+
+  // Start transcript sync and mini player after player is initialised
+  initTranscriptSync();
+  initMiniPlayer();
 }
 
 /**

@@ -176,7 +176,7 @@ td.name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-spa
 .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
 /* ─── Toast ─── */
-#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+#toast-container { position: fixed; top: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
 .toast {
   padding: 12px 18px;
   border-radius: var(--radius);
@@ -192,8 +192,19 @@ td.name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-spa
 @keyframes slide-in { from { transform: translateX(100px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ─── Detail Page ─── */
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+@media (max-width: 700px) {
+  .detail-grid { grid-template-columns: 1fr; }
+  .detail-col-right { position: static !important; }
+}
+.detail-col-left { display: flex; flex-direction: column; gap: 20px; }
+.detail-col-right { position: sticky; top: 1rem; }
 .kv-list { display: flex; flex-direction: column; gap: 8px; }
 .kv-row { display: flex; gap: 12px; }
 .kv-key { width: 100px; flex-shrink: 0; color: var(--muted); font-size: 12px; padding-top: 2px; }
@@ -840,4 +851,67 @@ mark {
 .transcript-seg {
   margin-bottom: 6px;
   line-height: 1.7;
+  padding: 3px 6px 3px 8px;
+  border-left: 3px solid transparent;
+  border-radius: 0 4px 4px 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+/* Active segment — highlighted as video plays */
+.transcript-seg.active {
+  background: #eff6ff;
+  border-left-color: #2563eb;
+}
+.transcript-seg.active .ts-link {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+/* ─── Mini player (fixed, appears when main player scrolls off-screen) ─── */
+#mini-player {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 280px;
+  background: #111;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  z-index: 200;
+  overflow: hidden;
+  display: none;
+  flex-direction: column;
+}
+#mini-player.visible { display: flex; }
+#mini-player video {
+  width: 100%;
+  display: block;
+  max-height: 160px;
+  background: #000;
+}
+#mini-player-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #1e1e2e;
+}
+#mini-player-bar button {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+#mini-player-bar button:hover { background: rgba(255,255,255,.15); }
+#mini-player-title {
+  flex: 1;
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
