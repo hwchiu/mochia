@@ -39,15 +39,23 @@ DEFAULT_FORMATS: frozenset[str] = frozenset({".wmv", ".mkv", ".avi", ".flv"})
 _FFMPEG_BASE: list[str] = [
     "ffmpeg",
     "-hide_banner",
-    "-loglevel", "error",
-    "-y",          # overwrite output without asking
-    "-i", "{input}",
-    "-c:v", "libx264",
-    "-preset", "fast",
-    "-crf", "23",
-    "-c:a", "aac",
-    "-b:a", "128k",
-    "-movflags", "+faststart",
+    "-loglevel",
+    "error",
+    "-y",  # overwrite output without asking
+    "-i",
+    "{input}",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "fast",
+    "-crf",
+    "23",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "128k",
+    "-movflags",
+    "+faststart",
     "{output}",
 ]
 
@@ -66,7 +74,7 @@ log = logging.getLogger(__name__)
 class ConvertResult:
     source: Path
     dest: Path
-    skipped: bool = False        # output already exists and --overwrite not set
+    skipped: bool = False  # output already exists and --overwrite not set
     dry_run: bool = False
     success: bool = False
     error: str = ""
@@ -125,8 +133,7 @@ def convert_one(
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        arg.replace("{input}", str(source)).replace("{output}", str(dest))
-        for arg in _FFMPEG_BASE
+        arg.replace("{input}", str(source)).replace("{output}", str(dest)) for arg in _FFMPEG_BASE
     ]
 
     with lock:
@@ -181,10 +188,7 @@ def run_conversion(
 
     log.info("📂 發現 %d 個檔案，使用 %d 個執行緒", len(targets), workers)
 
-    jobs = [
-        (src, _build_output_path(src, output_dir))
-        for src in targets
-    ]
+    jobs = [(src, _build_output_path(src, output_dir)) for src in targets]
 
     lock = threading.Lock()
     results: list[ConvertResult] = []
@@ -290,7 +294,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not shutil.which("ffmpeg"):
-        print("❌ FFmpeg 未安裝。請先安裝：\n  macOS: brew install ffmpeg\n  Ubuntu: sudo apt install ffmpeg")
+        print(
+            "❌ FFmpeg 未安裝。請先安裝：\n  macOS: brew install ffmpeg\n  Ubuntu: sudo apt install ffmpeg"
+        )
         return 1
 
     root = Path(args.path).resolve()
@@ -299,10 +305,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     output_dir: Path | None = Path(args.output_dir).resolve() if args.output_dir else None
-    formats = frozenset(
-        ext if ext.startswith(".") else f".{ext}"
-        for ext in args.formats
-    )
+    formats = frozenset(ext if ext.startswith(".") else f".{ext}" for ext in args.formats)
 
     results = run_conversion(
         root,

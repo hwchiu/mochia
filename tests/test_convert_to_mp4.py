@@ -95,8 +95,9 @@ class TestConvertOne:
         src.touch()
         dest = tmp_path / "v.mp4"
         dest.touch()
-        r = convert_one(src, dest, overwrite=False, dry_run=False,
-                        delete_original=False, lock=self._lock)
+        r = convert_one(
+            src, dest, overwrite=False, dry_run=False, delete_original=False, lock=self._lock
+        )
         assert r.skipped is True
         assert r.success is False
 
@@ -104,8 +105,9 @@ class TestConvertOne:
         src = tmp_path / "v.avi"
         src.touch()
         dest = tmp_path / "v.mp4"
-        r = convert_one(src, dest, overwrite=False, dry_run=True,
-                        delete_original=False, lock=self._lock)
+        r = convert_one(
+            src, dest, overwrite=False, dry_run=True, delete_original=False, lock=self._lock
+        )
         assert r.dry_run is True
         assert r.success is True
         assert not dest.exists()
@@ -121,8 +123,9 @@ class TestConvertOne:
 
         with patch("subprocess.run", return_value=mock_proc):
             # overwrite=True so the pre-existing dest doesn't trigger skip
-            r = convert_one(src, dest, overwrite=True, dry_run=False,
-                            delete_original=False, lock=self._lock)
+            r = convert_one(
+                src, dest, overwrite=True, dry_run=False, delete_original=False, lock=self._lock
+            )
         assert r.success is True
         assert r.error == ""
 
@@ -136,8 +139,9 @@ class TestConvertOne:
         mock_proc.stderr = "Conversion failed\nsome reason"
 
         with patch("subprocess.run", return_value=mock_proc):
-            r = convert_one(src, dest, overwrite=False, dry_run=False,
-                            delete_original=False, lock=self._lock)
+            r = convert_one(
+                src, dest, overwrite=False, dry_run=False, delete_original=False, lock=self._lock
+            )
         assert r.success is False
         assert "some reason" in r.error
 
@@ -152,8 +156,9 @@ class TestConvertOne:
 
         with patch("subprocess.run", return_value=mock_proc):
             # overwrite=True so the pre-existing dest doesn't trigger skip
-            r = convert_one(src, dest, overwrite=True, dry_run=False,
-                            delete_original=True, lock=self._lock)
+            r = convert_one(
+                src, dest, overwrite=True, dry_run=False, delete_original=True, lock=self._lock
+            )
         assert r.success is True
         assert not src.exists()
 
@@ -168,8 +173,9 @@ class TestConvertOne:
         dest.write_bytes(b"new content")
 
         with patch("subprocess.run", return_value=mock_proc):
-            r = convert_one(src, dest, overwrite=True, dry_run=False,
-                            delete_original=False, lock=self._lock)
+            r = convert_one(
+                src, dest, overwrite=True, dry_run=False, delete_original=False, lock=self._lock
+            )
         assert r.success is True
         assert r.skipped is False
 
@@ -179,8 +185,9 @@ class TestConvertOne:
         dest = tmp_path / "v.mp4"
 
         with patch("subprocess.run", side_effect=FileNotFoundError):
-            r = convert_one(src, dest, overwrite=False, dry_run=False,
-                            delete_original=False, lock=self._lock)
+            r = convert_one(
+                src, dest, overwrite=False, dry_run=False, delete_original=False, lock=self._lock
+            )
         assert r.success is False
         assert "ffmpeg" in r.error.lower()
 
@@ -191,9 +198,14 @@ class TestConvertOne:
 class TestRunConversion:
     def test_empty_dir_returns_no_results(self, tmp_path: Path):
         results = run_conversion(
-            tmp_path, formats=frozenset({".avi"}), output_dir=None,
-            workers=1, overwrite=False, dry_run=True,
-            delete_original=False, recursive=True,
+            tmp_path,
+            formats=frozenset({".avi"}),
+            output_dir=None,
+            workers=1,
+            overwrite=False,
+            dry_run=True,
+            delete_original=False,
+            recursive=True,
         )
         assert results == []
 
@@ -202,9 +214,14 @@ class TestRunConversion:
             (tmp_path / name).touch()
 
         results = run_conversion(
-            tmp_path, formats=frozenset({".avi", ".flv", ".mkv"}),
-            output_dir=None, workers=2, overwrite=False, dry_run=True,
-            delete_original=False, recursive=True,
+            tmp_path,
+            formats=frozenset({".avi", ".flv", ".mkv"}),
+            output_dir=None,
+            workers=2,
+            overwrite=False,
+            dry_run=True,
+            delete_original=False,
+            recursive=True,
         )
         assert len(results) == 3
         assert all(r.success for r in results)
@@ -216,9 +233,14 @@ class TestRunConversion:
         out_dir = tmp_path / "out"
 
         results = run_conversion(
-            tmp_path, formats=frozenset({".avi"}), output_dir=out_dir,
-            workers=1, overwrite=False, dry_run=True,
-            delete_original=False, recursive=True,
+            tmp_path,
+            formats=frozenset({".avi"}),
+            output_dir=out_dir,
+            workers=1,
+            overwrite=False,
+            dry_run=True,
+            delete_original=False,
+            recursive=True,
         )
         assert results[0].dest.parent == out_dir
 
@@ -236,8 +258,9 @@ class TestPrintSummary:
 
     def test_failure_returns_nonzero(self, capsys):
         results = [
-            ConvertResult(source=Path("a.avi"), dest=Path("a.mp4"),
-                          success=False, error="codec error"),
+            ConvertResult(
+                source=Path("a.avi"), dest=Path("a.mp4"), success=False, error="codec error"
+            ),
         ]
         code = _print_summary(results)
         assert code == 1
