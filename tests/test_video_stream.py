@@ -96,7 +96,10 @@ class TestVideoStream:
     def test_stream_wmv_transcodes_to_mp4(self, client, wmv_video):
         """WMV 格式應透過 FFmpeg 轉碼後以 video/mp4 回傳（200）"""
         vid, _ = wmv_video
-        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+        with (
+            patch("app.routers.videos.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("app.routers.videos.subprocess.Popen") as mock_popen,
+        ):
             mock_proc = MagicMock()
             mock_proc.stdout.read.side_effect = [b"fake_mp4_data", b""]
             mock_popen.return_value = mock_proc
@@ -107,12 +110,22 @@ class TestVideoStream:
     def test_stream_wmv_transcoded_header(self, client, wmv_video):
         """轉碼串流應包含 X-Transcoded 標頭"""
         vid, _ = wmv_video
-        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+        with (
+            patch("app.routers.videos.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("app.routers.videos.subprocess.Popen") as mock_popen,
+        ):
             mock_proc = MagicMock()
             mock_proc.stdout.read.side_effect = [b"", b""]
             mock_popen.return_value = mock_proc
             r = client.get(f"/api/videos/{vid.id}/stream")
         assert r.headers.get("x-transcoded") == "1"
+
+    def test_stream_wmv_no_ffmpeg_returns_503(self, client, wmv_video):
+        """FFmpeg 未安裝時應回傳 503"""
+        vid, _ = wmv_video
+        with patch("app.routers.videos.shutil.which", return_value=None):
+            r = client.get(f"/api/videos/{vid.id}/stream")
+        assert r.status_code == 503
 
     def test_stream_video_not_found(self, client):
         r = client.get("/api/videos/nonexistent/stream")
@@ -155,7 +168,10 @@ class TestVideoStream:
         )
         db_session.add(vid)
         db_session.commit()
-        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+        with (
+            patch("app.routers.videos.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("app.routers.videos.subprocess.Popen") as mock_popen,
+        ):
             mock_proc = MagicMock()
             mock_proc.stdout.read.side_effect = [b"", b""]
             mock_popen.return_value = mock_proc
@@ -178,7 +194,10 @@ class TestVideoStream:
         )
         db_session.add(vid)
         db_session.commit()
-        with patch("app.routers.videos.subprocess.Popen") as mock_popen:
+        with (
+            patch("app.routers.videos.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("app.routers.videos.subprocess.Popen") as mock_popen,
+        ):
             mock_proc = MagicMock()
             mock_proc.stdout.read.side_effect = [b"", b""]
             mock_popen.return_value = mock_proc
