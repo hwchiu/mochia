@@ -1,11 +1,40 @@
 // ─── Toast ───
-function toast(msg, type = "info") {
-  const c = document.getElementById("toast-container");
-  const el = document.createElement("div");
-  el.className = `toast toast-${type}`;
-  el.textContent = msg;
-  c.appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+const _TOAST_ICONS = {
+  success: 'circle-check',
+  error:   'circle-x',
+  warning: 'triangle-alert',
+  info:    'info',
+};
+
+function toast(msg, type = 'info') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  // Cap at 5 toasts — remove oldest if over limit
+  const existing = container.querySelectorAll('.toast');
+  if (existing.length >= 5) existing[0].remove();
+
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.innerHTML = `
+    <i data-lucide="${_TOAST_ICONS[type] || 'info'}" class="toast-icon" aria-hidden="true"></i>
+    <span class="toast-msg">${msg}</span>
+    <button class="toast-close icon-btn" aria-label="關閉" onclick="this.closest('.toast').remove()">
+      <i data-lucide="x" aria-hidden="true"></i>
+    </button>`;
+  container.appendChild(t);
+
+  if (window.lucide) lucide.createIcons({ nodes: [t] });
+
+  // Auto-remove after 4s with fade-out
+  setTimeout(() => {
+    t.classList.add('toast-hide');
+    t.addEventListener('animationend', () => t.remove(), { once: true });
+  }, 4000);
 }
 
 // ─── API helpers ───
@@ -20,8 +49,15 @@ async function api(method, path, body) {
 
 // ─── Badge helper ───
 function badge(status) {
-  const labels = { pending: "待處理", queued: "佇列中", processing: "分析中", completed: "完成", failed: "失敗" };
-  return `<span class="badge badge-${status}">${labels[status] || status}</span>`;
+  const map = {
+    pending:    ['pending',    '等待中'],
+    queued:     ['queued',     '排隊中'],
+    processing: ['processing', '分析中'],
+    completed:  ['completed',  '已完成'],
+    failed:     ['failed',     '失敗'],
+  };
+  const [cls, label] = map[status] || ['pending', status];
+  return `<span class="badge badge-${cls}"><span class="badge-dot"></span>${label}</span>`;
 }
 
 function fmtSize(b) {
