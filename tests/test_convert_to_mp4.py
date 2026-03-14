@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
+# Make sure tools/ is importable even without an __init__.py
+import sys
 import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
-
-# Make sure tools/ is importable even without an __init__.py
-import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
 from convert_to_mp4 import (  # noqa: E402
@@ -21,7 +18,6 @@ from convert_to_mp4 import (  # noqa: E402
     main,
     run_conversion,
 )
-
 
 # ── find_targets ──────────────────────────────────────────────────────────────
 
@@ -42,7 +38,9 @@ class TestFindTargets:
         a = tmp_path / "a.avi"
         b = tmp_path / "sub" / "b.flv"
         c = tmp_path / "keep.mp4"
-        a.touch(); b.touch(); c.touch()  # noqa: E702
+        a.touch()
+        b.touch()
+        c.touch()
         result = find_targets(tmp_path, frozenset({".avi", ".flv"}))
         assert set(result) == {a, b}
 
@@ -50,7 +48,8 @@ class TestFindTargets:
         (tmp_path / "sub").mkdir()
         a = tmp_path / "a.avi"
         b = tmp_path / "sub" / "b.avi"
-        a.touch(); b.touch()  # noqa: E702
+        a.touch()
+        b.touch()
         result = find_targets(tmp_path, frozenset({".avi"}), recursive=False)
         assert result == [a]
 
@@ -92,15 +91,18 @@ class TestConvertOne:
         return tmp_path / name
 
     def test_skip_existing_no_overwrite(self, tmp_path: Path):
-        src = tmp_path / "v.avi"; src.touch()
-        dest = tmp_path / "v.mp4"; dest.touch()
+        src = tmp_path / "v.avi"
+        src.touch()
+        dest = tmp_path / "v.mp4"
+        dest.touch()
         r = convert_one(src, dest, overwrite=False, dry_run=False,
                         delete_original=False, lock=self._lock)
         assert r.skipped is True
         assert r.success is False
 
     def test_dry_run_returns_success_without_conversion(self, tmp_path: Path):
-        src = tmp_path / "v.avi"; src.touch()
+        src = tmp_path / "v.avi"
+        src.touch()
         dest = tmp_path / "v.mp4"
         r = convert_one(src, dest, overwrite=False, dry_run=True,
                         delete_original=False, lock=self._lock)
@@ -109,7 +111,8 @@ class TestConvertOne:
         assert not dest.exists()
 
     def test_ffmpeg_success(self, tmp_path: Path):
-        src = tmp_path / "v.avi"; src.touch()
+        src = tmp_path / "v.avi"
+        src.touch()
         dest = tmp_path / "v.mp4"
         dest.write_bytes(b"fake mp4 data")  # pre-create so stat() succeeds
 
@@ -124,7 +127,8 @@ class TestConvertOne:
         assert r.error == ""
 
     def test_ffmpeg_failure_captures_error(self, tmp_path: Path):
-        src = tmp_path / "v.avi"; src.touch()
+        src = tmp_path / "v.avi"
+        src.touch()
         dest = tmp_path / "v.mp4"
 
         mock_proc = MagicMock()
@@ -138,7 +142,8 @@ class TestConvertOne:
         assert "some reason" in r.error
 
     def test_delete_original_after_success(self, tmp_path: Path):
-        src = tmp_path / "v.avi"; src.touch()
+        src = tmp_path / "v.avi"
+        src.touch()
         dest = tmp_path / "v.mp4"
         dest.write_bytes(b"fake")  # pre-create so stat() succeeds
 
@@ -153,8 +158,10 @@ class TestConvertOne:
         assert not src.exists()
 
     def test_overwrite_existing(self, tmp_path: Path):
-        src = tmp_path / "v.avi"; src.touch()
-        dest = tmp_path / "v.mp4"; dest.touch()
+        src = tmp_path / "v.avi"
+        src.touch()
+        dest = tmp_path / "v.mp4"
+        dest.touch()
 
         mock_proc = MagicMock()
         mock_proc.returncode = 0
@@ -167,7 +174,8 @@ class TestConvertOne:
         assert r.skipped is False
 
     def test_ffmpeg_not_installed(self, tmp_path: Path):
-        src = tmp_path / "v.avi"; src.touch()
+        src = tmp_path / "v.avi"
+        src.touch()
         dest = tmp_path / "v.mp4"
 
         with patch("subprocess.run", side_effect=FileNotFoundError):
@@ -203,7 +211,8 @@ class TestRunConversion:
         assert all(r.dry_run for r in results)
 
     def test_custom_output_dir(self, tmp_path: Path):
-        src = tmp_path / "clip.avi"; src.touch()
+        src = tmp_path / "clip.avi"
+        src.touch()
         out_dir = tmp_path / "out"
 
         results = run_conversion(
@@ -277,7 +286,8 @@ class TestMain:
         assert code == 0
 
     def test_no_recursive_flag(self, tmp_path: Path):
-        sub = tmp_path / "sub"; sub.mkdir()
+        sub = tmp_path / "sub"
+        sub.mkdir()
         (tmp_path / "top.avi").touch()
         (sub / "nested.avi").touch()
         with patch("shutil.which", return_value="/usr/bin/ffmpeg"):

@@ -28,7 +28,7 @@ import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ def _print_summary(results: list[ConvertResult]) -> int:
 
     print()
     print("═" * 50)
-    print(f"  📊 轉換結果")
+    print("  📊 轉換結果")
     print(f"  總計: {total}  ✅成功: {ok}  ⏭跳過: {skipped}  ❌失敗: {len(failed)}")
     if failed:
         print()
