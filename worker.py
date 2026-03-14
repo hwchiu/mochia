@@ -91,19 +91,19 @@ def _run_gpt_steps(
     summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(transcript_text)
     _set_progress(video, db, 3, f"GPT 分析完成 → {category}", sub=100)
 
-    existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
-    if existing_summary:
-        existing_summary.summary = summary_text
-        existing_summary.key_points = json.dumps(key_points, ensure_ascii=False)
+    # Upsert Summary — query once, reuse the same object for both step 3 & step 4
+    summary_record = db.query(Summary).filter(Summary.video_id == task.video_id).first()
+    if summary_record:
+        summary_record.summary = summary_text
+        summary_record.key_points = json.dumps(key_points, ensure_ascii=False)
     else:
-        db.add(
-            Summary(
-                id=uuid.uuid4().hex,
-                video_id=task.video_id,
-                summary=summary_text,
-                key_points=json.dumps(key_points, ensure_ascii=False),
-            )
+        summary_record = Summary(
+            id=uuid.uuid4().hex,
+            video_id=task.video_id,
+            summary=summary_text,
+            key_points=json.dumps(key_points, ensure_ascii=False),
         )
+        db.add(summary_record)
 
     existing_cls = db.query(Classification).filter(Classification.video_id == task.video_id).first()
     if existing_cls:
@@ -124,12 +124,11 @@ def _run_gpt_steps(
     study_notes, case_analysis = generate_deep_content(transcript_text, segments=segments)
     _set_progress(video, db, 4, "深度內容生成完成", sub=100)
 
-    existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
-    if existing_summary:
-        existing_summary.mindmap = mindmap
-        existing_summary.faq = json.dumps(faq_list, ensure_ascii=False)
-        existing_summary.study_notes = study_notes
-        existing_summary.case_analysis = case_analysis or None
+    # Reuse same summary_record — no second DB query needed
+    summary_record.mindmap = mindmap
+    summary_record.faq = json.dumps(faq_list, ensure_ascii=False)
+    summary_record.study_notes = study_notes
+    summary_record.case_analysis = case_analysis or None
     db.commit()
 
     video.status = "completed"
@@ -206,10 +205,7 @@ def _process_task(task: TaskQueue, db: Session) -> None:
         _set_progress(video, db, 2, f"語音轉文字中... ({file_size_mb:.1f} MB)", sub=0)
         transcript_text, segments = transcribe(audio_path, progress_callback=whisper_cb)
 
-        # 儲存逐字稿
-        existing_transcript = (
-            db.query(Transcript).filter(Transcript.video_id == task.video_id).first()
-        )
+        # 儲存逐字稿 — reuse existing_transcript from the checkpoint check above
         segments_json = json.dumps(segments, ensure_ascii=False) if segments else None
         if existing_transcript:
             existing_transcript.content = transcript_text

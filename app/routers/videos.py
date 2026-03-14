@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants import BROWSER_UNSUPPORTED_FORMATS, STREAM_CHUNK_SIZE
 from app.database import Label, TaskQueue, Video, VideoLabel, get_db
 from app.services.audio_extractor import get_video_duration
 
@@ -177,7 +178,13 @@ def _ffmpeg_transcode_stream(file_path: str) -> Generator[bytes, None, None]:
 
     Pipes FFmpeg stdout directly to the HTTP response with no intermediate file,
     so no extra disk space is consumed.
+
+    Raises:
+        HTTPException 503: If FFmpeg is not installed on the system.
     """
+    if not shutil.which("ffmpeg"):
+        raise HTTPException(503, "FFmpeg 未安裝，無法串流此格式")
+
     cmd = [
         "ffmpeg",
         "-i",
@@ -200,14 +207,17 @@ def _ffmpeg_transcode_stream(file_path: str) -> Generator[bytes, None, None]:
     ]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     try:
-        assert process.stdout is not None
+        if process.stdout is None:  # pragma: no cover
+            return
         while True:
-            chunk = process.stdout.read(65536)  # 64 KB chunks
+            chunk = process.stdout.read(STREAM_CHUNK_SIZE)
             if not chunk:
                 break
             yield chunk
     finally:
-        process.stdout.close() if process.stdout else None
+        if process.stdout:
+            process.stdout.close()
+        process.terminate()
         process.wait()
 
 
@@ -229,8 +239,7 @@ def stream_video(video_id: str, request: Request, db: Session = Depends(get_db))
     mime = _MIME_MAP.get(ext)
 
     # 瀏覽器不原生支援的格式 → on-the-fly FFmpeg transcode，不儲存暫存檔
-    _BROWSER_UNSUPPORTED = {".wmv", ".mkv", ".avi", ".flv"}
-    if ext in _BROWSER_UNSUPPORTED:
+    if ext in BROWSER_UNSUPPORTED_FORMATS:
         logger.info(f"轉碼串流: {ext} → fragmented MP4 ({file_path})")
         return StreamingResponse(
             _ffmpeg_transcode_stream(file_path),

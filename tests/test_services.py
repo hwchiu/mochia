@@ -252,6 +252,8 @@ class TestTranscriber:
 
 
 class TestAnalyzer:
+    """Tests for analyze_all() — the combined GPT analysis function used in production."""
+
     def _make_mock_response(self, content: str):
         msg = MagicMock()
         msg.content = content
@@ -261,22 +263,25 @@ class TestAnalyzer:
         response.choices = [choice]
         return response
 
-    def test_analyze_success(self):
-        """GPT 回傳正確 JSON 時解析成功"""
-        result_json = json.dumps(
-            {
-                "summary": "這是一部占星學入門影片",
-                "key_points": [
-                    {"theme": "星座基礎", "points": ["星座介紹", "行星關係"]},
-                    {"theme": "應用技巧", "points": ["實占技巧"]},
-                    {"theme": "其他", "points": ["延伸閱讀"]},
-                ],
-                "category": "占星學 (Astrology)",
-                "confidence": 0.88,
-            },
-            ensure_ascii=False,
-        )
+    def _full_result_json(self, overrides: dict | None = None) -> str:
+        base = {
+            "summary": "這是一部占星學入門影片",
+            "key_points": [
+                {"theme": "星座基礎", "points": ["星座介紹", "行星關係"]},
+                {"theme": "應用技巧", "points": ["實占技巧"]},
+                {"theme": "其他", "points": ["延伸閱讀"]},
+            ],
+            "category": "占星學 (Astrology)",
+            "confidence": 0.88,
+            "mindmap": "# 占星學\n## 基礎",
+            "faq": [{"question": "Q1", "answer": "A1"}],
+        }
+        if overrides:
+            base.update(overrides)
+        return json.dumps(base, ensure_ascii=False)
 
+    def test_analyze_all_success(self):
+        """analyze_all 回傳正確 JSON 時解析成功"""
         with (
             patch("app.services.analyzer.settings") as mock_settings,
             patch("app.services.analyzer._client", None),
@@ -284,63 +289,29 @@ class TestAnalyzer:
         ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_settings.CATEGORIES = ["占星學 (Astrology)", "未分類 (Uncategorized)"]
-            mock_settings.MAX_TRANSCRIPT_CHARS = 12000
 
             mock_client = MagicMock()
             mock_get.return_value = mock_client
-            mock_client.chat.completions.create.return_value = self._make_mock_response(result_json)
+            mock_client.chat.completions.create.return_value = self._make_mock_response(
+                self._full_result_json()
+            )
 
-            from app.services.analyzer import analyze
+            from app.services.analyzer import analyze_all
 
-            summary, key_points, category, confidence = analyze("這是測試逐字稿")
+            summary, key_points, category, confidence, mindmap, faq_list = analyze_all(
+                "這是測試逐字稿"
+            )
 
             assert summary == "這是一部占星學入門影片"
             assert len(key_points) == 3
             assert category == "占星學 (Astrology)"
             assert abs(confidence - 0.88) < 0.001
+            assert "占星學" in mindmap
+            assert len(faq_list) == 1
 
-    def test_analyze_with_markdown_code_block(self):
+    def test_analyze_all_with_markdown_code_block(self):
         """GPT 回傳包含 markdown code block 時正確處理"""
-        result_json = json.dumps(
-            {
-                "summary": "摘要內容",
-                "key_points": ["重點"],
-                "category": "未分類 (Uncategorized)",
-                "confidence": 0.5,
-            },
-            ensure_ascii=False,
-        )
-
-        wrapped = f"```json\n{result_json}\n```"
-
-        with (
-            patch("app.services.analyzer._get_client") as mock_get,
-            patch("app.services.analyzer.settings") as mock_settings,
-        ):
-            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
-            mock_settings.CATEGORIES = ["未分類 (Uncategorized)"]
-            mock_settings.MAX_TRANSCRIPT_CHARS = 12000
-
-            mock_client = MagicMock()
-            mock_get.return_value = mock_client
-            mock_client.chat.completions.create.return_value = self._make_mock_response(wrapped)
-
-            from app.services.analyzer import analyze
-
-            summary, _, category, _ = analyze("測試")
-            assert summary == "摘要內容"
-
-    def test_analyze_unknown_category_falls_back(self):
-        """GPT 回傳未知分類時改用「未分類」"""
-        result_json = json.dumps(
-            {
-                "summary": "摘要",
-                "key_points": [],
-                "category": "不存在的分類",
-                "confidence": 0.9,
-            },
-            ensure_ascii=False,
-        )
+        wrapped = f"```json\n{self._full_result_json({'summary': '摘要內容', 'category': '未分類 (Uncategorized)'})}\n```"
 
         with (
             patch("app.services.analyzer._get_client") as mock_get,
@@ -348,30 +319,40 @@ class TestAnalyzer:
         ):
             mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
             mock_settings.CATEGORIES = ["占星學 (Astrology)", "未分類 (Uncategorized)"]
-            mock_settings.MAX_TRANSCRIPT_CHARS = 12000
 
             mock_client = MagicMock()
             mock_get.return_value = mock_client
-            mock_client.chat.completions.create.return_value = self._make_mock_response(result_json)
+            mock_client.chat.completions.create.return_value = self._make_mock_response(wrapped)
 
-            from app.services.analyzer import analyze
+            from app.services.analyzer import analyze_all
 
-            _, _, category, confidence = analyze("測試")
+            summary, _, category, _, _, _ = analyze_all("測試")
+            assert summary == "摘要內容"
+            assert category == "未分類 (Uncategorized)"
+
+    def test_analyze_all_unknown_category_falls_back(self):
+        """GPT 回傳未知分類時改用「未分類」"""
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_settings.CATEGORIES = ["占星學 (Astrology)", "未分類 (Uncategorized)"]
+
+            mock_client = MagicMock()
+            mock_get.return_value = mock_client
+            mock_client.chat.completions.create.return_value = self._make_mock_response(
+                self._full_result_json({"category": "不存在的分類", "confidence": 0.9})
+            )
+
+            from app.services.analyzer import analyze_all
+
+            _, _, category, confidence, _, _ = analyze_all("測試")
             assert category == "未分類 (Uncategorized)"
             assert confidence == 0.0
 
-    def test_analyze_truncates_long_transcript(self):
-        """逐字稿超長時截斷後送分析"""
-        result_json = json.dumps(
-            {
-                "summary": "摘要",
-                "key_points": ["重點"],
-                "category": "未分類 (Uncategorized)",
-                "confidence": 0.5,
-            },
-            ensure_ascii=False,
-        )
-
+    def test_analyze_all_truncates_long_transcript(self):
+        """逐字稿超長時截斷後送分析，prompt 包含省略提示"""
         with (
             patch("app.services.analyzer._get_client") as mock_get,
             patch("app.services.analyzer.settings") as mock_settings,
@@ -382,14 +363,14 @@ class TestAnalyzer:
 
             mock_client = MagicMock()
             mock_get.return_value = mock_client
-            mock_client.chat.completions.create.return_value = self._make_mock_response(result_json)
+            mock_client.chat.completions.create.return_value = self._make_mock_response(
+                self._full_result_json({"category": "未分類 (Uncategorized)"})
+            )
 
-            from app.services.analyzer import analyze
+            from app.services.analyzer import analyze_all
 
-            long_text = "A" * 500
-            analyze(long_text)
+            analyze_all("A" * 500)
 
-            # 確認送給 GPT 的 prompt 包含省略提示
             call_args = mock_client.chat.completions.create.call_args
             messages = call_args.kwargs["messages"]
             user_msg = messages[1]["content"]

@@ -213,8 +213,9 @@ def _migrate_db():
     # transcripts
     try:
         cursor.execute("ALTER TABLE transcripts ADD COLUMN segments TEXT")
-    except Exception:
-        pass  # column already exists
+    except sqlite3.OperationalError as e:
+        if "duplicate column" not in str(e).lower():
+            raise
 
     # FTS5 全文搜尋虛擬表
     cursor.execute("""

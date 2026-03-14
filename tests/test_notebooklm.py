@@ -76,34 +76,6 @@ class TestAnalyzerNotebookLM:
         assert isinstance(result, list)
         assert result[0]["question"] == "Q1"
 
-    def test_generate_study_notes_success(self):
-        """generate_study_notes 應返回含有標準章節的 Markdown"""
-        from app.services.analyzer import generate_study_notes
-
-        notes_md = """## 核心概念
-占星學研究天體對人的影響。
-
-## 重要術語
-- 星座：黃道十二宮
-- 行星：影響性格的天體
-
-## 學習重點
-1. 了解各星座特質
-2. 分析行星位置
-
-## 實踐建議
-每日查看星曆表。
-
-## 延伸思考
-天體運動與人類命運有何關聯？"""
-        mock_client = self._mock_client(notes_md)
-
-        with patch("app.services.analyzer._get_client", return_value=mock_client):
-            result = generate_study_notes("這是關於占星學的逐字稿內容")
-
-        assert isinstance(result, str)
-        assert "##" in result
-
     def test_ask_question_success(self):
         """ask_question 應返回回答字串"""
         from app.services.analyzer import ask_question
