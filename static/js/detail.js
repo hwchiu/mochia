@@ -495,16 +495,17 @@ function renderTranscript(text, segments) {
   if (!el) return;
 
   if (segments && segments.length > 0) {
-    el.innerHTML = segments.map(seg => {
-      const mm = String(Math.floor(seg.start / 60)).padStart(2, "0");
-      const ss = String(Math.floor(seg.start % 60)).padStart(2, "0");
-      const sec = Math.floor(seg.start);
-      return `<p class="transcript-seg"><a class="ts-link" data-sec="${sec}" title="跳到 ${mm}:${ss}">[${mm}:${ss}]</a> ${seg.text.trim()}</p>`;
-    }).join("");
+    function _segHtml(seg) {
+      const sec  = seg.start ?? 0;
+      const mins = String(Math.floor(sec / 60)).padStart(2, '0');
+      const secs = String(Math.floor(sec % 60)).padStart(2, '0');
+      return `<div class="transcript-seg" data-sec="${sec}" onclick="seekTo(${sec})">
+    <span class="ts-time">${mins}:${secs}</span>
+    <span class="ts-text">${seg.text ?? ''}</span>
+  </div>`;
+    }
+    el.innerHTML = segments.map(seg => _segHtml(seg)).join("");
     if (hint) hint.style.display = "";
-    el.querySelectorAll(".ts-link").forEach(link => {
-      link.addEventListener("click", () => seekMainPlayer(parseFloat(link.dataset.sec)));
-    });
     return;
   }
 
@@ -709,10 +710,8 @@ function initTranscriptSync() {
     let bestSec = -1;
 
     segs.forEach(seg => {
-      const link = seg.querySelector(".ts-link");
-      if (!link) return;
-      const sec = parseFloat(link.dataset.sec);
-      if (sec <= t && sec > bestSec) { bestSec = sec; bestEl = seg; }
+      const sec = parseFloat(seg.dataset.sec);
+      if (!isNaN(sec) && sec <= t && sec > bestSec) { bestSec = sec; bestEl = seg; }
     });
 
     if (bestEl === _lastActiveSeg) return;
