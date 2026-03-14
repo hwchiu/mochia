@@ -105,58 +105,58 @@ async function loadDetail() {
 }
 
 function renderProgress(p) {
-  if (!p) return;
-  document.getElementById("progress-section").classList.remove("hidden");
+  const steps = [
+    { key: 'audio_extract',    label: '音訊提取' },
+    { key: 'transcription',    label: '語音轉文字' },
+    { key: 'gpt_analysis',     label: 'GPT 分析' },
+    { key: 'generate_summary', label: '生成摘要' },
+  ];
 
-  const step = p.step || 0;
-  const sub = p.sub_percent || 0;
+  const currentStep = (p.step != null ? p.step : 1) - 1;  // 0-indexed; p.step=0 means no step active
 
-  // Update each step indicator (1-4)
-  for (let i = 1; i <= 4; i++) {
-    const el = document.getElementById(`pstep-${i}`);
-    el.classList.remove("done", "active");
-    if (i < step) el.classList.add("done");
-    else if (i === step) el.classList.add("active");
+  const stepsHtml = steps.map((s, i) => {
+    let cls = 'inactive';
+    let inner = i + 1;
+    if (i < currentStep) {
+      cls = 'done';
+      inner = '<i data-lucide="check" style="width:14px;height:14px;stroke-width:3" aria-hidden="true"></i>';
+    } else if (i === currentStep) {
+      cls = 'active';
+    }
+    return `
+      <div class="progress-step ${cls}">
+        <div class="step-circle">${inner}</div>
+        <div class="step-label">${s.label}</div>
+      </div>`;
+  }).join('');
+
+  const stepsEl = document.getElementById('progress-steps');
+  if (stepsEl) {
+    stepsEl.innerHTML = stepsHtml;
+    if (window.lucide) lucide.createIcons({ nodes: [stepsEl] });
   }
 
-  // Update connectors (1-3)
-  for (let i = 1; i <= 3; i++) {
-    const el = document.getElementById(`pconn-${i}`);
-    el.classList.remove("done", "active");
-    if (i < step) el.classList.add("done");
-    else if (i === step) el.classList.add("active");
-  }
-
-  // Overall progress bar: step-level progress + sub-progress contribution
-  const overallPct = step === 0 ? 0 : Math.min(
-    Math.floor((step - 1) / 4 * 100) + Math.floor(sub / 4),
-    100
-  );
-  document.getElementById("progress-bar-fill").style.width = overallPct + "%";
-
-  // Sub-progress bar (only show when actively processing a step)
-  const subTrack = document.getElementById("progress-sub-track");
-  if (step > 0 && step <= 4 && sub < 100) {
-    subTrack.style.display = "block";
-    document.getElementById("progress-sub-fill").style.width = sub + "%";
-  } else {
-    subTrack.style.display = "none";
-  }
-
-  // Message and percent
-  document.getElementById("progress-message").textContent = p.message || "等待中...";
-  document.getElementById("progress-percent").textContent = overallPct + "%";
-
-  // Elapsed timer — start on first active step, stop when done
-  if (step > 0 && step <= 4 && !_elapsedTimer) {
-    startElapsedTimer(p.started_at);
-  } else if (step === 0 || overallPct >= 100) {
-    stopElapsedTimer();
-  }
+  // Overall progress bar
+  const pct = p.overall_pct ?? 0;
+  const bar = document.getElementById('progress-bar');
+  if (bar) bar.style.width = pct + '%';
+  const pctEl = document.getElementById('progress-pct');
+  if (pctEl) pctEl.textContent = Math.round(pct) + '%';
 }
 
 // Per-tab scroll position memory: restore reading position when switching back
 const _tabScrollPos = {};
+
+// Fixed alternating widths — deterministic
+const _SKEL_WIDTHS = ['90%', '75%', '85%', '65%'];
+function _contentSkeletonHtml() {
+  return `<div style="padding:20px">
+    ${_SKEL_WIDTHS.map(w =>
+      `<div class="skeleton skel-text" style="width:${w}"></div>`
+    ).join('')}
+    <div class="skeleton skel-text skel-text-sm"></div>
+  </div>`;
+}
 
 function switchTab(tabName) {
   // Save current tab's scroll position before switching away
@@ -183,6 +183,8 @@ function switchTab(tabName) {
   // Lazy load
   if (!tabLoaded[tabName]) {
     tabLoaded[tabName] = true;
+    const panelEl = document.getElementById("tab-" + tabName);
+    if (panelEl && tabName !== "qa-chat") panelEl.innerHTML = _contentSkeletonHtml();
     if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
@@ -493,16 +495,17 @@ function renderTranscript(text, segments) {
   if (!el) return;
 
   if (segments && segments.length > 0) {
-    el.innerHTML = segments.map(seg => {
-      const mm = String(Math.floor(seg.start / 60)).padStart(2, "0");
-      const ss = String(Math.floor(seg.start % 60)).padStart(2, "0");
-      const sec = Math.floor(seg.start);
-      return `<p class="transcript-seg"><a class="ts-link" data-sec="${sec}" title="跳到 ${mm}:${ss}">[${mm}:${ss}]</a> ${seg.text.trim()}</p>`;
-    }).join("");
+    function _segHtml(seg) {
+      const sec  = seg.start ?? 0;
+      const mins = String(Math.floor(sec / 60)).padStart(2, '0');
+      const secs = String(Math.floor(sec % 60)).padStart(2, '0');
+      return `<div class="transcript-seg" data-sec="${sec}" onclick="seekTo(${sec})">
+    <span class="ts-time">${mins}:${secs}</span>
+    <span class="ts-text">${seg.text ?? ''}</span>
+  </div>`;
+    }
+    el.innerHTML = segments.map(seg => _segHtml(seg)).join("");
     if (hint) hint.style.display = "";
-    el.querySelectorAll(".ts-link").forEach(link => {
-      link.addEventListener("click", () => seekMainPlayer(parseFloat(link.dataset.sec)));
-    });
     return;
   }
 
@@ -707,10 +710,8 @@ function initTranscriptSync() {
     let bestSec = -1;
 
     segs.forEach(seg => {
-      const link = seg.querySelector(".ts-link");
-      if (!link) return;
-      const sec = parseFloat(link.dataset.sec);
-      if (sec <= t && sec > bestSec) { bestSec = sec; bestEl = seg; }
+      const sec = parseFloat(seg.dataset.sec);
+      if (!isNaN(sec) && sec <= t && sec > bestSec) { bestSec = sec; bestEl = seg; }
     });
 
     if (bestEl === _lastActiveSeg) return;
