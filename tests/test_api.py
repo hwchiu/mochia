@@ -171,6 +171,8 @@ class TestAnalysisAPI:
         assert len(body["key_points"]) == 3
         assert body["category"] == "占星學 (Astrology)"
         assert body["confidence"] == pytest.approx(0.92, abs=0.01)
+        # transcript_segments is None for old videos without segments, list otherwise
+        assert "transcript_segments" in body
 
     def test_get_results_video_not_found(self, client):
         r = client.get("/api/analysis/nonexistent/results")

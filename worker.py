@@ -78,13 +78,17 @@ def _set_progress(video: Video, db: Session, step: int, message: str, sub: int =
     logger.info(f"  [{step}/4] {message}")
 
 
-def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: str) -> None:
+def _run_gpt_steps(
+    video: Video,
+    task: TaskQueue,
+    db: Session,
+    transcript_text: str,
+    segments: list[dict] | None = None,
+) -> None:
     """執行 Step 3+4：GPT 分析 + NotebookLM 功能生成（可獨立重跑）"""
     # Step 3: GPT 合併分析（摘要 + 分類 + 心智圖 + FAQ）
     _set_progress(video, db, 3, f"GPT 分析中... ({len(transcript_text)} 字)", sub=0)
-    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(
-        transcript_text
-    )
+    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(transcript_text)
     _set_progress(video, db, 3, f"GPT 分析完成 → {category}", sub=100)
 
     existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
@@ -117,7 +121,7 @@ def _run_gpt_steps(video: Video, task: TaskQueue, db: Session, transcript_text: 
 
     # Step 4: 深度內容（學習筆記 + 案例分析）
     _set_progress(video, db, 4, "生成學習筆記與案例分析...", sub=0)
-    study_notes, case_analysis = generate_deep_content(transcript_text)
+    study_notes, case_analysis = generate_deep_content(transcript_text, segments=segments)
     _set_progress(video, db, 4, "深度內容生成完成", sub=100)
 
     existing_summary = db.query(Summary).filter(Summary.video_id == task.video_id).first()
@@ -167,7 +171,10 @@ def _process_task(task: TaskQueue, db: Session) -> None:
         )
         _set_progress(video, db, 2, "逐字稿已存在，跳過語音辨識", sub=100)
         transcript_text = existing_transcript.content
-        _run_gpt_steps(video, task, db, transcript_text)
+        segments = (
+            json.loads(existing_transcript.segments) if existing_transcript.segments else None
+        )
+        _run_gpt_steps(video, task, db, transcript_text, segments=segments)
         return
 
     # Step 1: 提取音頻；順便補上 duration（掃描時不跑 ffprobe，此時才填入）
@@ -197,26 +204,29 @@ def _process_task(task: TaskQueue, db: Session) -> None:
 
         file_size_mb = Path(audio_path).stat().st_size / 1024 / 1024
         _set_progress(video, db, 2, f"語音轉文字中... ({file_size_mb:.1f} MB)", sub=0)
-        transcript_text = transcribe(audio_path, progress_callback=whisper_cb)
+        transcript_text, segments = transcribe(audio_path, progress_callback=whisper_cb)
 
         # 儲存逐字稿
         existing_transcript = (
             db.query(Transcript).filter(Transcript.video_id == task.video_id).first()
         )
+        segments_json = json.dumps(segments, ensure_ascii=False) if segments else None
         if existing_transcript:
             existing_transcript.content = transcript_text
+            existing_transcript.segments = segments_json
         else:
             db.add(
                 Transcript(
                     id=uuid.uuid4().hex,
                     video_id=task.video_id,
                     content=transcript_text,
+                    segments=segments_json,
                 )
             )
         db.commit()
 
         # Step 3+4: GPT 分析 + NotebookLM（抽出為獨立函數，方便重試時直接跳到這裡）
-        _run_gpt_steps(video, task, db, transcript_text)
+        _run_gpt_steps(video, task, db, transcript_text, segments=segments)
 
     finally:
         cleanup_audio(audio_path)

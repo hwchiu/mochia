@@ -4,10 +4,11 @@ import logging
 import shutil
 import subprocess
 import uuid
+from collections.abc import Generator
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -171,6 +172,45 @@ _MIME_MAP = {
 }
 
 
+def _ffmpeg_transcode_stream(file_path: str) -> Generator[bytes, None, None]:
+    """On-the-fly FFmpeg transcode to fragmented MP4 for browser streaming.
+
+    Pipes FFmpeg stdout directly to the HTTP response with no intermediate file,
+    so no extra disk space is consumed.
+    """
+    cmd = [
+        "ffmpeg",
+        "-i",
+        file_path,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "28",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-f",
+        "mp4",
+        "-movflags",
+        "frag_keyframe+empty_moov+default_base_moof",
+        "pipe:1",
+    ]
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        assert process.stdout is not None
+        while True:
+            chunk = process.stdout.read(65536)  # 64 KB chunks
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        process.stdout.close() if process.stdout else None
+        process.wait()
+
+
 @router.get("/{video_id}/stream")
 def stream_video(video_id: str, request: Request, db: Session = Depends(get_db)):
     """
@@ -188,12 +228,14 @@ def stream_video(video_id: str, request: Request, db: Session = Depends(get_db))
     ext = Path(file_path).suffix.lower()
     mime = _MIME_MAP.get(ext)
 
-    # 不支援的格式 → 回傳 415，前端顯示開啟本地播放器提示
+    # 瀏覽器不原生支援的格式 → on-the-fly FFmpeg transcode，不儲存暫存檔
     _BROWSER_UNSUPPORTED = {".wmv", ".mkv", ".avi", ".flv"}
     if ext in _BROWSER_UNSUPPORTED:
-        raise HTTPException(
-            status_code=415,
-            detail=f"瀏覽器不支援 {ext.upper()} 格式直接播放",
+        logger.info(f"轉碼串流: {ext} → fragmented MP4 ({file_path})")
+        return StreamingResponse(
+            _ffmpeg_transcode_stream(file_path),
+            media_type="video/mp4",
+            headers={"X-Transcoded": "1"},
         )
 
     if not mime:

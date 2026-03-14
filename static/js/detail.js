@@ -34,6 +34,9 @@ async function loadDetail() {
 
     // Load labels
     loadVideoLabels(videoId);
+
+    // Initialize embedded player — works regardless of analysis status
+    initEmbeddedPlayer(v.original_filename || v.filename || "");
   } catch (e) {
     toast("載入影片資訊失敗: " + e.message, "error");
   }
@@ -77,7 +80,7 @@ async function loadDetail() {
     }
     if (results.category) document.getElementById("kv-category").textContent = results.category;
     if (results.transcript) {
-      renderTranscript(results.transcript);
+      renderTranscript(results.transcript, results.transcript_segments || null);
     }
     // 案例分析若已包含在 results 中直接渲染，否則等 tab 切換時再 lazy load
     if (results.case_analysis !== undefined) {
@@ -160,8 +163,7 @@ function switchTab(tabName) {
   // Lazy load
   if (!tabLoaded[tabName]) {
     tabLoaded[tabName] = true;
-    if (tabName === "player") loadPlayer();
-    else if (tabName === "mindmap") loadMindmap();
+    if (tabName === "mindmap") loadMindmap();
     else if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
     else if (tabName === "notes") loadNote();
@@ -455,17 +457,41 @@ function renderKeyPoints(keyPoints) {
   }).join("");
 }
 
-function renderTranscript(text) {
-  if (!text) return;
+/**
+ * Render transcript in the transcript tab.
+ *
+ * When Whisper segments are available each line is prefixed with a clickable
+ * [MM:SS] timestamp that seeks the embedded player.  Falls back to paragraph-
+ * splitting on the raw text string for old videos without segments.
+ *
+ * @param {string} text - Plain transcript text (always present)
+ * @param {Array<{start:number,end:number,text:string}>|null} segments - Whisper segments
+ */
+function renderTranscript(text, segments) {
+  const el = document.getElementById("transcript-text");
+  const hint = document.getElementById("transcript-ts-hint");
+  if (!el) return;
 
-  // Whisper 口語輸出以空格隔開語詞，幾乎沒有句號
-  // 策略：按空格分詞後累積，遇到句號/問號/感嘆號立刻換段；
-  //       否則每累積約 100 字（一個自然呼吸長度）就換段
+  if (segments && segments.length > 0) {
+    el.innerHTML = segments.map(seg => {
+      const mm = String(Math.floor(seg.start / 60)).padStart(2, "0");
+      const ss = String(Math.floor(seg.start % 60)).padStart(2, "0");
+      const sec = Math.floor(seg.start);
+      return `<p class="transcript-seg"><a class="ts-link" data-sec="${sec}" title="跳到 ${mm}:${ss}">[${mm}:${ss}]</a> ${seg.text.trim()}</p>`;
+    }).join("");
+    if (hint) hint.style.display = "";
+    el.querySelectorAll(".ts-link").forEach(link => {
+      link.addEventListener("click", () => seekMainPlayer(parseFloat(link.dataset.sec)));
+    });
+    return;
+  }
+
+  // Fallback: wrap plain text into natural paragraphs (~100 chars each)
+  if (!text) return;
   const PARA_CHARS = 100;
   const phrases = text.split(/\s+/).filter(Boolean);
   const paragraphs = [];
   let buf = "";
-
   for (const phrase of phrases) {
     buf += (buf ? " " : "") + phrase;
     const hasSentenceEnd = /[。！？!?]$/.test(phrase);
@@ -475,14 +501,21 @@ function renderTranscript(text) {
     }
   }
   if (buf) paragraphs.push(buf);
-
-  const el = document.getElementById("transcript-text");
   el.innerHTML = paragraphs.map(p => `<p>${p}</p>`).join("");
 }
 
+/**
+ * Render case analysis markdown with clickable [MM:SS] timestamp links.
+ * Timestamp links seek the embedded video player at the top of the page.
+ *
+ * @param {string|null} text - Markdown case analysis text
+ */
 function renderCaseAnalysis(text) {
   const el = document.getElementById("case-analysis-content");
+  const tsHint = document.getElementById("case-analysis-ts-hint");
+  const noTsHint = document.getElementById("case-analysis-no-ts-hint");
   if (!el) return;
+
   if (!text) {
     el.innerHTML = `<div class="no-case-analysis">
       <span class="no-case-icon">📋</span>
@@ -490,16 +523,17 @@ function renderCaseAnalysis(text) {
     </div>`;
     return;
   }
-  // 用簡易 Markdown 渲染（h2/h3/li/粗體）
-  const html = text
-    .replace(/^## (.+)$/gm, '<h2 class="ca-h2">$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3 class="ca-h3">$1</h3>')
-    .replace(/^\*\*(.+?)\*\*(.*)$/gm, '<p><strong>$1</strong>$2</p>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
-    .replace(/^(?!<[hpul]).+$/gm, '<p>$&</p>')
-    .replace(/<\/ul>\n?<ul>/g, "");
+
+  const hasTimestamps = /\[\d{1,2}:\d{2}/.test(text);
+  if (tsHint) tsHint.style.display = hasTimestamps ? "" : "none";
+  if (noTsHint) noTsHint.style.display = hasTimestamps ? "none" : "";
+
+  const html = _injectTimestampLinks(_renderMarkdown(text));
   el.innerHTML = html;
+
+  el.querySelectorAll(".ts-link").forEach(link => {
+    link.addEventListener("click", () => seekMainPlayer(parseFloat(link.dataset.sec)));
+  });
 }
 
 async function loadCaseAnalysis() {
@@ -511,6 +545,33 @@ async function loadCaseAnalysis() {
   } catch (e) {
     el.innerHTML = `<p style="color:var(--muted)">載入失敗：${e.message}</p>`;
   }
+}
+
+function _renderMarkdown(text) {
+  if (!text) return "";
+  if (window.marked) return marked.parse(text);
+  return text
+    .replace(/^## (.+)$/gm, '<h2 class="ca-h2">$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3 class="ca-h3">$1</h3>')
+    .replace(/^\*\*(.+?)\*\*(.*)$/gm, '<p><strong>$1</strong>$2</p>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+    .replace(/^(?!<[hpul]).+$/gm, '<p>$&</p>')
+    .replace(/<\/ul>\n?<ul>/g, "");
+}
+
+function _tsToSec(ts) {
+  const parts = ts.split(':').map(Number);
+  return parts.length === 3
+    ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+    : parts[0] * 60 + parts[1];
+}
+
+function _injectTimestampLinks(html) {
+  return html.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (_, ts) => {
+    const sec = _tsToSec(ts);
+    return `<a class="ts-link" data-sec="${sec}" title="跳到 ${ts}">[${ts}]</a>`;
+  });
 }
 
 async function reanalyze() {
@@ -817,46 +878,44 @@ function renderNotePreview(markdown) {
 // 影片播放器
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let _videoFilename = "";
-let _videoExt = "";
-
-async function loadPlayer() {
-  // 取得影片格式資訊
-  try {
-    const v = await api("GET", `/api/videos/${videoId}`);
-    _videoFilename = v.original_filename || v.filename || "";
-    _videoExt = _videoFilename.includes(".") ? _videoFilename.split(".").pop().toLowerCase() : "";
-    document.getElementById("player-format-badge").textContent = _videoExt ? `（${_videoExt.toUpperCase()}）` : "";
-  } catch (_) {}
-
-  const streamUrl = `/api/videos/${videoId}/stream`;
-  const _UNSUPPORTED = ["wmv", "avi", "mkv", "flv"];
-
-  if (_UNSUPPORTED.includes(_videoExt)) {
-    _showUnsupportedPlayer();
-    return;
-  }
-
-  // 嘗試掛上 src，若伺服器回 415 則切到不支援提示
+/**
+ * Initialise the embedded video player card at page load.
+ *
+ * All formats stream through /api/videos/{id}/stream — the server uses
+ * FFmpeg on-the-fly for formats the browser cannot play natively (WMV,
+ * AVI, MKV, FLV), so we always set the same src.
+ *
+ * @param {string} filename - Original video filename (used for format badge)
+ */
+function initEmbeddedPlayer(filename) {
   const video = document.getElementById("video-player");
   const source = document.getElementById("video-source");
+  const badge = document.getElementById("player-format-badge");
+  if (!video || !source) return;
 
-  // 設定正確 MIME
+  const ext = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
+  if (badge && ext) badge.textContent = `(${ext.toUpperCase()})`;
+
   const mimeMap = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", m4v: "video/mp4" };
-  source.type = mimeMap[_videoExt] || "video/mp4";
-  source.src = streamUrl;
+  source.type = mimeMap[ext] || "video/mp4";
+  source.src = `/api/videos/${videoId}/stream`;
   video.load();
-
-  video.onerror = () => _showUnsupportedPlayer();
-  document.getElementById("player-supported").style.display = "";
-  document.getElementById("player-unsupported").style.display = "none";
 }
 
-function _showUnsupportedPlayer() {
-  document.getElementById("player-supported").style.display = "none";
-  document.getElementById("player-unsupported").style.display = "";
-  document.getElementById("player-format-hint").textContent =
-    `${_videoExt.toUpperCase()} 格式需要使用 VLC 或系統播放器開啟。`;
+/**
+ * Seek the embedded player to `sec` seconds and resume playback.
+ * Scrolls the player into view if it is off-screen.
+ *
+ * @param {number} sec - Target position in seconds
+ */
+function seekMainPlayer(sec) {
+  const video = document.getElementById("video-player");
+  if (!video) return;
+  video.currentTime = sec;
+  video.scrollIntoView({ behavior: "smooth", block: "center" });
+  video.play().catch(() => {
+    // Autoplay may be blocked; the user can press play manually
+  });
 }
 
 async function openLocalPlayer() {

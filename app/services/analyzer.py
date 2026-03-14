@@ -442,18 +442,67 @@ JSON 格式：
     return summary, key_points, category, confidence, mindmap, faq_list
 
 
-def generate_deep_content(transcript: str) -> tuple[str, str]:
+def _format_timestamped_transcript(
+    segments: list[dict], max_chars: int = MAX_TRANSCRIPT_CHARS
+) -> str:
+    """Format Whisper segments as [MM:SS] timestamped lines, truncated to max_chars.
+
+    Args:
+        segments: List of Whisper segment dicts with 'start', 'end', and 'text' keys.
+        max_chars: Maximum total characters to include in the output.
+
+    Returns:
+        Newline-joined string of "[MM:SS] text" lines, with middle content
+        omitted (and replaced by an ellipsis marker) when over the limit.
+    """
+    lines: list[str] = []
+    total = 0
+    half = max_chars // 2
+    for seg in segments:
+        mm, ss = divmod(int(seg.get("start", 0)), 60)
+        line = f"[{mm:02d}:{ss:02d}] {seg.get('text', '').strip()}"
+        if total + len(line) + 1 > half and len(lines) > 0:
+            tail_lines: list[str] = []
+            tail_total = 0
+            for seg2 in reversed(segments):
+                mm2, ss2 = divmod(int(seg2.get("start", 0)), 60)
+                l2 = f"[{mm2:02d}:{ss2:02d}] {seg2.get('text', '').strip()}"
+                if tail_total + len(l2) + 1 > half:
+                    break
+                tail_lines.insert(0, l2)
+                tail_total += len(l2) + 1
+            lines.append("\n[... 中間內容省略 ...]\n")
+            lines.extend(tail_lines)
+            break
+        lines.append(line)
+        total += len(line) + 1
+    return "\n".join(lines)
+
+
+def generate_deep_content(transcript: str, segments: list[dict] | None = None) -> tuple[str, str]:
     """Single GPT call combining study_notes + case_analysis to reduce token usage.
+
+    Args:
+        transcript: Full transcript text. Used when segments is None.
+        segments: Optional list of Whisper segment dicts with 'start', 'end', and 'text'.
+            When provided, a timestamped transcript is passed to GPT and the LLM is
+            instructed to annotate case analyses with [MM:SS] markers.
 
     Returns:
         Tuple of (study_notes, case_analysis) where case_analysis is empty string
         if no cases are found in the transcript.
     """
-    transcript_for_gpt = _prepare_transcript(transcript)
+    if segments:
+        transcript_for_gpt = _format_timestamped_transcript(segments)
+        timestamp_instruction = "在案例分析中，請以 [MM:SS] 格式標注每個案例的對應影片時間點"
+    else:
+        transcript_for_gpt = _prepare_transcript(transcript)
+        timestamp_instruction = ""
 
     system_prompt = """你是一位專業的學習顧問與玄學分析師。
 請根據影片逐字稿，以 JSON 格式同時回傳學習筆記與案例分析，不要有任何額外文字。"""
 
+    timestamp_note = f"\n- {timestamp_instruction}" if timestamp_instruction else ""
     user_content = f"""請根據以下逐字稿生成學習筆記和案例分析，以 JSON 格式回傳：
 
 {transcript_for_gpt}
@@ -465,7 +514,7 @@ JSON 格式：
 }}
 
 study_notes 要求：包含核心概念、重要術語、學習重點、實踐建議、延伸思考，繁體中文 Markdown。
-case_analysis 要求：若有案例詳細記錄（背景、分析要點、推論、結論）；若完全無案例填 NO_CASE_ANALYSIS。"""
+case_analysis 要求：若有案例詳細記錄（背景、分析要點、推論、結論）；若完全無案例填 NO_CASE_ANALYSIS。{timestamp_note}"""
 
     logger.info("開始生成深度內容（學習筆記 + 案例分析）")
     raw = _chat(system_prompt, user_content, max_tokens=2500)

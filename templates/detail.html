@@ -132,6 +132,22 @@
       </div>
     </div>
 
+    <!-- Video Player Card — always visible, timestamps in tabs seek here -->
+    <div class="card" id="player-card">
+      <div class="card-title" style="display:flex;align-items:center;gap:8px">
+        <span>▶️ 影片</span>
+        <span id="player-format-badge" style="font-size:11px;color:var(--muted);font-weight:400"></span>
+      </div>
+      <video id="video-player" controls preload="metadata"
+        style="width:100%;max-height:300px;border-radius:8px;background:#000;display:block">
+        <source id="video-source" src="" type="video/mp4">
+        你的瀏覽器不支援 HTML5 影片播放。
+      </video>
+      <p style="margin-top:8px;font-size:11px;color:var(--muted)">
+        💡 點擊案例分析或逐字稿中的 <strong>[MM:SS]</strong> 時間戳可直接跳轉
+      </p>
+    </div>
+
     <div class="card hidden" id="task-section">
       <div class="card-title">⚙️ 分析任務</div>
       <div class="kv-list">
@@ -195,7 +211,6 @@
   <!-- NotebookLM Tabs (only shown when completed) -->
   <div id="notebooklm-section" class="hidden" style="margin-top:20px">
     <div class="tabs">
-      <button class="tab-btn" data-tab="player" onclick="switchTab('player')">▶️ 播放</button>
       <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">📝 摘要</button>
       <button class="tab-btn" data-tab="mindmap" onclick="switchTab('mindmap')">🧠 心智圖</button>
       <button class="tab-btn" data-tab="faq" onclick="switchTab('faq')">❓ FAQ</button>
@@ -203,42 +218,6 @@
       <button class="tab-btn" data-tab="qa-chat" onclick="switchTab('qa-chat')">💬 對話</button>
       <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">📓 筆記</button>
       <button class="tab-btn" data-tab="transcript" onclick="switchTab('transcript')">📄 逐字稿</button>
-    </div>
-
-    <!-- Player Tab -->
-    <div id="tab-player" class="tab-panel">
-      <div class="card">
-        <div class="card-title" style="display:flex;align-items:center;gap:8px">
-          <span>▶️ 影片播放</span>
-          <span id="player-format-badge" style="font-size:12px;color:var(--muted)"></span>
-        </div>
-        <!-- 瀏覽器原生播放器 -->
-        <div id="player-supported">
-          <video id="video-player"
-            controls
-            preload="metadata"
-            style="width:100%;max-height:560px;border-radius:8px;background:#000;display:block"
-          >
-            <source id="video-source" src="" type="video/mp4">
-            你的瀏覽器不支援 HTML5 影片播放。
-          </video>
-          <div style="margin-top:10px;font-size:12px;color:var(--muted)">
-            💡 提示：按空白鍵暫停，← → 快退快進 10 秒，↑ ↓ 調音量
-          </div>
-        </div>
-        <!-- 不支援格式的提示 -->
-        <div id="player-unsupported" style="display:none;padding:24px;text-align:center">
-          <div style="font-size:40px;margin-bottom:12px">⚠️</div>
-          <p style="font-weight:600;font-size:15px;margin-bottom:6px">此格式無法在瀏覽器中播放</p>
-          <p id="player-format-hint" style="color:var(--muted);font-size:13px;margin-bottom:20px"></p>
-          <button class="btn btn-primary" onclick="openLocalPlayer()" id="btn-open-local">
-            🎬 用系統播放器開啟
-          </button>
-          <p style="color:var(--muted);font-size:11px;margin-top:10px">
-            將呼叫 macOS/系統預設播放器開啟此影片
-          </p>
-        </div>
-      </div>
     </div>
 
     <!-- Summary Tab -->
@@ -310,7 +289,15 @@
     <!-- Case Analysis Tab -->
     <div id="tab-case-analysis" class="tab-panel">
       <div class="card">
-        <div class="card-title">🔍 案例分析</div>
+        <div class="card-title" style="display:flex;align-items:center;gap:8px">
+          <span>🔍 案例分析</span>
+        </div>
+        <div id="case-analysis-ts-hint" style="display:none;font-size:12px;color:var(--primary,#4f46e5);margin-bottom:10px;padding:8px 12px;background:var(--surface,#f5f5f5);border-radius:6px">
+          ⏱️ 點擊 <strong>[MM:SS]</strong> 時間戳，影片將自動跳轉到對應位置
+        </div>
+        <div id="case-analysis-no-ts-hint" style="display:none;font-size:12px;color:var(--muted,#888);margin-bottom:10px;padding:8px 12px;background:var(--surface,#f5f5f5);border-radius:6px">
+          ℹ️ 此影片不含時間戳資訊，重新分析後可取得
+        </div>
         <div id="case-analysis-content" class="markdown-body case-analysis-body">
           <p class="loading-text">載入中...</p>
         </div>
@@ -342,9 +329,12 @@
     <!-- Transcript Tab -->
     <div id="tab-transcript" class="tab-panel">
       <div class="card">
-        <div class="card-title" style="display:flex;justify-content:space-between">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
           <span>📄 逐字稿</span>
           <button class="btn btn-sm btn-ghost" onclick="copyTranscript()">複製</button>
+        </div>
+        <div id="transcript-ts-hint" style="display:none;font-size:12px;color:var(--primary,#4f46e5);margin-bottom:10px;padding:8px 12px;background:var(--surface,#f5f5f5);border-radius:6px">
+          ⏱️ 點擊 <strong>[MM:SS]</strong> 時間戳，影片將自動跳轉到對應位置
         </div>
         <div class="transcript-body" id="transcript-text"></div>
       </div>

@@ -74,6 +74,7 @@ class Transcript(Base):
     id = Column(String, primary_key=True)
     video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     content = Column(Text)
+    segments = Column(Text, nullable=True)  # JSON: [{start, end, text}, ...]
     language = Column(String, default="zh")
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -208,6 +209,12 @@ def _migrate_db():
         if col not in vcols:
             cursor.execute(f"ALTER TABLE videos ADD COLUMN {col} {typ}")
             print(f"[migration] videos.{col}")
+
+    # transcripts
+    try:
+        cursor.execute("ALTER TABLE transcripts ADD COLUMN segments TEXT")
+    except Exception:
+        pass  # column already exists
 
     # FTS5 全文搜尋虛擬表
     cursor.execute("""

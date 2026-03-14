@@ -172,6 +172,9 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
     return {
         "video_id": video_id,
         "transcript": transcript.content if transcript else None,
+        "transcript_segments": (
+            json.loads(transcript.segments) if transcript and transcript.segments else None
+        ),
         "summary": summary.summary if summary else None,
         "key_points": safe_json_loads(summary.key_points if summary else None, []),
         "category": classification.category if classification else None,
@@ -355,7 +358,10 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(
         transcript.content or ""
     )
-    study_notes, case_analysis_text = generate_deep_content(transcript.content or "")
+    seg_list = json.loads(transcript.segments) if transcript.segments else None
+    study_notes, case_analysis_text = generate_deep_content(
+        transcript.content or "", segments=seg_list
+    )
 
     summary = db.query(Summary).filter(Summary.video_id == video_id).first()
     if summary:

@@ -815,3 +815,29 @@ mark {
   border-radius: 3px; font-size: 11px;
 }
 .loading-text { color: var(--muted, #9ca3af); font-size: 13px; padding: 8px 0; }
+
+/* Timestamp links — clickable [MM:SS] badges in case analysis and transcript */
+.ts-link {
+  display: inline-block;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.82em;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 0 4px;
+  text-decoration: none;
+  transition: background 0.15s;
+  vertical-align: middle;
+}
+.ts-link:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Timestamped transcript segments */
+.transcript-seg {
+  margin-bottom: 6px;
+  line-height: 1.7;
+}
