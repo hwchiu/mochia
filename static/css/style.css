@@ -29,15 +29,28 @@ body {
 
 .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
 
-/* ─── Cards ─── */
+/* ── Card ─────────────────────────────────────────────────────────────── */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  transition: box-shadow var(--t-base), transform var(--t-base);
 }
-.card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.card-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-title i { color: var(--muted); }
 
 /* ─── Stats Grid ─── */
 .stats-grid {
@@ -358,73 +371,74 @@ td.name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-spa
 .progress-bar-wrap { background: var(--border); border-radius: 999px; height: 6px; overflow: hidden; }
 .progress-bar { height: 100%; background: var(--primary); border-radius: 999px; transition: width .4s; }
 
-/* ─── Analysis Progress Steps ─── */
+/* ── Progress Steps ──────────────────────────────────────────────────── */
 .progress-steps {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
+  align-items: flex-start;
+  gap: 0;
+  margin: 16px 0;
 }
-
 .progress-step {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
+  flex: 1;
+  position: relative;
 }
+/* Connector line between steps */
+.progress-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+  transition: background var(--t-slow);
+}
+.progress-step.done:not(:last-child)::after { background: var(--color-success); }
+.progress-step.active:not(:last-child)::after { background: var(--border); }
 
-.pstep-icon {
-  width: 44px;
-  height: 44px;
+.step-circle {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  background: var(--border);
-  border: 2px solid #cbd5e1;
-  transition: all 0.3s;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  background: var(--surface-2);
+  border: 2px solid var(--border);
+  color: var(--muted);
+  position: relative;
+  z-index: 1;
+  transition: background var(--t-base), border-color var(--t-base), color var(--t-base);
 }
-
-.pstep-label {
-  font-size: 11px;
-  color: #94a3b8;
-  text-align: center;
-  max-width: 72px;
-}
-
-.progress-step.done .pstep-icon {
-  background: var(--color-success-bg);
+.progress-step.done  .step-circle {
+  background: var(--color-success);
   border-color: var(--color-success);
+  color: #fff;
 }
-.progress-step.done .pstep-emoji { display: none; }
-.progress-step.done .pstep-check { display: inline !important; color: var(--color-success); font-size: 18px; font-weight: 700; }
-.progress-step.done .pstep-label { color: var(--color-success); font-weight: 600; }
+.progress-step.active .step-circle {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  animation: step-pulse 1.8s ease-in-out infinite;
+}
+.step-label {
+  margin-top: 6px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  text-align: center;
+  line-height: var(--leading-snug);
+}
+.progress-step.done  .step-label { color: var(--color-success); }
+.progress-step.active .step-label { color: var(--primary); font-weight: 600; }
 
-.progress-step.active .pstep-icon {
-  background: #ede9fe;
-  border-color: #7c3aed;
-  animation: pulse-ring 1.5s ease-in-out infinite;
-}
-.progress-step.active .pstep-label { color: #7c3aed; font-weight: 600; }
-
-@keyframes pulse-ring {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.3); }
-  50% { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0); }
-}
-
-.progress-connector {
-  flex: 1;
-  height: 2px;
-  background: var(--border);
-  margin: 0 8px;
-  margin-bottom: 20px;
-  transition: background 0.3s;
-}
-.progress-connector.done { background: var(--color-success); }
-.progress-connector.active {
-  background: linear-gradient(90deg, var(--color-success) 0%, #7c3aed 100%);
+@keyframes step-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(37,99,235,0); }
 }
 
 /* Overall progress bar track */
