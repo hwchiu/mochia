@@ -161,22 +161,130 @@ def add_callout(slide, text, l, t, w, h, style="tip"):
              font_size=Pt(12), color=TEXT_PRIMARY)
 
 
+def slide_01_cover(prs):
+    slide = new_slide(prs)
+
+    # Full-width top accent line
+    add_rect(slide, Inches(0), Inches(0), SLIDE_W, Inches(0.06), ACCENT_BLUE)
+
+    # Decorative vertical accent bar on left
+    add_rect(slide, Inches(0), Inches(0.06), Inches(0.06), SLIDE_H - Inches(0.06), ACCENT_BLUE)
+
+    # Background grid pattern (subtle horizontal lines)
+    for i in range(8):
+        y = Inches(1.0 + i * 0.8)
+        add_rect(slide, Inches(0.3), y, SLIDE_W - Inches(0.3), Inches(0.005),
+                 RGBColor(0x1E, 0x2D, 0x3D))
+
+    # Main title: CLOUD NATIVE
+    add_text(slide, "CLOUD NATIVE", Inches(1.2), Inches(1.5), Inches(11), Inches(1.4),
+             font_name=FONT_TITLE, font_size=Pt(64), color=ACCENT_BLUE, bold=True,
+             align=PP_ALIGN.LEFT)
+
+    # Subtitle
+    add_text(slide, "系統部署實務", Inches(1.2), Inches(2.9), Inches(10), Inches(0.85),
+             font_name=FONT_TITLE, font_size=Pt(36), color=TEXT_PRIMARY, bold=False,
+             align=PP_ALIGN.LEFT)
+
+    # Underline rule
+    add_rect(slide, Inches(1.2), Inches(3.8), Inches(10), Inches(0.04), ACCENT_BLUE)
+
+    # Tagline
+    add_text(slide, "從單體部署到 Cloud Native 的完整演進之路",
+             Inches(1.2), Inches(3.9), Inches(10), Inches(0.45),
+             font_size=Pt(16), color=TEXT_DIM, align=PP_ALIGN.LEFT)
+
+    # Bottom info bar background
+    add_rect(slide, Inches(0), Inches(6.5), SLIDE_W, Inches(1.0), CARD_BG)
+
+    # Bottom left: course info
+    add_text(slide, "碩士課程  ·  系統架構設計",
+             Inches(0.5), Inches(6.62), Inches(6), Inches(0.35),
+             font_size=Pt(13), color=TEXT_DIM)
+
+    # Bottom right: stats
+    add_text(slide, "預計課程時間：2.5 小時  ·  投影片：50 頁",
+             Inches(7.0), Inches(6.62), Inches(6.0), Inches(0.35),
+             font_size=Pt(13), color=TEXT_DIM, align=PP_ALIGN.RIGHT)
+
+    # Small decorative dot cluster (top right)
+    for row in range(4):
+        for col in range(4):
+            x = Inches(11.5) + col * Inches(0.22)
+            y = Inches(1.0) + row * Inches(0.22)
+            sz = Inches(0.08)
+            add_rect(slide, x, y, sz, sz, CARD_BORDER)
+
+    return slide
+
+
+def slide_02_agenda(prs):
+    slide = new_slide(prs)
+
+    # Title
+    add_slide_title(slide, "課程大綱", "Agenda — 完整演進之路")
+    add_page_number(slide, 2)
+
+    # 6 Part cards in 2 rows × 3 columns
+    parts = [
+        (1, "PART 1", "傳統部署演進",    "單機 → 三層架構，了解部署的起點"),
+        (2, "PART 2", "Scale Out 挑戰",  "LB / Session / DB 擴展的真實難題"),
+        (3, "PART 3", "Container 革命",  "Docker / Compose / Registry"),
+        (4, "PART 4", "12-Factor App",   "Cloud-Ready 應用的設計原則"),
+        (5, "PART 5", "DevOps 整合",     "大規模生產環境的團隊協作"),
+        (6, "PART 6", "SDLC 閉環",       "從 Code 到維運的完整旅程"),
+    ]
+
+    card_w = Inches(4.0)
+    card_h = Inches(1.9)
+    x_starts = [Inches(0.4), Inches(4.6), Inches(8.8)]
+    y_starts  = [Inches(1.55), Inches(3.65)]
+
+    for i, (part_num, label, title, desc) in enumerate(parts):
+        col = i % 3
+        row = i // 3
+        x = x_starts[col]
+        y = y_starts[row]
+        color = PART_COLORS[part_num]
+
+        # Card background
+        add_rect(slide, x, y, card_w, card_h, CARD_BG, color, Pt(1.5))
+
+        # Top colored header strip
+        add_rect(slide, x, y, card_w, Inches(0.4), color)
+
+        # Part label in header
+        add_text(slide, label, x + Inches(0.1), y + Inches(0.05),
+                 card_w - Inches(0.2), Inches(0.32),
+                 font_name=FONT_TITLE, font_size=Pt(11),
+                 color=RGBColor(0x0D, 0x1B, 0x2A), bold=True)
+
+        # Title
+        add_text(slide, title, x + Inches(0.12), y + Inches(0.46),
+                 card_w - Inches(0.24), Inches(0.4),
+                 font_name=FONT_TITLE, font_size=Pt(14),
+                 color=TEXT_PRIMARY, bold=True)
+
+        # Description
+        add_text(slide, desc, x + Inches(0.12), y + Inches(0.92),
+                 card_w - Inches(0.24), Inches(0.85),
+                 font_size=Pt(11), color=TEXT_DIM)
+
+    # Bottom note
+    add_text(slide, "課程目標：理解真實世界如何從零設計可擴展系統，體會各種設計決策背後的取捨",
+             Inches(0.4), Inches(5.7), Inches(12.5), Inches(0.4),
+             font_size=Pt(11), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    return slide
+
+
 if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width = SLIDE_W
     prs.slide_height = SLIDE_H
 
-    # Smoke test: create 1 slide using all helpers
-    slide = new_slide(prs)
-    add_slide_title(slide, "Test Slide — Theme Smoke Test", "Verifying all helpers work")
-    add_part_label(slide, 1, "傳統部署的演進")
-    add_page_number(slide, 1)
-    add_card(slide, Inches(0.5), Inches(2.0), Inches(4.0), Inches(2.5),
-             title="Card Title", body_lines=["Line 1 content", "Line 2 content", "Line 3 content"])
-    add_card(slide, Inches(5.0), Inches(2.0), Inches(4.0), Inches(2.5),
-             title="No-border card test", body_lines=["Test"], accent=ACCENT_GREEN)
-    add_callout(slide, "This is a tip callout message", Inches(0.5), Inches(5.0), Inches(5.5), Inches(0.6), "tip")
-    add_callout(slide, "This is a warning message", Inches(6.5), Inches(5.0), Inches(5.5), Inches(0.6), "warning")
+    slide_01_cover(prs)
+    slide_02_agenda(prs)
 
     prs.save("cloud_native_slides_v2.pptx")
-    print(f"✅ Smoke test passed: {len(prs.slides)} slide(s) generated → cloud_native_slides_v2.pptx")
+    print(f"✅ Generated {len(prs.slides)} slides → cloud_native_slides_v2.pptx")
