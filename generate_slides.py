@@ -1276,6 +1276,440 @@ def slide_26(prs):
     return slide
 
 
+def slide_27(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "什麼是 Cloud-Ready 的應用？")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 27)
+
+    # Left card: ❌ 能跑 ≠ 能 Scale
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(3.0),
+             title="❌ 能跑 ≠ 能 Scale",
+             body_lines=[
+                 "App 能在一台機器跑",
+                 "≠",
+                 "App 能在 10 台機器正確運行",
+                 "",
+                 "常見問題：",
+                 "• Config 寫死在 Code 裡",
+                 "• Log 只寫到本地檔案",
+                 "• Session 存在記憶體",
+             ],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Right card: ✅ 12-Factor App
+    add_card(slide, Inches(7.0), Inches(1.6), Inches(5.8), Inches(3.0),
+             title="✅ 12-Factor App",
+             body_lines=[
+                 "2011 年由 Heroku 工程師 Adam Wiggins 提出",
+                 "",
+                 "12 條設計原則，讓應用：",
+                 "• 天生適合 Container 化",
+                 "• 易於水平 Scale",
+                 "• 環境一致，可預期部署",
+                 "• 易於維護和觀測",
+             ],
+             accent=ACCENT_GREEN)
+
+    # Center connector arrow
+    add_text(slide, "→ 設計哲學", Inches(6.0), Inches(2.8), Inches(0.8), Inches(0.4),
+             font_size=Pt(12), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Bottom card
+    add_card(slide, Inches(0.4), Inches(4.85), Inches(12.5), Inches(1.3),
+             title="為什麼現在學 12-Factor？",
+             body_lines=[
+                 "Container 解決「在哪跑」的問題  →  12-Factor 解決「怎麼寫才適合雲端」的問題",
+                 "兩者相輔相成：Container 是容器，12-Factor 是設計良好的內容物",
+             ],
+             accent=PART_COLORS[4])
+
+    # Callout tip
+    add_callout(slide, "12-Factor 不是技術規範，是設計哲學。違反它的代價，會在 Scale 時加倍奉還",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_28(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "12-Factor App 全覽")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 28)
+
+    factors = [
+        ("I. Codebase",          "一個 Repo，多個部署環境",          ACCENT_BLUE),
+        ("II. Dependencies",     "明確宣告所有相依套件",              ACCENT_BLUE),
+        ("III. Config",          "設定存環境變數，不 hardcode",       ACCENT_BLUE),
+        ("IV. Backing Services", "DB / Redis 視為可替換外部資源",     PART_COLORS[4]),
+        ("V. Build-Release-Run", "三階段嚴格分離",                    PART_COLORS[4]),
+        ("VI. Processes",        "無狀態 Process，狀態外部化",        PART_COLORS[4]),
+        ("VII. Port Binding",    "App 自帶 HTTP Server",              PART_COLORS[2]),
+        ("VIII. Concurrency",    "以 Process 模型水平擴展",           PART_COLORS[2]),
+        ("IX. Disposability",    "快速啟動，優雅關閉",                PART_COLORS[2]),
+        ("X. Dev/Prod Parity",   "三環境盡量一致",                    ACCENT_GREEN),
+        ("XI. Logs",             "Log 輸出到 stdout/stderr",          ACCENT_GREEN),
+        ("XII. Admin Processes", "管理任務作為一次性 Process",        ACCENT_GREEN),
+    ]
+
+    card_w = Inches(4.0)
+    card_h = Inches(1.2)
+    x_starts = [Inches(0.3), Inches(4.5), Inches(8.7)]
+    y_start = Inches(1.55)
+    y_spacing = Inches(1.3)
+
+    for i, (factor_name, desc, accent) in enumerate(factors):
+        row = i // 3
+        col = i % 3
+        x = x_starts[col]
+        y = y_start + row * y_spacing
+        add_card(slide, x, y, card_w, card_h,
+                 title=factor_name,
+                 body_lines=[desc],
+                 accent=accent)
+
+    return slide
+
+
+def slide_29(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Factor 1–3：Codebase / Dependencies / Config")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 29)
+
+    card_w = Inches(4.0)
+    card_h = Inches(4.5)
+    x_positions = [Inches(0.3), Inches(4.6), Inches(8.9)]
+
+    cards = [
+        ("I. Codebase", ACCENT_BLUE, [
+            "原則：一個 App = 一個 Repo",
+            "",
+            "✅ 正確：",
+            "  一個 Repo，多個部署",
+            "  (dev / staging / prod)",
+            "",
+            "❌ 錯誤：",
+            "  多個 Repo 共享同一份 Code",
+            "",
+            "→ 多個 App 用 Monorepo 時",
+            "   每個 App 仍需獨立部署單元",
+        ]),
+        ("II. Dependencies", ACCENT_BLUE, [
+            "原則：明確宣告，隔離安裝",
+            "",
+            "✅ 正確：",
+            "  requirements.txt / pyproject.toml",
+            "  package.json + package-lock.json",
+            "",
+            "❌ 錯誤：",
+            "  依賴系統已安裝的套件",
+            "  (「反正 Server 上有 curl」)",
+            "",
+            "→ Container 天然支援此 Factor",
+        ]),
+        ("III. Config", ACCENT_BLUE, [
+            "原則：設定存環境變數",
+            "",
+            "✅ 正確：",
+            "  DB_HOST=localhost",
+            "  SECRET_KEY=$SECRET",
+            "",
+            "❌ 錯誤：",
+            "  DB_HOST = 'db.prod.internal'",
+            "  寫死在 config.py 裡",
+            "",
+            "→ 不同環境只改 env var，",
+            "   不改 Code 或 Image",
+        ]),
+    ]
+
+    for i, (title, accent, body_lines) in enumerate(cards):
+        add_card(slide, x_positions[i], Inches(1.55), card_w, card_h,
+                 title=title, body_lines=body_lines, accent=accent)
+
+    return slide
+
+
+def slide_30(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Factor 4–6：Backing Services / Build-Release-Run / Processes")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 30)
+
+    card_w = Inches(4.0)
+    card_h = Inches(4.5)
+    x_positions = [Inches(0.3), Inches(4.6), Inches(8.9)]
+
+    cards = [
+        ("IV. Backing Services", PART_COLORS[4], [
+            "原則：外部資源視為可替換",
+            "",
+            "Backing Services：",
+            "  PostgreSQL / MySQL",
+            "  Redis / Memcached",
+            "  S3 / 任何外部 API",
+            "",
+            "✅ 正確：",
+            "  切換 DB 只改 DB_URL",
+            "  不需修改 App Code",
+            "",
+            "→ 讓測試環境換成 SQLite",
+            "   生產換成 PostgreSQL 成為可能",
+        ]),
+        ("V. Build-Release-Run", PART_COLORS[4], [
+            "原則：三階段嚴格分離",
+            "",
+            "Build：Code → 可執行 Artifact",
+            "  (docker build)",
+            "",
+            "Release：Artifact + Config",
+            "  (Image + env vars)",
+            "",
+            "Run：執行 Release",
+            "  (docker run / k8s deploy)",
+            "",
+            "❌ 錯誤：",
+            "  上線後直接 ssh 進去改 Code",
+        ]),
+        ("VI. Processes", PART_COLORS[4], [
+            "原則：無狀態 Process",
+            "",
+            "✅ 正確：",
+            "  App 是無狀態的",
+            "  Session → Redis",
+            "  上傳檔案 → S3",
+            "",
+            "❌ 錯誤：",
+            "  檔案存在本地 /tmp",
+            "  計算結果存在記憶體",
+            "",
+            "→ 任何一台 Server 掛掉",
+            "   不影響其他 Server 的服務",
+        ]),
+    ]
+
+    for i, (title, accent, body_lines) in enumerate(cards):
+        add_card(slide, x_positions[i], Inches(1.55), card_w, card_h,
+                 title=title, body_lines=body_lines, accent=accent)
+
+    return slide
+
+
+def slide_31(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Factor 7–9：Port Binding / Concurrency / Disposability")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 31)
+
+    card_w = Inches(4.0)
+    card_h = Inches(4.5)
+    x_positions = [Inches(0.3), Inches(4.6), Inches(8.9)]
+
+    cards = [
+        ("VII. Port Binding", PART_COLORS[2], [
+            "原則：App 自帶 HTTP Server",
+            "",
+            "✅ 正確：",
+            "  App 直接 listen port",
+            "  (FastAPI 內建 uvicorn)",
+            "  (Node.js 直接 listen 8080)",
+            "",
+            "❌ 錯誤：",
+            "  依賴外部 Apache / mod_wsgi",
+            "",
+            "→ App 可以直接被 LB 呼叫",
+            "   不需要中間的 Web Server 層",
+        ]),
+        ("VIII. Concurrency", PART_COLORS[2], [
+            "原則：以 Process 模型 Scale",
+            "",
+            "水平擴展 = 加 Process：",
+            "  web: 3 個 Process",
+            "  worker: 5 個 Process",
+            "",
+            "✅ 正確：",
+            "  每種工作類型獨立 Scale",
+            "",
+            "❌ 錯誤：",
+            "  單一超級大 Process 做所有事",
+            "",
+            "→ 對應 Docker Compose / K8s replica",
+        ]),
+        ("IX. Disposability", PART_COLORS[2], [
+            "原則：快速啟動，優雅關閉",
+            "",
+            "快速啟動：",
+            "  啟動時間 < 幾秒",
+            "  (Container 冷啟動問題)",
+            "",
+            "優雅關閉：",
+            "  收到 SIGTERM → 完成當前請求",
+            "  → 拒絕新請求 → 關閉",
+            "",
+            "→ K8s 可以隨時殺掉 Pod",
+            "   App 必須能處理這種情況",
+        ]),
+    ]
+
+    for i, (title, accent, body_lines) in enumerate(cards):
+        add_card(slide, x_positions[i], Inches(1.55), card_w, card_h,
+                 title=title, body_lines=body_lines, accent=accent)
+
+    return slide
+
+
+def slide_32(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Factor 10–12：Dev/Prod Parity / Logs / Admin")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 32)
+
+    card_w = Inches(4.0)
+    card_h = Inches(4.5)
+    x_positions = [Inches(0.3), Inches(4.6), Inches(8.9)]
+
+    cards = [
+        ("X. Dev/Prod Parity", ACCENT_GREEN, [
+            "原則：三環境盡量一致",
+            "",
+            "時間差：",
+            "  Dev → Prod 盡快（CI/CD）",
+            "",
+            "人員差：",
+            "  Dev 也要了解 Prod 狀況",
+            "",
+            "工具差：",
+            "  ❌ 本地 SQLite + 生產 PostgreSQL",
+            "  ✅ 本地也用 Docker + PostgreSQL",
+            "",
+            "→ Container + Docker Compose",
+            "   讓本地環境 = 生產環境",
+        ]),
+        ("XI. Logs", ACCENT_GREEN, [
+            "原則：Log 輸出到 stdout",
+            "",
+            "✅ 正確：",
+            "  print() / logger.info()",
+            "  App 不管 Log 要去哪裡",
+            "",
+            "❌ 錯誤：",
+            "  Log 寫到 /var/log/app.log",
+            "  App 自己管 Log rotation",
+            "",
+            "→ 容器平台負責收集 Log",
+            "   (ELK / Loki / CloudWatch)",
+            "",
+            "→ App 職責單一，不管 Log 路由",
+        ]),
+        ("XII. Admin Processes", ACCENT_GREEN, [
+            "原則：管理任務一次性執行",
+            "",
+            "常見管理任務：",
+            "  DB Migration",
+            "  資料修復腳本",
+            "  一次性初始化",
+            "",
+            "✅ 正確：",
+            "  docker run myapp python migrate.py",
+            "  k8s Job / CronJob",
+            "",
+            "❌ 錯誤：",
+            "  SSH 進去手動執行",
+            "  混在 App 啟動流程裡",
+        ]),
+    ]
+
+    for i, (title, accent, body_lines) in enumerate(cards):
+        add_card(slide, x_positions[i], Inches(1.55), card_w, card_h,
+                 title=title, body_lines=body_lines, accent=accent)
+
+    return slide
+
+
+def slide_33(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "常見違反 12-Factor 的案例分析")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 33)
+
+    danger_color = RGBColor(0xFF, 0x4A, 0x4A)
+
+    cases = [
+        (Inches(0.4), Inches(1.6), "案例 1：Config 寫死在 Code",
+         ["DB_URL = 'postgresql://admin:password@db.prod/'",
+          "發現問題：換 DB 要改 Code → 改 Code 要重新 Build → 違反 Factor III & V"]),
+        (Inches(6.9), Inches(1.6), "案例 2：Session 存在記憶體",
+         ["users = {} # {user_id: session_data}",
+          "發現問題：Scale Out 後 Session 消失 → 用戶被強制登出 → 違反 Factor VI"]),
+        (Inches(0.4), Inches(3.8), "案例 3：Log 寫到本地檔案",
+         ["logging.FileHandler('/var/log/app.log')",
+          "發現問題：K8s Pod 重啟 Log 遺失、分散式環境無法集中查看 → 違反 Factor XI"]),
+        (Inches(6.9), Inches(3.8), "案例 4：本地 SQLite + 生產 PG",
+         ["# dev: sqlite:///./app.db  # prod: postgresql://...",
+          "發現問題：SQLite 和 PostgreSQL 行為差異 → 本地測試過，上線就壞 → 違反 Factor X"]),
+    ]
+
+    for x, y, title, body in cases:
+        add_card(slide, x, y, Inches(5.8), Inches(2.0),
+                 title=title, body_lines=body, accent=danger_color)
+
+    add_callout(slide, "每一個違反，都是未來在不對的時間點爆發的技術債",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_34(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "12-Factor 與分散式架構的對應關係")
+    add_part_label(slide, 4, "12-Factor App")
+    add_page_number(slide, 34)
+
+    left_items = [
+        ("Load Balancer",               PART_COLORS[2]),
+        ("App Server (Stateless)",      ACCENT_BLUE),
+        ("Config / Secret 管理",        ACCENT_BLUE),
+        ("Session Store (Redis)",       ACCENT_AMBER),
+        ("Log 聚合平台",                ACCENT_GREEN),
+        ("Container Registry",          PART_COLORS[3]),
+    ]
+
+    right_items = [
+        ("→ Factor IX：Disposability 快速啟動/關閉", PART_COLORS[2]),
+        ("→ Factor VI：Processes 無狀態",            ACCENT_BLUE),
+        ("→ Factor III：Config 環境變數",            ACCENT_BLUE),
+        ("→ Factor VI：外部化 Session 狀態",         ACCENT_AMBER),
+        ("→ Factor XI：Logs 輸出到 stdout",          ACCENT_GREEN),
+        ("→ Factor V：Build-Release-Run 分離",       PART_COLORS[3]),
+    ]
+
+    y_start = Inches(1.6)
+    card_h = Inches(0.75)
+    y_spacing = Inches(0.82)
+
+    for i, (text, accent) in enumerate(left_items):
+        y = y_start + i * y_spacing
+        add_card(slide, Inches(0.4), y, Inches(5.0), card_h,
+                 body_lines=[text], accent=accent)
+
+    for i, (text, accent) in enumerate(right_items):
+        y = y_start + i * y_spacing
+        add_card(slide, Inches(7.5), y, Inches(5.0), card_h,
+                 body_lines=[text], accent=accent)
+
+    # Center connecting column
+    for i in range(6):
+        y = y_start + i * y_spacing
+        add_text(slide, "←→", Inches(5.6), y + Inches(0.2), Inches(1.6), Inches(0.4),
+                 font_size=Pt(16), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Bottom summary card
+    add_card(slide, Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.6),
+             body_lines=["Container 天生符合大多數 12-Factor 原則 → Container + 12-Factor = 真正 Cloud-Ready 的應用"],
+             accent=PART_COLORS[4])
+
+    return slide
+
+
 if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -1287,7 +1721,9 @@ if __name__ == "__main__":
                slide_08, slide_09, slide_10, slide_11, slide_12,
                slide_13, slide_14, slide_15, slide_16, slide_17,
                slide_18, slide_19, slide_20,
-               slide_21, slide_22, slide_23, slide_24, slide_25, slide_26]:
+               slide_21, slide_22, slide_23, slide_24, slide_25, slide_26,
+               slide_27, slide_28, slide_29, slide_30, slide_31,
+               slide_32, slide_33, slide_34]:
         fn(prs)
 
     prs.save("cloud_native_slides_v2.pptx")
