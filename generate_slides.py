@@ -1710,6 +1710,415 @@ def slide_34(prs):
     return slide
 
 
+def slide_35(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "DevOps：打破 Dev 和 Ops 的高牆")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 35)
+
+    # Left card - traditional silo culture
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(3.5),
+             title="❌ 傳統孤島文化",
+             body_lines=["Dev 團隊：「功能寫完了，丟給 Ops」",
+                         "Ops 團隊：「怎麼又出問題了！」",
+                         "",
+                         "問題根源：",
+                         "• Dev 不了解生產環境限制",
+                         "• Ops 不了解程式碼變更影響",
+                         "• 出問題互相推卸責任",
+                         "• 部署頻率低，每次都是大事件"],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Right card - DevOps culture
+    add_card(slide, Inches(7.0), Inches(1.6), Inches(5.8), Inches(3.5),
+             title="✅ DevOps 文化",
+             body_lines=["共同擁有系統，共同負責品質",
+                         "",
+                         "核心原則：",
+                         "• Dev 和 Ops 坐在同一團隊",
+                         "• 開發者要對 On-call 負責",
+                         "• 你 Build 它，你 Run 它",
+                         "• 頻繁小批次部署，降低風險",
+                         "• 失敗是學習機會，不是懲罰對象"],
+             accent=ACCENT_GREEN)
+
+    # Bottom summary card
+    add_card(slide, Inches(0.4), Inches(5.35), Inches(12.5), Inches(1.0),
+             title="DevOps 帶來的改變",
+             body_lines=["部署頻率：數月一次 → 數十次/天  ·  MTTR：數天 → 數小時  ·  變更失敗率：大幅下降"],
+             accent=PART_COLORS[5])
+
+    add_callout(slide, "DevOps 是文化變革，工具是結果，不是原因。沒有文化基礎，買再多工具都沒用",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_36(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "CI/CD Pipeline：讓部署成為日常")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 36)
+
+    # Flow diagram cards
+    stages = [
+        ("① Code Push", ACCENT_BLUE, ["git push", "PR Review", "Merge"]),
+        ("② CI Pipeline", PART_COLORS[2], ["Build", "Lint", "Test"]),
+        ("③ Image Build", PART_COLORS[3], ["docker build", "push to", "Registry"]),
+        ("④ Staging Deploy", ACCENT_AMBER, ["自動部署", "驗收測試", "QA 確認"]),
+        ("⑤ Prod Deploy", PART_COLORS[5], ["審核通過", "自動/手動", "Deploy"]),
+    ]
+    x_positions = [0.3, 3.0, 5.7, 8.4, 10.8]
+    card_w = Inches(2.2)
+    card_h = Inches(1.2)
+    y = Inches(1.8)
+
+    for i, (title, accent, body) in enumerate(stages):
+        x = Inches(x_positions[i])
+        add_card(slide, x, y, card_w, card_h, title=title, body_lines=body, accent=accent)
+        if i < len(stages) - 1:
+            arrow_x = x + card_w
+            add_text(slide, "→", arrow_x, Inches(2.2), Inches(0.6), Inches(0.4),
+                     font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Two side-by-side cards below
+    add_card(slide, Inches(0.4), Inches(3.2), Inches(5.8), Inches(2.5),
+             title="沒有 CI/CD 的世界",
+             body_lines=["部署是「重大事件」，半夜進行",
+                         "手動執行 15 個步驟",
+                         "出錯就怪「那個改程式的人」",
+                         "一個月才部署一次，積累大量變更",
+                         "每次部署都是在賭博"],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    add_card(slide, Inches(6.9), Inches(3.2), Inches(5.8), Inches(2.5),
+             title="有 CI/CD 的世界",
+             body_lines=["部署是「普通操作」，白天隨時進行",
+                         "git push 後自動完成所有步驟",
+                         "問題小且早發現，容易定位根因",
+                         "每天可以部署多次，每次變更小",
+                         "部署是工程師最無聊的工作"],
+             accent=ACCENT_GREEN)
+
+    add_callout(slide, "CI/CD 讓「部署」從「重大事件」變成「普通操作」，是 DevOps 文化的技術體現",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_37(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "大規模部署策略：如何安全上線？")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 37)
+
+    strategies = [
+        ("Rolling Update  滾動更新", ACCENT_BLUE,
+         ["逐台更新，零停機",
+          "",
+          "流程：",
+          "  Server 1 → 新版本 ✅",
+          "  Server 2 → 新版本 ✅",
+          "  Server 3 → 新版本 ✅",
+          "",
+          "✅ 零停機，資源不加倍",
+          "✅ 自動，K8s 原生支援",
+          "⚠ 瞬間新舊版本共存",
+          "⚠ 回滾需要時間",
+          "",
+          "適用：大多數場景的首選"]),
+        ("Blue-Green  藍綠部署", ACCENT_AMBER,
+         ["兩套環境切換，零風險回滾",
+          "",
+          "Blue = 當前生產 (v1)",
+          "Green = 新版本 (v2)",
+          "",
+          "1. Deploy v2 到 Green",
+          "2. 驗證 Green 正常",
+          "3. LB 切換到 Green",
+          "4. Blue 保留備用",
+          "",
+          "✅ 回滾只需切換 LB (秒級)",
+          "⚠ 需要 2x 資源成本"]),
+        ("Canary Release  金絲雀", PART_COLORS[5],
+         ["少量流量先驗證新版本",
+          "",
+          "流程：",
+          "  5% 用戶 → v2 (新版本)",
+          "  95% 用戶 → v1 (舊版本)",
+          "  → 監控指標無異常",
+          "  → 逐步 10% → 50% → 100%",
+          "",
+          "✅ 風險最低，影響面最小",
+          "✅ 可以做 A/B Testing",
+          "⚠ 需要流量分割能力",
+          "",
+          "適用：高風險功能上線"]),
+    ]
+
+    x_positions = [0.3, 4.6, 8.9]
+    for i, (title, accent, body) in enumerate(strategies):
+        add_card(slide, Inches(x_positions[i]), Inches(1.55), Inches(4.0), Inches(4.5),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "選擇策略看業務容忍度：回滾速度優先 → Blue-Green；風險控制優先 → Canary",
+                Inches(0.4), Inches(6.25), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_38(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "環境分層設計：Dev / Staging / Production")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 38)
+
+    envs = [
+        ("Development 環境", ACCENT_BLUE,
+         ["用途：開發者本地開發",
+          "使用者：工程師個人",
+          "",
+          "資料：假資料 / mock",
+          "更新：隨時，無限制",
+          "Config：.env.local",
+          "",
+          "工具：",
+          "  Docker Compose 本地啟動",
+          "  Hot reload 即時更新",
+          "  Debug 模式開啟",
+          "",
+          "12-Factor：Factor X (Dev/Prod Parity)"]),
+        ("Staging 環境", ACCENT_AMBER,
+         ["用途：上線前最終驗證",
+          "使用者：QA / PM / 利害關係人",
+          "",
+          "資料：生產資料的匿名副本",
+          "更新：PR Merge 後自動部署",
+          "Config：接近生產的設定",
+          "",
+          "原則：",
+          "  Staging ≈ Production",
+          "  越像，意外越少",
+          "  完整流程測試（含第三方）",
+          "",
+          "12-Factor：Factor X (Dev/Prod Parity)"]),
+        ("Production 環境", PART_COLORS[5],
+         ["用途：真實用戶使用",
+          "使用者：終端用戶",
+          "",
+          "資料：真實生產資料",
+          "更新：通過 Staging 驗證後",
+          "Config：生產 Secret，嚴格管控",
+          "",
+          "原則：",
+          "  任何變更都有審核",
+          "  有回滾計畫才能部署",
+          "  監控全開，Alert 設定好",
+          "",
+          "Cost：最高，需要 HA 設計"]),
+    ]
+
+    x_positions = [0.3, 4.6, 8.9]
+    for i, (title, accent, body) in enumerate(envs):
+        add_card(slide, Inches(x_positions[i]), Inches(1.55), Inches(4.0), Inches(4.5),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "Staging 與 Production 越相似，上線意外越少。最貴的是讓 Staging 和 Prod 不一樣的代價",
+                Inches(0.4), Inches(6.25), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_39(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "數十人團隊如何並行前進？")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 39)
+
+    # Left column
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.5), Inches(2.5),
+             title="❌ 常見問題",
+             body_lines=["多團隊同時改同個 Repo → 互相衝突",
+                         "部署要協調 → 誰先誰後？",
+                         "一個 Bug 擋住所有人的上線",
+                         "「等我這個功能合進去再說」"],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    add_card(slide, Inches(0.4), Inches(4.35), Inches(5.5), Inches(1.8),
+             title="Monorepo vs Polyrepo",
+             body_lines=["Monorepo：一個 Repo 放所有服務",
+                         "  ✅ 跨服務修改方便  ⚠ 複雜度高",
+                         "Polyrepo：每個服務獨立 Repo",
+                         "  ✅ 團隊完全自治  ⚠ 跨服務協調難"],
+             accent=ACCENT_AMBER)
+
+    # Right column
+    add_card(slide, Inches(6.2), Inches(1.6), Inches(6.5), Inches(3.2),
+             title="✅ 服務邊界切分原則",
+             body_lines=["一個團隊擁有一個（或少數幾個）服務",
+                         "服務之間透過 API 溝通，不共享 DB",
+                         "每個服務可以獨立部署，不依賴其他服務",
+                         "",
+                         "Conway's Law：",
+                         "「系統架構會長得像組織架構」",
+                         "→ 先設計好團隊結構，架構才會清晰"],
+             accent=ACCENT_GREEN)
+
+    add_card(slide, Inches(6.2), Inches(5.05), Inches(6.5), Inches(1.3),
+             title="實務建議",
+             body_lines=["Platform Team 負責共用基礎設施 (CI/CD / 監控)",
+                         "Product Team 負責各自的服務，自主部署"],
+             accent=PART_COLORS[5])
+
+    add_callout(slide, "讓每個團隊能獨立 Deploy，是大規模組織前進速度的關鍵",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_40(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "GitOps：以 Git 為唯一事實來源")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 40)
+
+    # Top flow
+    flow_stages = [
+        ("Developer", ACCENT_BLUE, ["寫 Code", "開 PR"]),
+        ("PR Review", PART_COLORS[2], ["Code Review", "Approved"]),
+        ("Git Merge", ACCENT_AMBER, ["Merge to", "main branch"]),
+        ("CD Tool", PART_COLORS[3], ["ArgoCD", "Flux CD"]),
+        ("Cluster", PART_COLORS[5], ["K8s / Prod", "自動同步"]),
+    ]
+    x_positions = [0.3, 3.0, 5.7, 8.4, 10.8]
+    card_w = Inches(2.2)
+    card_h = Inches(1.0)
+    y = Inches(1.6)
+
+    for i, (title, accent, body) in enumerate(flow_stages):
+        x = Inches(x_positions[i])
+        add_card(slide, x, y, card_w, card_h, title=title, body_lines=body, accent=accent)
+        if i < len(flow_stages) - 1:
+            arrow_x = x + card_w
+            add_text(slide, "→", arrow_x, Inches(2.0), Inches(0.6), Inches(0.4),
+                     font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Middle principle cards
+    principles = [
+        ("① 宣告式設定", ACCENT_BLUE,
+         ["所有部署設定都在 Git Repo", "YAML 描述「期望狀態」", "不是「怎麼做」，而是「要什麼」"]),
+        ("② PR-Driven 部署", PART_COLORS[2],
+         ["任何部署變更都要開 PR", "有 Review 才能上線", "Git history = 完整部署紀錄"]),
+        ("③ 自動同步", PART_COLORS[5],
+         ["CD 工具持續監控 Git", "偵測到變更自動部署", "系統自動對齊 Git 狀態"]),
+    ]
+    x_positions_mid = [0.3, 4.6, 8.9]
+    for i, (title, accent, body) in enumerate(principles):
+        add_card(slide, Inches(x_positions_mid[i]), Inches(2.9), Inches(4.0), Inches(2.0),
+                 title=title, body_lines=body, accent=accent)
+
+    # Bottom summary card
+    add_card(slide, Inches(0.4), Inches(5.1), Inches(12.5), Inches(1.1),
+             title="GitOps 的好處",
+             body_lines=["可審計：每次部署都有 Git commit  ·  可追蹤：誰在什麼時間改了什麼  ·  可回滾：git revert 即可回到任何版本"],
+             accent=ACCENT_GREEN)
+
+    add_callout(slide, "Git commit history = 完整部署紀錄。任何人任何時候都知道生產環境是什麼狀態",
+                Inches(0.4), Inches(6.4), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_41(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Feature Flags：解耦 Deploy 與 Release")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 41)
+
+    # Left card
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(2.8),
+             title="❌ 沒有 Feature Flags",
+             body_lines=["功能寫完才能部署",
+                         "→ 分支長期存在 → Merge 衝突",
+                         "→ 部署和上線綁死在一起",
+                         "→ 新功能有 Bug？整個版本回滾",
+                         "→ A/B Testing？重新部署兩個版本"],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Right card
+    add_card(slide, Inches(7.0), Inches(1.6), Inches(5.8), Inches(2.8),
+             title="✅ 有 Feature Flags",
+             body_lines=["if feature_flags.is_enabled('new_checkout'):",
+                         "    show_new_checkout_ui()",
+                         "else:",
+                         "    show_old_checkout_ui()",
+                         "",
+                         "→ 隨時可以部署，用 Flag 控制開放"],
+             accent=ACCENT_GREEN)
+
+    # Use case cards
+    use_cases = [
+        ("Gradual Rollout", ACCENT_BLUE, ["先開放 1% → 5% → 100%", "確認無問題再全量"]),
+        ("A/B Testing", PART_COLORS[2], ["A 組用舊版，B 組用新版", "用數據決定哪個更好"]),
+        ("Kill Switch", ACCENT_AMBER, ["出問題即時關閉功能", "不需要 Rollback 整個部署"]),
+    ]
+    x_positions = [0.3, 4.6, 8.9]
+    for i, (title, accent, body) in enumerate(use_cases):
+        add_card(slide, Inches(x_positions[i]), Inches(4.65), Inches(3.9), Inches(1.8),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "Deploy ≠ Release。部署是技術動作，上線是商業決策。Feature Flags 讓兩者解耦",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_42(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Part 5 小結：DevOps 讓數十人團隊安全前進")
+    add_part_label(slide, 5, "DevOps 大規模整合")
+    add_page_number(slide, 42)
+
+    # Integrated flow diagram
+    flow_items = [
+        ("DevOps 文化", PART_COLORS[5]),
+        ("CI/CD", PART_COLORS[2]),
+        ("環境分層", ACCENT_AMBER),
+        ("部署策略", ACCENT_BLUE),
+        ("GitOps", PART_COLORS[3]),
+        ("Feature Flags", ACCENT_GREEN),
+        ("可靠上線", PART_COLORS[5]),
+    ]
+    x_positions = [0.3, 2.2, 4.1, 6.0, 7.9, 9.8, 11.5]
+    card_w = Inches(1.6)
+    card_h = Inches(1.0)
+    y = Inches(1.7)
+
+    for i, (label, accent) in enumerate(flow_items):
+        x = Inches(x_positions[i])
+        add_card(slide, x, y, card_w, card_h, body_lines=[label], accent=accent)
+        if i < len(flow_items) - 1:
+            arrow_x = x + card_w
+            add_text(slide, "→", arrow_x, Inches(2.0), Inches(0.4), Inches(0.35),
+                     font_size=Pt(16), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Key insight card
+    add_card(slide, Inches(0.4), Inches(3.0), Inches(12.5), Inches(1.5),
+             title="核心認知",
+             body_lines=["CI/CD 不是工具，是文化和流程",
+                         "讓每個 PR Merge 都可以安全上線，讓每個 Deploy 都可以快速回滾",
+                         "目標：讓部署成為「最無聊」的工作，工程師應該把精力放在「產品創新」"],
+             accent=PART_COLORS[5])
+
+    # Metric cards
+    metrics = [
+        ("部署頻率", ACCENT_BLUE, ["目標：每天多次", "指標：Deploy Frequency"]),
+        ("變更前置時間", ACCENT_GREEN, ["Commit → Production", "指標：Lead Time for Change"]),
+        ("平均恢復時間", ACCENT_AMBER, ["出事到恢復多快", "指標：MTTR"]),
+    ]
+    x_positions_m = [0.3, 4.6, 8.9]
+    for i, (title, accent, body) in enumerate(metrics):
+        add_card(slide, Inches(x_positions_m[i]), Inches(4.75), Inches(3.9), Inches(1.6),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "下一步 → Part 6：整個 SDLC 閉環，從 Idea 到監控生產環境的完整旅程",
+                Inches(0.4), Inches(6.55), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
 if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -1723,7 +2132,9 @@ if __name__ == "__main__":
                slide_18, slide_19, slide_20,
                slide_21, slide_22, slide_23, slide_24, slide_25, slide_26,
                slide_27, slide_28, slide_29, slide_30, slide_31,
-               slide_32, slide_33, slide_34]:
+               slide_32, slide_33, slide_34,
+               slide_35, slide_36, slide_37, slide_38, slide_39, slide_40,
+               slide_41, slide_42]:
         fn(prs)
 
     prs.save("cloud_native_slides_v2.pptx")
