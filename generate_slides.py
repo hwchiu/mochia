@@ -278,6 +278,346 @@ def slide_02_agenda(prs):
     return slide
 
 
+def slide_03(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "起點：最簡單的部署架構")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 3)
+
+    # Left side: Architecture diagram
+    add_card(slide, Inches(0.5), Inches(1.8), Inches(5.5), Inches(0.7),
+             title="使用者 Browser", accent=ACCENT_BLUE)
+    add_text(slide, "→", Inches(0.5), Inches(2.55), Inches(5.5), Inches(0.4),
+             font_size=Pt(22), color=TEXT_DIM, align=PP_ALIGN.CENTER, bold=True)
+    add_card(slide, Inches(0.5), Inches(3.0), Inches(5.5), Inches(0.9),
+             title="Linux Server :8080 (my-app)", accent=ACCENT_BLUE)
+
+    # Right side: Two cards stacked
+    add_card(slide, Inches(6.5), Inches(1.8), Inches(6.3), Inches(1.5),
+             title="✅ 優點", accent=ACCENT_GREEN,
+             body_lines=["設定簡單、維運容易", "適合初期開發與 PoC 驗證", "開發環境 ≈ 生產環境"])
+    add_card(slide, Inches(6.5), Inches(3.5), Inches(6.3), Inches(1.5),
+             title="⚠  問題", accent=ACCENT_AMBER,
+             body_lines=["單點故障 (SPOF)", "無法應付高流量", "資料存記憶體 → 重啟即遺失"])
+
+    # Callout tip
+    add_callout(slide, "課堂 PoC 常用這種架構，但真實產品幾乎不會停在這裡",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_04(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "請求的旅程：一個 HTTP Request 經歷什麼？")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 4)
+
+    steps = [
+        ("① DNS 解析", "查詢域名 → 取得 Server IP"),
+        ("② TCP 握手", "三次握手 → 建立可靠連線"),
+        ("③ HTTP Request", "GET /api/data → 發送請求"),
+        ("④ App 處理", "業務邏輯 → 查 DB / 計算"),
+        ("⑤ DB Query", "執行 SQL → 取得資料"),
+        ("⑥ HTTP Response", "JSON 回傳 → Client 收到"),
+    ]
+
+    x_positions = [Inches(0.4), Inches(6.9)]
+    y_start = Inches(1.6)
+    y_spacing = Inches(1.7)
+
+    for i, (title, desc) in enumerate(steps):
+        col = i % 2
+        row = i // 2
+        x = x_positions[col]
+        y = y_start + row * y_spacing
+        add_card(slide, x, y, Inches(5.8), Inches(1.4),
+                 title=title, body_lines=[desc], accent=ACCENT_BLUE)
+
+    add_callout(slide, "理解這條路徑，才知道瓶頸藏在哪一層",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_05(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "第一步擴展：分離資料庫 Server")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 5)
+
+    # Left side: Architecture diagram
+    add_card(slide, Inches(0.5), Inches(2.0), Inches(5.5), Inches(0.9),
+             title="App Server  (my-app :8080)", accent=ACCENT_BLUE)
+    add_text(slide, "→ SQL →", Inches(0.5), Inches(2.95), Inches(5.5), Inches(0.4),
+             font_size=Pt(16), color=TEXT_DIM, align=PP_ALIGN.CENTER, bold=True)
+    add_card(slide, Inches(0.5), Inches(3.3), Inches(5.5), Inches(0.9),
+             title="DB Server  (PostgreSQL :5432)", accent=PART_COLORS[4])
+
+    # Right side
+    add_card(slide, Inches(6.5), Inches(2.0), Inches(6.3), Inches(1.7),
+             title="為什麼要把 DB 獨立出來？",
+             body_lines=[
+                 "① App Server 可以無狀態重啟，不影響資料",
+                 "② DB 資源需求不同，可以獨立調整規格",
+                 "③ 資料可以被多個 App 共用",
+             ],
+             accent=ACCENT_BLUE)
+
+    add_callout(slide, "新問題：網路連線延遲增加、DB 成為效能瓶頸、兩台機器各別維護",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_06(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "三層架構：Frontend + Backend + Database")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 6)
+
+    tiers = [
+        (Inches(0.4),  PART_COLORS[3], "Presentation Tier",
+         ["Frontend Server", "React / Vue", "Nginx : 80", "", "職責：UI 呈現、", "靜態資源服務"]),
+        (Inches(4.7),  ACCENT_BLUE,    "Application Tier",
+         ["Backend Server", "FastAPI / Node.js", ": 8080", "", "職責：業務邏輯、", "API 處理"]),
+        (Inches(9.0),  PART_COLORS[4], "Data Tier",
+         ["Database Server", "PostgreSQL", ": 5432", "", "職責：資料持久化、", "查詢處理"]),
+    ]
+
+    for x, accent, title, body in tiers:
+        add_card(slide, x, Inches(1.6), Inches(3.8), Inches(3.8),
+                 title=title, body_lines=body, accent=accent)
+
+    # Arrows between cards
+    add_text(slide, "→", Inches(4.2), Inches(3.0), Inches(0.5), Inches(0.5),
+             font_size=Pt(22), color=TEXT_DIM, align=PP_ALIGN.CENTER, bold=True)
+    add_text(slide, "→", Inches(8.5), Inches(3.0), Inches(0.5), Inches(0.5),
+             font_size=Pt(22), color=TEXT_DIM, align=PP_ALIGN.CENTER, bold=True)
+
+    add_callout(slide, "3 台機器 = 3 倍維運工作量，且任何一台掛掉都影響整個服務",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_07(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "三層架構的真實挑戰")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 7)
+
+    danger_color = RGBColor(0xFF, 0x4A, 0x4A)
+    cards = [
+        (Inches(0.4), Inches(1.6), "① 部署順序地雷",
+         ["前後端必須依序更新", "Frontend v2 + Backend v1 = API 不相容", "任一步驟失敗，整體需回滾"]),
+        (Inches(6.9), Inches(1.6), "② 版本相依性地獄",
+         ["Frontend 假設 API 回傳格式", "Backend 改動 response 結構", "雙方沒有明確合約 → 上線即爆炸"]),
+        (Inches(0.4), Inches(3.8), "③ 開發環境差異",
+         ["本地 macOS → 測試 Ubuntu 20 → 生產 Ubuntu 22", "套件版本不同 → 行為不一致", "「我這裡跑得好好的...」"]),
+        (Inches(6.9), Inches(3.8), "④ 單點故障",
+         ["任何一層掛掉 → 整個服務中斷", "Frontend 掛 → 用戶看不到頁面", "DB 掛 → 全站 500 Error"]),
+    ]
+
+    for x, y, title, body in cards:
+        add_card(slide, x, y, Inches(5.8), Inches(2.0),
+                 title=title, body_lines=body, accent=danger_color)
+
+    add_callout(slide, "這些問題在小團隊可以忍受，但隨著規模成長會爆炸",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_08(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "如何找出系統瓶頸？")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 8)
+
+    bottlenecks = [
+        ("CPU 瓶頸",      "症狀: top/htop CPU 100%  |  工具: perf, flame graph"),
+        ("Memory 瓶頸",   "症狀: OOM Kill, Swap 滿  |  工具: free, valgrind"),
+        ("Disk I/O 瓶頸", "症狀: iowait 高, 寫入慢  |  工具: iostat, iotop"),
+        ("Network 瓶頸",  "症狀: 封包遺失, 延遲高  |  工具: netstat, tcpdump"),
+        ("DB Query 瓶頸", "症狀: 慢查詢, Lock 等待  |  工具: EXPLAIN ANALYZE"),
+    ]
+
+    y = Inches(1.6)
+    for title, desc in bottlenecks:
+        add_card(slide, Inches(0.4), y, Inches(7.5), Inches(0.85),
+                 title=title, body_lines=[desc], accent=ACCENT_BLUE)
+        y += Inches(0.9)
+
+    # Right card
+    add_card(slide, Inches(8.2), Inches(1.6), Inches(4.8), Inches(4.5),
+             title="解讀監控訊號",
+             body_lines=[
+                 "P50 / P95 / P99 Latency",
+                 "Request per Second (RPS)",
+                 "Error Rate (%)",
+                 "CPU / Memory 使用率",
+                 "DB Connection Pool 使用量",
+             ],
+             accent=ACCENT_BLUE)
+
+    add_callout(slide, "先量測，再優化。不要猜，要看數據。沒有監控就沒有優化的依據",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_09(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "何時需要開始思考 Scale？")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 9)
+
+    indicators = [
+        (Inches(0.4), RGBColor(0xFF, 0x4A, 0x4A), "CPU 持續 > 70%",
+         ["計算資源不足", "壓力測試時先觸頂", "Scale Up 或 Scale Out", "加 Cache 降低計算量"]),
+        (Inches(4.6), ACCENT_AMBER, "Response P99 > 1s",
+         ["用戶體驗明顯下降", "長尾延遲影響轉換率", "查慢查詢 / 優化邏輯", "若已優化 → 需 Scale"]),
+        (Inches(8.8), ACCENT_BLUE, "Error Rate > 0.1%",
+         ["服務不穩定訊號", "可能是 OOM / DB 連線耗盡", "先找根因，再決定是否 Scale"]),
+    ]
+
+    for x, accent, title, body in indicators:
+        add_card(slide, x, Inches(1.6), Inches(3.9), Inches(2.8),
+                 title=title, body_lines=body, accent=accent)
+
+    add_card(slide, Inches(0.4), Inches(4.65), Inches(12.5), Inches(1.3),
+             title="常見錯誤：過早 Scale",
+             body_lines=[
+                 "需求還沒穩定就急著上 K8s",
+                 "單機能搞定的問題別引入分散式複雜度",
+                 "先用單機撐到真正需要的時候再 Scale",
+             ],
+             accent=ACCENT_AMBER)
+
+    add_callout(slide, "過早優化是萬惡之源 — Donald Knuth。先讓產品活下來，再考慮 Scale",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_10(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Scale Up vs Scale Out：兩種擴展思路")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 10)
+
+    # Left: Scale Up
+    add_card(slide, Inches(0.4), Inches(1.9), Inches(5.8), Inches(0.5),
+             title="Scale Up  垂直擴展", accent=ACCENT_AMBER)
+    add_card(slide, Inches(0.4), Inches(2.6), Inches(5.8), Inches(3.5),
+             body_lines=[
+                 "舊機器: 4 Core / 16GB",
+                 "    ↓",
+                 "新機器: 64 Core / 512GB",
+                 "",
+                 "✅ 架構不用改，快速",
+                 "✅ 無需修改程式碼",
+                 "⚠  成本指數級成長",
+                 "⚠  硬體有上限",
+                 "⚠  升級需要停機",
+             ],
+             accent=ACCENT_AMBER)
+
+    # Right: Scale Out
+    add_card(slide, Inches(7.0), Inches(1.9), Inches(5.8), Inches(0.5),
+             title="Scale Out  水平擴展", accent=ACCENT_GREEN)
+    add_card(slide, Inches(7.0), Inches(2.6), Inches(5.8), Inches(3.5),
+             body_lines=[
+                 "Server 1 (4C/16GB)",
+                 "Server 2 (4C/16GB)",
+                 "Server 3 (4C/16GB)  + N 台",
+                 "",
+                 "✅ 成本線性成長，彈性",
+                 "✅ 零停機，滾動更新",
+                 "✅ 理論上無上限",
+                 "⚠  架構需要重新設計",
+             ],
+             accent=ACCENT_GREEN)
+
+    # Center VS label
+    add_text(slide, "VS", Inches(6.0), Inches(3.5), Inches(0.8), Inches(0.8),
+             font_size=Pt(28), color=TEXT_DIM, align=PP_ALIGN.CENTER, bold=True)
+
+    add_callout(slide, "Scale Out 是 Cloud Native 的核心，但需要應用程式支援 Stateless 設計",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_11(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Stateless 設計：Scale Out 的先決條件")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 11)
+
+    # Left: Stateful (bad)
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(3.5),
+             title="❌ Stateful（有問題）",
+             body_lines=[
+                 "Session 存在 App Server 記憶體",
+                 "Request #1 → Server A (登入成功)",
+                 "Request #2 → Server B (找不到 Session!)",
+                 "→ 用戶被強制登出！",
+                 "",
+                 "問題：Server 之間 Session 無法共用",
+             ],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Right: Stateless (good)
+    add_card(slide, Inches(7.0), Inches(1.6), Inches(5.8), Inches(3.5),
+             title="✅ Stateless（正確）",
+             body_lines=[
+                 "Session 外部化存入 Redis",
+                 "Request #1 → Server A → Redis 取 Session",
+                 "Request #2 → Server B → Redis 取 Session",
+                 "→ 任一台 Server 都能處理！",
+                 "",
+                 "原則：App Server 不存任何特定狀態",
+             ],
+             accent=ACCENT_GREEN)
+
+    # Center arrow
+    add_text(slide, "→", Inches(6.0), Inches(3.0), Inches(0.8), Inches(0.6),
+             font_size=Pt(28), color=ACCENT_BLUE, align=PP_ALIGN.CENTER, bold=True)
+
+    add_callout(slide, "每個 Request 都應該可以被任何一台 Server 處理 — 這是 Scale Out 的核心前提",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_12(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Part 1 小結：架構演進路線圖")
+    add_part_label(slide, 1, "傳統部署的演進")
+    add_page_number(slide, 12)
+
+    # Timeline baseline
+    add_rect(slide, Inches(0.5), Inches(3.15), Inches(12.3), Inches(0.04), ACCENT_BLUE)
+
+    stages = ["單機部署", "DB 分離", "三層架構", "需要 Scale Out"]
+    pains = [
+        "✅ 快速上線\n⚠ SPOF，無擴展性",
+        "✅ 資料持久化\n⚠ 2台機器，網路延遲",
+        "✅ 職責清晰\n⚠ 3台機器，部署複雜",
+        "✅ 高可用潛力\n⚠ Session / LB 挑戰",
+    ]
+
+    node_xs = [0.6, 3.8, 7.0, 10.2]
+
+    for i, (stage, pain) in enumerate(zip(stages, pains)):
+        nx = Inches(node_xs[i])
+        # Dot
+        add_rect(slide, nx, Inches(3.0), Inches(0.32), Inches(0.32), ACCENT_BLUE)
+        # Above line: stage title
+        add_text(slide, stage, nx - Inches(1.0), Inches(1.85), Inches(2.8), Inches(1.0),
+                 font_size=Pt(13), color=TEXT_PRIMARY, align=PP_ALIGN.CENTER, bold=True)
+        # Below line: pain points
+        add_text(slide, pain, nx - Inches(1.0), Inches(3.35), Inches(2.8), Inches(1.5),
+                 font_size=Pt(11), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    add_callout(slide, "下一步 → Part 2：如何 Scale Out，以及隨之而來的新挑戰",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
 if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -285,6 +625,9 @@ if __name__ == "__main__":
 
     slide_01_cover(prs)
     slide_02_agenda(prs)
+    for fn in [slide_03, slide_04, slide_05, slide_06, slide_07,
+               slide_08, slide_09, slide_10, slide_11, slide_12]:
+        fn(prs)
 
     prs.save("cloud_native_slides_v2.pptx")
     print(f"✅ Generated {len(prs.slides)} slides → cloud_native_slides_v2.pptx")
