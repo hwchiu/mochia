@@ -618,6 +618,313 @@ def slide_12(prs):
     return slide
 
 
+def slide_13(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Load Balancer：流量分發的核心元件")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 13)
+
+    # Left: Architecture flow diagram
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.0), Inches(0.6),
+             title=None, body_lines=["Clients (Users)"], accent=TEXT_DIM)
+    add_text(slide, "↓", Inches(0.4), Inches(2.25), Inches(5.0), Inches(0.4),
+             font_size=Pt(20), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_card(slide, Inches(0.4), Inches(2.55), Inches(5.0), Inches(0.7),
+             title=None, body_lines=["Load Balancer  :80 / :443"], accent=PART_COLORS[2])
+    add_text(slide, "↙  ↓  ↘", Inches(0.4), Inches(3.3), Inches(5.0), Inches(0.4),
+             font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    # Three small server cards side by side
+    for i, label in enumerate(["App Server 1", "App Server 2", "App Server 3"]):
+        add_card(slide, Inches(0.4 + i * 1.6), Inches(3.75), Inches(1.5), Inches(0.55),
+                 title=None, body_lines=[label], accent=ACCENT_BLUE)
+    add_text(slide, "↓", Inches(0.4), Inches(4.35), Inches(5.0), Inches(0.35),
+             font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_card(slide, Inches(0.4), Inches(4.65), Inches(5.0), Inches(0.6),
+             title=None, body_lines=["Database  :5432"], accent=PART_COLORS[4])
+
+    # Right: Algorithm cards
+    algo_cards = [
+        (ACCENT_BLUE,         "Round Robin",          ["依序輪流 A→B→C→A  |  適用：同規格 Server"]),
+        (PART_COLORS[2],      "Weighted Round Robin", ["依權重比例分配  |  適用：Server 規格不同"]),
+        (ACCENT_GREEN,        "Least Connections",    ["優先分配給連線最少的  |  適用：長連線 API"]),
+        (ACCENT_AMBER,        "IP Hash",              ["同一 IP 固定導向同台  |  適用：需 Sticky Session"]),
+        (RGBColor(0x00,0xE5,0xFF), "Health Check",   ["定期 Ping，自動移除故障節點  |  所有生產環境基本配置"]),
+    ]
+    for idx, (accent, title, body) in enumerate(algo_cards):
+        add_card(slide, Inches(6.0), Inches(1.6 + idx * 0.95), Inches(7.0), Inches(0.85),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "LB 是 Scale Out 的入口，健康檢查讓系統具備自動容錯能力",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_14(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Scale Out 的陷阱：Session 狀態問題")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 14)
+
+    # Problem card at top
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(12.5), Inches(1.5),
+             title="問題情境：用戶登入後，下一個 Request 被導到不同的 Server...",
+             body_lines=[
+                 "Request #1 登入 → Server 1 ✅  |  Request #2 查詢 → Server 2 ❌  |  Request #3 購買 → Server 3 ❌",
+                 "結果：Session 散在各自記憶體 → 用戶被強制登出！",
+             ],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Three solution cards
+    solution_cards = [
+        (Inches(0.4),  ACCENT_AMBER, "① Cookie-Based Session",
+         ["Session 資料存在 Cookie 中", "每次 Request 帶著資料",
+          "✅ 不依賴 Server 狀態", "⚠ 大小有限制 (4KB)", "⚠ 敏感資料需加密"]),
+        (Inches(4.6),  ACCENT_GREEN, "② Redis Session Store",
+         ["Session 存入 Redis", "所有 Server 共用同一份",
+          "✅ 完整 Session 功能", "✅ TTL 自動過期", "⚠ 多一個外部依賴"]),
+        (Inches(8.8),  ACCENT_BLUE,  "③ JWT Token",
+         ["無狀態 Token，含用戶資訊", "Server 不需存任何東西",
+          "✅ 完全 Stateless", "✅ 跨服務驗證", "⚠ 無法立即作廢"]),
+    ]
+    for x, accent, title, body in solution_cards:
+        add_card(slide, x, Inches(3.4), Inches(3.9), Inches(2.6),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "核心設計原則：App Server 本身不應儲存任何特定請求的狀態（Stateless）",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_15(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "資料庫的擴展：Read Replica 架構")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 15)
+
+    # Left half: App server stack
+    for i, label in enumerate(["App Server 1", "App Server 2", "App Server 3", "App Server 4"]):
+        add_card(slide, Inches(0.4), Inches(1.8 + i * 0.75), Inches(2.8), Inches(0.65),
+                 title=None, body_lines=[label], accent=ACCENT_BLUE)
+
+    # Write arrow label
+    add_text(slide, "Write →", Inches(3.3), Inches(2.1), Inches(1.2), Inches(0.4),
+             font_size=Pt(11), color=ACCENT_AMBER, bold=True)
+    # Read arrow label
+    add_text(slide, "Read →", Inches(3.3), Inches(3.5), Inches(1.2), Inches(0.4),
+             font_size=Pt(11), color=ACCENT_GREEN, bold=True)
+
+    # Center: Primary DB
+    add_card(slide, Inches(4.5), Inches(2.3), Inches(3.0), Inches(0.9),
+             title="Primary DB (Write Only)", body_lines=[], accent=ACCENT_BLUE)
+
+    # Replication label
+    add_text(slide, "Replication →", Inches(4.5), Inches(3.3), Inches(3.0), Inches(0.4),
+             font_size=Pt(10), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Right: Replica cards
+    for i, label in enumerate(["Read Replica 1", "Read Replica 2", "Read Replica 3"]):
+        add_card(slide, Inches(7.8), Inches(1.8 + i * 0.75), Inches(3.5), Inches(0.65),
+                 title=None, body_lines=[label], accent=TEXT_DIM)
+
+    # Right-side info cards
+    add_card(slide, Inches(7.5), Inches(3.8), Inches(5.4), Inches(1.5),
+             title="✅ 優點",
+             body_lines=["讀取效能大幅提升", "Primary 壓力降低", "容災備援"],
+             accent=ACCENT_GREEN)
+    add_card(slide, Inches(0.4), Inches(3.8), Inches(6.8), Inches(1.5),
+             title="⚠  限制",
+             body_lines=["Write 仍是單點", "Replication Lag 資料延遲", "讀寫路由需在 App 層區分"],
+             accent=ACCENT_AMBER)
+
+    add_callout(slide, "約 80% 的 DB 操作是讀取。Read Replica 大幅分散壓力。Write 瓶頸需 Sharding 或 NewSQL 解決",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_16(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "三層 Caching 策略：從外到內")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 16)
+
+    cache_cards = [
+        (Inches(0.4),  ACCENT_AMBER,   "① CDN Cache  (最外層)",
+         ["靜態資源：JS / CSS / 圖片", "全球節點分發", "TTL: 小時~天", "Cost: 極低",
+          "", "命中率: 60~80%", "適合: 不常變動的資源"]),
+        (Inches(4.6),  PART_COLORS[2], "② Redis / Memcached  (應用層)",
+         ["API 回應結果", "Session Store", "計算結果快取", "TTL: 秒~分鐘",
+          "", "命中率: 40~60%", "適合: 熱門查詢結果"]),
+        (Inches(8.8),  ACCENT_BLUE,    "③ Local In-Process  (最內層)",
+         ["超熱資料 (config / 靜態表)", "microsecond 等級", "TTL: 秒級", "大小: 有限 (幾MB)",
+          "", "命中率: 90%+", "適合: 幾乎不變的資料"]),
+    ]
+    for x, accent, title, body in cache_cards:
+        add_card(slide, x, Inches(1.6), Inches(3.9), Inches(3.2),
+                 title=title, body_lines=body, accent=accent)
+
+    # Bottom: Cache Invalidation card
+    add_card(slide, Inches(0.4), Inches(5.05), Inches(12.5), Inches(1.0),
+             title="Cache Invalidation 挑戰",
+             body_lines=["快取何時更新？Write-Through / Write-Behind / Cache-Aside 三種策略各有取捨"],
+             accent=ACCENT_AMBER)
+
+    add_callout(slide, "Cache 帶來效能，也帶來資料一致性挑戰。There are only two hard things in CS...",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_17(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "訊息佇列：非同步解耦的利器")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 17)
+
+    # Left: Sync problem card
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(2.5),
+             title="❌ 同步呼叫的問題",
+             body_lines=[
+                 "Service A → Service B → Service C",
+                 "任一服務慢 → 全部等待",
+                 "任一服務掛 → 整條鏈斷",
+                 "流量大時 → 下游被壓垮",
+                 "Scale 困難：必須一起 Scale",
+             ],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Center arrow
+    add_text(slide, "→", Inches(6.2), Inches(2.6), Inches(0.8), Inches(0.6),
+             font_size=Pt(32), color=ACCENT_BLUE, align=PP_ALIGN.CENTER)
+
+    # Right: MQ solution card
+    add_card(slide, Inches(7.0), Inches(1.6), Inches(5.8), Inches(2.5),
+             title="✅ MQ 解耦",
+             body_lines=[
+                 "Producer → Queue → Consumer",
+                 "Producer 不知道 Consumer 是誰",
+                 "Consumer 可以獨立 Scale",
+                 "Consumer 掛掉 → 訊息在 Queue 等待",
+                 "解耦 = 獨立部署、獨立容錯",
+             ],
+             accent=ACCENT_GREEN)
+
+    # Bottom use case cards
+    use_cases = [
+        (Inches(0.4),  "Email / 通知發送",   ["非同步處理，不阻塞主流程"]),
+        (Inches(4.6),  "影片 / 圖片處理",    ["耗時任務排隊，Consumer 依序處理"]),
+        (Inches(8.8),  "訂單 / 金流流程",    ["確保不遺失，重試機制"]),
+    ]
+    for x, title, body in use_cases:
+        add_card(slide, x, Inches(4.4), Inches(3.9), Inches(1.6),
+                 title=title, body_lines=body, accent=ACCENT_BLUE)
+
+    add_callout(slide, "MQ 讓服務彼此獨立，任一方可以獨立 Scale 且不互相影響",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_18(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "完整分散式架構全貌")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 18)
+
+    # Row 1
+    add_card(slide, Inches(0.4), Inches(1.5), Inches(12.5), Inches(0.5),
+             title=None,
+             body_lines=["Internet Users → CDN (Cloudflare) → WAF / Firewall → DNS LB"],
+             accent=TEXT_DIM)
+    # Arrow
+    add_text(slide, "↓", Inches(6.0), Inches(2.05), Inches(1.5), Inches(0.25),
+             font_size=Pt(14), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    # Row 2
+    add_card(slide, Inches(4.5), Inches(2.15), Inches(4.0), Inches(0.5),
+             title=None, body_lines=["Frontend LB (Nginx)"], accent=PART_COLORS[3])
+    # Arrow
+    add_text(slide, "↓", Inches(6.0), Inches(2.7), Inches(1.5), Inches(0.25),
+             font_size=Pt(14), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    # Row 3: 3 frontend servers
+    for i, label in enumerate(["Frontend Server 1", "Frontend Server 2", "Frontend Server 3"]):
+        add_card(slide, Inches(0.3 + i * 4.2), Inches(2.8), Inches(3.8), Inches(0.5),
+                 title=None, body_lines=[label], accent=PART_COLORS[3])
+    # Arrow
+    add_text(slide, "↓", Inches(6.0), Inches(3.35), Inches(1.5), Inches(0.25),
+             font_size=Pt(14), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    # Row 4
+    add_card(slide, Inches(4.5), Inches(3.45), Inches(4.0), Inches(0.5),
+             title=None, body_lines=["Backend LB (HAProxy)"], accent=PART_COLORS[2])
+    # Arrow
+    add_text(slide, "↓", Inches(6.0), Inches(4.0), Inches(1.5), Inches(0.25),
+             font_size=Pt(14), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    # Row 5: 3 backend servers
+    for i, label in enumerate(["Backend Server 1", "Backend Server 2", "Backend Server 3"]):
+        add_card(slide, Inches(0.3 + i * 4.2), Inches(4.1), Inches(3.8), Inches(0.5),
+                 title=None, body_lines=[label], accent=PART_COLORS[2])
+    # Arrow
+    add_text(slide, "↓", Inches(6.0), Inches(4.65), Inches(1.5), Inches(0.25),
+             font_size=Pt(14), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    # Row 6: infra
+    add_card(slide, Inches(0.3),  Inches(4.75), Inches(3.8), Inches(0.5),
+             title=None, body_lines=["Redis Cluster"], accent=ACCENT_AMBER)
+    add_card(slide, Inches(4.5),  Inches(4.75), Inches(3.8), Inches(0.5),
+             title=None, body_lines=["MQ (RabbitMQ)"], accent=ACCENT_AMBER)
+    add_card(slide, Inches(8.7),  Inches(4.75), Inches(4.2), Inches(0.5),
+             title=None, body_lines=["DB Primary + 3 Replica"], accent=PART_COLORS[4])
+
+    add_callout(slide,
+                "共需維護：2 LB + 3 Frontend + 3 Backend + 4 Cache/MQ + 4 DB + CDN/WAF = 15+ 台機器！",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="danger")
+    return slide
+
+
+def slide_19(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "部署惡夢：維運複雜度爆炸")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 19)
+
+    danger_color = RGBColor(0xFF, 0x4A, 0x4A)
+    grid_cards = [
+        (Inches(0.4), Inches(1.6),  "⑴ 環境不一致",
+         ["Dev：「我機器上能跑」", "15 台機器的 Runtime 版本可能都不同", "手動 SSH 逐一更新，出錯機率極高"]),
+        (Inches(6.9), Inches(1.6),  "⑵ 更新 / 回滾困難",
+         ["新版本需依序更新全部 15 台機器", "某台失敗了怎麼回滾？", "停機時間難以控制，風險極高"]),
+        (Inches(0.4), Inches(3.8),  "⑶ 設定管理混亂",
+         ["每台機器的 config 可能不同", "DB 連線字串、Secret Key 散落各處", "新機器如何確保設定正確？"]),
+        (Inches(6.9), Inches(3.8),  "⑷ Dev/Prod 環境落差",
+         ["開發者用 macOS，Server 是 Ubuntu", "套件相依性（Dependency Hell）", "「在本地跑得好好的...」"]),
+    ]
+    for x, y, title, body in grid_cards:
+        add_card(slide, x, y, Inches(5.8), Inches(2.0),
+                 title=title, body_lines=body, accent=danger_color)
+
+    add_callout(slide, "資深工程師每天花大量時間在「機器設定與維護」而非「產品開發」",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_20(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Part 2 小結：問題累積，需要新思維")
+    add_part_label(slide, 2, "Scale Out 的挑戰")
+    add_page_number(slide, 20)
+
+    summary_rows = [
+        (ACCENT_BLUE,        "Load Balancer  ✅ 單一入口、健康檢查  ⚠ 需 Stateless 設計、新增設定層"),
+        (PART_COLORS[2],     "Session Store  ✅ 解決多機 Session  ⚠ 多一個 Redis 依賴要維護"),
+        (ACCENT_GREEN,       "DB Read Replica  ✅ 讀取效能大幅提升  ⚠ Write 仍是瓶頸、Replication Lag"),
+        (ACCENT_AMBER,       "Caching  ✅ 大幅降低 DB 壓力  ⚠ Cache 一致性問題、過期策略複雜"),
+        (PART_COLORS[3],     "訊息佇列 MQ  ✅ 服務解耦、非同步  ⚠ 增加基礎設施複雜度"),
+        (PART_COLORS[4],     "完整分散式架構  ✅ 高可用 + 高效能  ⚠ 15+ 台機器，維運地獄"),
+    ]
+    for idx, (accent, text) in enumerate(summary_rows):
+        add_card(slide, Inches(0.4), Inches(1.6 + idx * 0.7), Inches(12.5), Inches(0.62),
+                 title=None, body_lines=[text], accent=accent)
+
+    add_callout(slide, "有沒有辦法，讓「在哪台機器上跑」不再是問題？→ 答案就是：Container！",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
 if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -626,7 +933,9 @@ if __name__ == "__main__":
     slide_01_cover(prs)
     slide_02_agenda(prs)
     for fn in [slide_03, slide_04, slide_05, slide_06, slide_07,
-               slide_08, slide_09, slide_10, slide_11, slide_12]:
+               slide_08, slide_09, slide_10, slide_11, slide_12,
+               slide_13, slide_14, slide_15, slide_16, slide_17,
+               slide_18, slide_19, slide_20]:
         fn(prs)
 
     prs.save("cloud_native_slides_v2.pptx")
