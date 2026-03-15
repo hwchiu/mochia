@@ -2119,6 +2119,416 @@ def slide_42(prs):
     return slide
 
 
+def slide_43(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "SDLC：從 Idea 到 Production 的完整旅程")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 43)
+
+    # Row 1: ①②③④
+    row1_items = [
+        ("① Plan",  ACCENT_BLUE,         ["需求分析 / 拆 Story / 估時"]),
+        ("② Code",  PART_COLORS[3],      ["開發 / Code Review / PR"]),
+        ("③ Build", PART_COLORS[2],      ["CI 自動 Build / 單元測試"]),
+        ("④ Test",  ACCENT_AMBER,        ["整合測試 / E2E / QA 驗證"]),
+    ]
+    x_positions_r1 = [0.3, 3.5, 6.7, 9.9]
+    card_w = Inches(2.8)
+    card_h = Inches(1.2)
+    for i, (title, accent, body) in enumerate(row1_items):
+        x = Inches(x_positions_r1[i])
+        add_card(slide, x, Inches(1.7), card_w, card_h, title=title, body_lines=body, accent=accent)
+        if i < len(row1_items) - 1:
+            add_text(slide, "→", x + card_w, Inches(2.1), Inches(0.5), Inches(0.35),
+                     font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Row 2: ⑤⑥⑦⑧
+    row2_items = [
+        ("⑤ Release", PART_COLORS[5],    ["Feature Flag / Staging 驗收"]),
+        ("⑥ Deploy",  PART_COLORS[4],    ["CD / 部署策略 / Rollback"]),
+        ("⑦ Operate", PART_COLORS[5],    ["On-call / Incident Response"]),
+        ("⑧ Monitor", ACCENT_GREEN,      ["Metrics / Logs / Alerts"]),
+    ]
+    x_positions_r2 = [0.3, 3.5, 6.7, 9.9]
+    for i, (title, accent, body) in enumerate(row2_items):
+        x = Inches(x_positions_r2[i])
+        add_card(slide, x, Inches(3.25), card_w, card_h, title=title, body_lines=body, accent=accent)
+        if i < len(row2_items) - 1:
+            add_text(slide, "→", x + card_w, Inches(3.65), Inches(0.5), Inches(0.35),
+                     font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Loop-back note
+    add_text(slide, "⑧ Monitor → 回饋 → ① Plan 下一個 Sprint",
+             Inches(0.4), Inches(4.6), Inches(12.5), Inches(0.35),
+             font_size=Pt(11), color=TEXT_DIM, align=PP_ALIGN.CENTER, italic=True)
+
+    # Techniques card
+    add_card(slide, Inches(0.4), Inches(4.65), Inches(12.5), Inches(1.5),
+             title="各階段對應技術",
+             body_lines=["Plan: Jira / Linear  ·  Code: Git / GitHub  ·  Build: GitHub Actions / GitLab CI",
+                         "Test: pytest / Jest / Selenium  ·  Release: Feature Flags  ·  Deploy: K8s / ArgoCD",
+                         "Operate: PagerDuty / On-call  ·  Monitor: Prometheus + Grafana + ELK"],
+             accent=CARD_BORDER)
+
+    add_callout(slide, "SDLC 是閉環，不是終點。⑧ Monitor 的發現直接推動下一個 ① Plan",
+                Inches(0.4), Inches(6.35), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_44(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "環境一致性：12-Factor + Container 的完美結合")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 44)
+
+    # Left: Bad practice
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(3.0),
+             title="❌ 傳統方式",
+             body_lines=["Server A：SSH 進去手動 export DB_URL=...",
+                         "Server B：/etc/environment 設定不同",
+                         "Server C：config.ini 檔案版本舊",
+                         "",
+                         "結果：3 台機器的設定可能不同",
+                         "問題：「明明 A 台可以，B 台就不行」",
+                         "原因：沒有人知道設定差在哪裡"],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Right: Good practice
+    add_card(slide, Inches(7.0), Inches(1.6), Inches(5.8), Inches(3.0),
+             title="✅ 現代方式",
+             body_lines=["Config：環境變數 (12-Factor III)",
+                         "  DB_URL, SECRET_KEY 等存在 Secrets Manager",
+                         "",
+                         "Image：同一個 Container Image",
+                         "  dev / staging / prod 跑同一個 Image",
+                         "",
+                         "啟動：docker run -e DB_URL=$DB_URL myapp",
+                         "→ 環境差異只在 env var，Image 不變"],
+             accent=ACCENT_GREEN)
+
+    # 3 bottom cards
+    bottom_items = [
+        (ACCENT_BLUE,       "Secrets 管理",  ["AWS Secrets Manager", "HashiCorp Vault", "K8s Secrets"]),
+        (PART_COLORS[2],    "Config 注入",   ["環境變數 (12-Factor)", "ConfigMap (K8s)", "`.env` 僅用於本地開發"]),
+        (PART_COLORS[5],    "Image 不可變",  ["同一個 Image 跑所有環境", "不同環境只換 env var", "保證行為一致"]),
+    ]
+    x_positions = [0.3, 4.6, 8.9]
+    for i, (accent, title, body) in enumerate(bottom_items):
+        add_card(slide, Inches(x_positions[i]), Inches(4.9), Inches(3.9), Inches(1.5),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "一個 Image + 不同 env var = 不同環境。這才是真正的 Dev/Prod Parity",
+                Inches(0.4), Inches(6.55), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_45(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "可觀測性三支柱：Metrics / Logs / Tracing")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 45)
+
+    pillars = [
+        (ACCENT_BLUE,       "Metrics  度量指標",
+         ["量測系統健康狀況",
+          "",
+          "工具：Prometheus + Grafana",
+          "",
+          "常見 Metrics：",
+          "• Request Rate (req/s)",
+          "• Error Rate (%)",
+          "• P50 / P95 / P99 Latency",
+          "• CPU / Memory 使用率",
+          "",
+          "用途：Dashboard + Alerting"]),
+        (PART_COLORS[2],    "Logs  日誌",
+         ["記錄系統事件與錯誤",
+          "",
+          "工具：ELK Stack / Loki",
+          "",
+          "最佳實踐：",
+          "• 輸出到 stdout (12-Factor XI)",
+          "• 結構化 Log (JSON 格式)",
+          "• 每條 Log 含 trace_id",
+          "• 設定適當的 Log Level",
+          "",
+          "用途：除錯 / 審計 / 分析"]),
+        (PART_COLORS[4],    "Distributed Tracing  追蹤",
+         ["追蹤跨服務的請求流程",
+          "",
+          "工具：Jaeger / Zipkin / Tempo",
+          "",
+          "解決的問題：",
+          "• A 呼叫 B 呼叫 C，哪裡慢？",
+          "• 請求在哪個服務卡住？",
+          "• 跨服務的因果關係",
+          "",
+          "用途：效能分析 / 根因定位"]),
+    ]
+    x_positions = [0.3, 4.6, 8.9]
+    for i, (accent, title, body) in enumerate(pillars):
+        add_card(slide, Inches(x_positions[i]), Inches(1.6), Inches(4.0), Inches(4.0),
+                 title=title, body_lines=body, accent=accent)
+
+    add_callout(slide, "沒有可觀測性的分散式系統，出問題就是在黑暗中除錯。可觀測性是基礎設施，不是事後加",
+                Inches(0.4), Inches(5.8), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_46(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Incident Response：出問題時的標準流程")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 46)
+
+    # 5-step horizontal flow
+    steps = [
+        ("① 偵測",    RGBColor(0xFF, 0x4A, 0x4A), ["Alert 觸發", "On-call 接到通知", "確認是否為真實問題"]),
+        ("② 評估",    ACCENT_AMBER,                ["嚴重度分級", "P0: 全站中斷", "P1/P2: 部分影響"]),
+        ("③ 緊急處置", PART_COLORS[2],              ["回滾版本", "Feature Flag 關閉", "先恢復服務"]),
+        ("④ 根因分析", ACCENT_BLUE,                 ["查 Log / Metrics", "Distributed Tracing", "找到根本原因"]),
+        ("⑤ 改善行動", PART_COLORS[5],              ["Action Items", "防止再次發生", "更新 Runbook"]),
+    ]
+    x_positions = [0.3, 2.85, 5.4, 7.95, 10.5]
+    card_w = Inches(2.2)
+    card_h = Inches(1.5)
+    for i, (title, accent, body) in enumerate(steps):
+        x = Inches(x_positions[i])
+        add_card(slide, x, Inches(1.7), card_w, card_h, title=title, body_lines=body, accent=accent)
+        if i < len(steps) - 1:
+            add_text(slide, "→", x + card_w, Inches(2.1), Inches(0.45), Inches(0.35),
+                     font_size=Pt(16), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Severity card
+    add_card(slide, Inches(0.4), Inches(3.5), Inches(5.8), Inches(2.5),
+             title="嚴重度分級",
+             body_lines=["P0 (Critical)：全站或核心功能中斷，即時處理",
+                         "P1 (High)：重要功能受影響，1小時內處理",
+                         "P2 (Medium)：部分用戶受影響，當天處理",
+                         "P3 (Low)：小問題或優化，排入 backlog"],
+             accent=ACCENT_AMBER)
+
+    # Runbook card
+    add_card(slide, Inches(6.9), Inches(3.5), Inches(5.8), Inches(2.5),
+             title="Runbook 的重要性",
+             body_lines=["Runbook = 標準操作手冊",
+                         "記錄常見問題的處理步驟",
+                         "凌晨 3 點發生事故時，你需要它",
+                         "",
+                         "好的 Runbook：",
+                         "• 明確的診斷步驟",
+                         "• 可執行的指令（直接複製貼上）",
+                         "• 已知的誤報情況說明"],
+             accent=ACCENT_BLUE)
+
+    add_callout(slide, "回滾永遠比除錯快。先恢復服務，讓用戶可以繼續使用，再慢慢找根因",
+                Inches(0.4), Inches(6.2), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_47(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "SRE：用工程方法管理可靠性")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 47)
+
+    concepts = [
+        (ACCENT_BLUE,    "SLI — Service Level Indicator",
+         ["量測服務品質的指標",
+          "",
+          "常見 SLI：",
+          "• Availability (可用性)",
+          "• Latency (延遲)",
+          "• Error Rate (錯誤率)",
+          "• Throughput (吞吐量)",
+          "",
+          "公式：",
+          "可用性 = 成功請求 / 總請求"]),
+        (PART_COLORS[4], "SLO — Service Level Objective",
+         ["對 SLI 設定的目標值",
+          "",
+          "範例：",
+          "• Availability ≥ 99.9%",
+          "• P99 Latency < 500ms",
+          "• Error Rate < 0.1%",
+          "",
+          "注意：100% SLO 是反模式",
+          "→ 沒有人能做到 100%",
+          "→ 追求 100% 會讓你停止創新"]),
+        (PART_COLORS[5], "Error Budget — 錯誤預算",
+         ["SLO 允許的「失敗額度」",
+          "",
+          "範例：99.9% SLO",
+          "→ 每月可以 down 43.8 分鐘",
+          "",
+          "Error Budget 用完了？",
+          "→ 停止新功能開發",
+          "→ 專注在穩定性改善",
+          "",
+          "Error Budget 還很多？",
+          "→ 可以積極發布新功能"]),
+    ]
+    x_positions = [0.3, 4.4, 8.5]
+    for i, (accent, title, body) in enumerate(concepts):
+        add_card(slide, Inches(x_positions[i]), Inches(1.6), Inches(3.8), Inches(3.2),
+                 title=title, body_lines=body, accent=accent)
+
+    add_card(slide, Inches(0.4), Inches(5.0), Inches(12.5), Inches(1.3),
+             title="SRE 的核心思想",
+             body_lines=["用 Error Budget 平衡「速度」與「穩定性」。這是 Dev 和 Ops 之間的契約：",
+                         "Dev 說「我要快速部署」，Ops 說「我要穩定」。Error Budget 讓兩者有共同語言"],
+             accent=ACCENT_AMBER)
+
+    add_callout(slide, "SRE 不是職位，是思維方式。任何工程師都可以用 SLI/SLO/Error Budget 來思考可靠性",
+                Inches(0.4), Inches(6.5), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_48(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Post-mortem：從失敗中系統性學習")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 48)
+
+    # Bad culture
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(3.2),
+             title="❌ 壞的文化",
+             body_lines=["找到犯錯的人 → 懲罰他",
+                         "「下次不要犯這種錯誤」",
+                         "→ 工程師不敢承認問題",
+                         "→ 問題被隱藏，直到爆炸",
+                         "→ 系統性問題從未被解決",
+                         "→ 相同的事故一再發生"],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Good culture
+    add_card(slide, Inches(7.0), Inches(1.6), Inches(5.8), Inches(3.2),
+             title="✅ Blameless Post-mortem",
+             body_lines=["目標：改善系統，不是懲罰個人",
+                         "「系統設計讓這個錯誤成為可能」",
+                         "→ 工程師敢於公開討論問題",
+                         "→ 找出系統性根因",
+                         "→ 制定防止再發的 Action Items",
+                         "→ 知識在組織內傳播"],
+             accent=ACCENT_GREEN)
+
+    # Doc structure card
+    add_card(slide, Inches(0.4), Inches(5.05), Inches(12.5), Inches(1.3),
+             title="Post-mortem 文件結構",
+             body_lines=["① 事故時間線  ② 影響範圍  ③ 根本原因 (Root Cause)  ④ 解決過程  ⑤ Action Items (誰負責、何時完成)"],
+             accent=ACCENT_AMBER)
+
+    add_callout(slide, "每次 Incident 都是改善系統的機會。Google SRE 說：「希望失敗發生，從失敗中成長」",
+                Inches(0.4), Inches(6.5), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_49(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "完整旅程：從 Git Push 到 Production")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 49)
+
+    # Row 1: 5 cards
+    row1_items = [
+        ("Developer\ngit push",   ACCENT_BLUE),
+        ("CI Pipeline\nBuild+Test", PART_COLORS[2]),
+        ("Image Build\n& Push",   PART_COLORS[3]),
+        ("CD Pipeline\nStaging",  ACCENT_AMBER),
+        ("Production\nDeploy",    PART_COLORS[5]),
+    ]
+    x_positions_r1 = [0.2, 2.8, 5.4, 8.0, 10.6]
+    card_w1 = Inches(2.3)
+    card_h1 = Inches(1.1)
+    for i, (label, accent) in enumerate(row1_items):
+        x = Inches(x_positions_r1[i])
+        add_card(slide, x, Inches(1.7), card_w1, card_h1, body_lines=[label], accent=accent)
+        if i < len(row1_items) - 1:
+            add_text(slide, "→", x + card_w1, Inches(2.1), Inches(0.4), Inches(0.35),
+                     font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Down arrow from Production to Monitoring
+    add_text(slide, "↓", Inches(11.0), Inches(2.9), Inches(0.5), Inches(0.4),
+             font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Row 2: 4 cards
+    row2_items = [
+        ("Monitoring\n可觀測性",    ACCENT_GREEN),
+        ("Alert &\nIncident",      RGBColor(0xFF, 0x4A, 0x4A)),
+        ("Post-mortem\n& 改善",    ACCENT_AMBER),
+        ("Next Sprint\n下一個迭代", ACCENT_BLUE),
+    ]
+    x_positions_r2 = [0.5, 3.6, 6.7, 9.8]
+    card_w2 = Inches(2.7)
+    card_h2 = Inches(1.1)
+    for i, (label, accent) in enumerate(row2_items):
+        x = Inches(x_positions_r2[i])
+        add_card(slide, x, Inches(3.1), card_w2, card_h2, body_lines=[label], accent=accent)
+        if i < len(row2_items) - 1:
+            add_text(slide, "→", x + card_w2, Inches(3.5), Inches(0.7), Inches(0.35),
+                     font_size=Pt(18), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Loop-back arrow
+    add_text(slide, "↑ 循環", Inches(10.5), Inches(4.4), Inches(1.5), Inches(0.35),
+             font_size=Pt(12), color=TEXT_DIM, align=PP_ALIGN.CENTER, italic=True)
+
+    # Concepts summary card
+    add_card(slide, Inches(0.3), Inches(4.5), Inches(12.7), Inches(1.8),
+             title="本課程涵蓋的完整概念",
+             body_lines=["傳統部署演進 → Scale Out 挑戰 → Container 革命 → 12-Factor App → DevOps 整合 → SDLC 閉環",
+                         "單機 → 三層架構 → LB / Session / Cache / MQ → Docker / Compose → 12 條設計原則 → CI/CD / 部署策略 / GitOps / SRE"],
+             accent=CARD_BORDER)
+
+    add_callout(slide, "這張圖是整門課的精華。每個節點你都學過了。把它串起來，就是 Cloud Native 工程師的日常",
+                Inches(0.4), Inches(6.45), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_50(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "課程總結 + 你的下一步")
+    add_part_label(slide, 6, "SDLC 整合與維運閉環")
+    add_page_number(slide, 50)
+
+    # 6 Part summary cards — 2 rows × 3 cols
+    parts = [
+        (PART_COLORS[1], "Part 1 傳統部署",  ["單機 → 三層架構，了解起點與取捨"]),
+        (PART_COLORS[2], "Part 2 Scale Out", ["LB / Session / Cache / MQ，分散式的挑戰"]),
+        (PART_COLORS[3], "Part 3 Container", ["Docker 封裝環境，一致部署的基礎"]),
+        (PART_COLORS[4], "Part 4 12-Factor", ["Cloud-Ready 應用的 12 條設計原則"]),
+        (PART_COLORS[5], "Part 5 DevOps",    ["大規模團隊的 CI/CD 與協作模式"]),
+        (ACCENT_AMBER,   "Part 6 SDLC 閉環", ["從 Code 到監控，可觀測性與 SRE 思維"]),
+    ]
+    x_positions = [Inches(0.3), Inches(4.6), Inches(8.9)]
+    y_rows = [Inches(1.55), Inches(3.15)]
+    card_w = Inches(4.0)
+    card_h = Inches(1.4)
+    for i, (accent, title, body) in enumerate(parts):
+        col = i % 3
+        row = i // 3
+        add_card(slide, x_positions[col], y_rows[row], card_w, card_h,
+                 title=title, body_lines=body, accent=accent)
+
+    # Learning roadmap
+    add_card(slide, Inches(0.3), Inches(4.8), Inches(12.7), Inches(1.5),
+             title="下一步：學習路線圖",
+             body_lines=["① Docker 動手實作 → ② Docker Compose 本地完整架構 → ③ Kubernetes 基礎",
+                         "④ CI/CD Pipeline 實作 → ⑤ Prometheus + Grafana 監控 → ⑥ 真實專案實踐"],
+             accent=ACCENT_BLUE)
+
+    # Bottom accent line
+    add_rect(slide, Inches(0), Inches(7.2), SLIDE_W, Inches(0.08), ACCENT_BLUE)
+
+    # Bottom text items
+    add_text(slide, "架構設計沒有銀彈，每個決策都有取捨",
+             Inches(0.5), Inches(7.1), Inches(8), Inches(0.3),
+             font_size=Pt(12), color=TEXT_DIM)
+    add_text(slide, "持續學習，持續改善",
+             Inches(10.0), Inches(7.1), Inches(3.0), Inches(0.3),
+             font_size=Pt(12), color=ACCENT_BLUE, align=PP_ALIGN.RIGHT, bold=True)
+    return slide
+
+
 if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -2131,10 +2541,12 @@ if __name__ == "__main__":
                slide_13, slide_14, slide_15, slide_16, slide_17,
                slide_18, slide_19, slide_20,
                slide_21, slide_22, slide_23, slide_24, slide_25, slide_26,
-               slide_27, slide_28, slide_29, slide_30, slide_31,
-               slide_32, slide_33, slide_34,
+               slide_27, slide_28, slide_29, slide_30, slide_31, slide_32,
+               slide_33, slide_34,
                slide_35, slide_36, slide_37, slide_38, slide_39, slide_40,
-               slide_41, slide_42]:
+               slide_41, slide_42,
+               slide_43, slide_44, slide_45, slide_46, slide_47, slide_48,
+               slide_49, slide_50]:
         fn(prs)
 
     prs.save("cloud_native_slides_v2.pptx")
