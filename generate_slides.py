@@ -925,6 +925,357 @@ def slide_20(prs):
     return slide
 
 
+def slide_21(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Container 是什麼？解決什麼問題？")
+    add_part_label(slide, 3, "Container 革命")
+    add_page_number(slide, 21)
+
+    # Left half: traditional deployment problem
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(5.8), Inches(3.5),
+             title="❌ 傳統部署的困境",
+             body_lines=[
+                 "應用程式 Code",
+                 "Runtime  Python 3.9",
+                 "系統套件  apt packages",
+                 "OS Config  .conf files",
+                 "Ubuntu 20.04 / 機器 A",
+                 "",
+                 "換台機器 = 環境可能完全不同！",
+             ],
+             accent=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Center arrow
+    add_text(slide, "→", Inches(6.3), Inches(3.0), Inches(0.8), Inches(0.6),
+             font_size=Pt(32), color=ACCENT_BLUE, align=PP_ALIGN.CENTER)
+
+    # Right half: container solution
+    add_card(slide, Inches(7.2), Inches(1.6), Inches(5.8), Inches(3.5),
+             title="✅ Container 解法",
+             body_lines=[
+                 "Container Image（封裝一切）",
+                 "  ├ 應用程式 Code",
+                 "  ├ Runtime + 所有套件",
+                 "  └ OS 最小依賴",
+                 "",
+                 "Container Runtime (Docker)",
+                 "任何 Linux 主機",
+                 "",
+                 "Build once, run anywhere!",
+             ],
+             accent=ACCENT_GREEN)
+
+    # Bottom center: three core values card
+    add_card(slide, Inches(0.4), Inches(5.35), Inches(12.5), Inches(1.0),
+             title="三大核心價值",
+             body_lines=["① 環境一致性：開發 = 測試 = 生產  ② 快速啟動：秒級甚至毫秒級  ③ 輕量隔離：不需要完整的 OS"],
+             accent=PART_COLORS[3])
+
+    # Callout tip
+    add_callout(slide, "Container 不是 VM！更輕量、更快速、更適合現代雲端環境",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_22(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "VM vs Container：架構深度對比")
+    add_part_label(slide, 3, "Container 革命")
+    add_page_number(slide, 22)
+
+    # Left half: VM
+    add_text(slide, "Virtual Machine (VM)", Inches(0.4), Inches(1.55), Inches(5.8), Inches(0.4),
+             font_name=FONT_TITLE, font_size=Pt(16), color=ACCENT_AMBER, bold=True)
+
+    # VM layered boxes
+    add_card(slide, Inches(0.4), Inches(2.0), Inches(2.7), Inches(0.6),
+             body_lines=["App A"], accent=ACCENT_BLUE)
+    add_card(slide, Inches(3.3), Inches(2.0), Inches(2.7), Inches(0.6),
+             body_lines=["App B"], accent=ACCENT_BLUE)
+    add_card(slide, Inches(0.4), Inches(2.7), Inches(2.7), Inches(0.6),
+             body_lines=["Guest OS A (Ubuntu 20)"], accent=CARD_BORDER)
+    add_card(slide, Inches(3.3), Inches(2.7), Inches(2.7), Inches(0.6),
+             body_lines=["Guest OS B (CentOS 8)"], accent=CARD_BORDER)
+    add_card(slide, Inches(0.4), Inches(3.4), Inches(5.8), Inches(0.6),
+             body_lines=["Hypervisor (VMware / KVM)"], accent=ACCENT_AMBER)
+    add_card(slide, Inches(0.4), Inches(4.1), Inches(5.8), Inches(0.6),
+             body_lines=["Host OS (Linux / Windows)"], accent=TEXT_DIM)
+    add_card(slide, Inches(0.4), Inches(4.75), Inches(5.8), Inches(0.6),
+             body_lines=["Physical Hardware / Cloud"], accent=CARD_BORDER)
+
+    # VM stats
+    vm_stats = [
+        "⏱ 啟動時間：分鐘級（需 boot OS）",
+        "💾 Image 大小：GB 級（含完整 Guest OS）",
+        "🔒 隔離強度：強（完整 OS 層隔離）",
+    ]
+    for i, stat in enumerate(vm_stats):
+        add_text(slide, stat, Inches(0.4), Inches(5.5 + i * 0.28), Inches(5.8), Inches(0.28),
+                 font_size=Pt(10), color=TEXT_DIM)
+
+    # Right half: Container
+    add_text(slide, "Container", Inches(7.0), Inches(1.55), Inches(5.8), Inches(0.4),
+             font_name=FONT_TITLE, font_size=Pt(16), color=ACCENT_GREEN, bold=True)
+
+    # Container layered boxes
+    add_card(slide, Inches(7.0), Inches(2.0), Inches(2.7), Inches(0.6),
+             body_lines=["Container A (App A + Libs)"], accent=PART_COLORS[3])
+    add_card(slide, Inches(9.8), Inches(2.0), Inches(2.7), Inches(0.6),
+             body_lines=["Container B (App B + Libs)"], accent=PART_COLORS[3])
+    add_card(slide, Inches(7.0), Inches(2.7), Inches(5.8), Inches(0.6),
+             body_lines=["Container Runtime (Docker / containerd)"], accent=ACCENT_GREEN)
+    add_card(slide, Inches(7.0), Inches(3.4), Inches(5.8), Inches(0.6),
+             body_lines=["Host OS Kernel（共用，不重複安裝）"], accent=TEXT_DIM)
+    add_card(slide, Inches(7.0), Inches(4.1), Inches(5.8), Inches(0.6),
+             body_lines=["Physical Hardware / Cloud VM"], accent=CARD_BORDER)
+
+    # Container stats
+    ct_stats = [
+        "⚡ 啟動時間：秒級甚至毫秒級",
+        "📦 Image 大小：MB 級（只含必要檔案）",
+        "🔐 隔離強度：程序級（Namespace + cgroups）",
+    ]
+    for i, stat in enumerate(ct_stats):
+        add_text(slide, stat, Inches(7.0), Inches(5.5 + i * 0.28), Inches(5.8), Inches(0.28),
+                 font_size=Pt(10), color=TEXT_DIM)
+
+    # Center VS divider
+    add_rect(slide, Inches(6.45), Inches(1.6), Inches(0.04), Inches(4.8), CARD_BORDER)
+
+    # Callout tip
+    add_callout(slide, "Container 共用 Host OS Kernel，更輕量快速。安全需求極高時才考慮 VM（或兩者並用）",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_23(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Docker 核心概念：Image → Container")
+    add_part_label(slide, 3, "Container 革命")
+    add_page_number(slide, 23)
+
+    # Top flow: Dockerfile
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(2.5), Inches(1.0),
+             body_lines=["FROM python:3.11-slim", "COPY . /app", "RUN pip install -r req.txt", "CMD [\"python\",\"main.py\"]"],
+             accent=TEXT_DIM)
+    add_text(slide, "docker build →", Inches(3.1), Inches(1.85), Inches(1.6), Inches(0.4),
+             font_size=Pt(12), color=TEXT_DIM)
+    add_card(slide, Inches(4.8), Inches(1.6), Inches(3.0), Inches(1.0),
+             body_lines=["Docker Image（不可變快照）"],
+             accent=PART_COLORS[3])
+    add_text(slide, "docker run →", Inches(8.0), Inches(1.85), Inches(1.1), Inches(0.4),
+             font_size=Pt(12), color=TEXT_DIM)
+    add_card(slide, Inches(9.2), Inches(1.6), Inches(3.7), Inches(1.0),
+             body_lines=["Container（執行中的程序）"],
+             accent=ACCENT_GREEN)
+
+    # Below Image card: push/pull + registry
+    add_text(slide, "push ↑ / pull ↓", Inches(4.8), Inches(2.65), Inches(3.0), Inches(0.35),
+             font_size=Pt(11), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_card(slide, Inches(4.8), Inches(3.0), Inches(3.0), Inches(0.8),
+             body_lines=["Container Registry", "Docker Hub / ECR"],
+             accent=ACCENT_AMBER)
+
+    # Bottom: common docker commands card
+    add_card(slide, Inches(0.4), Inches(3.4), Inches(12.5), Inches(3.5),
+             title="常用 Docker 指令",
+             body_lines=[
+                 "docker build -t my-app:v1 .    → 從 Dockerfile 建立 Image",
+                 "docker run -d -p 8080:8080 my-app:v1    → 背景執行，映射 Port",
+                 "docker ps    → 列出執行中的 Container",
+                 "docker logs <id>    → 查看 Container 日誌",
+                 "docker exec -it <id> /bin/bash    → 進入 Container Shell",
+                 "docker stop <id> && docker rm <id>    → 停止並刪除",
+             ],
+             accent=ACCENT_BLUE)
+    return slide
+
+
+def slide_24(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Docker Compose：多容器應用一鍵啟動")
+    add_part_label(slide, 3, "Container 革命")
+    add_page_number(slide, 24)
+
+    # Left: docker-compose.yml card
+    add_card(slide, Inches(0.4), Inches(1.6), Inches(6.0), Inches(4.8),
+             title="docker-compose.yml",
+             body_lines=[
+                 "version: '3.8'",
+                 "services:",
+                 "  frontend:",
+                 "    image: nginx:alpine",
+                 "    ports: [\"80:80\"]",
+                 "  backend:",
+                 "    build: ./backend",
+                 "    ports: [\"8080:8080\"]",
+                 "    environment:",
+                 "      DB_HOST: db",
+                 "      SECRET_KEY: ${SECRET}",
+                 "    depends_on: [db, redis]",
+                 "  db:",
+                 "    image: postgres:15",
+                 "    volumes:",
+                 "      - pgdata:/var/lib/pg",
+                 "  redis:",
+                 "    image: redis:7-alpine",
+                 "volumes:",
+                 "  pgdata:",
+             ],
+             accent=PART_COLORS[3])
+
+    # Right: command card
+    add_card(slide, Inches(6.8), Inches(1.6), Inches(6.0), Inches(0.8),
+             body_lines=["$ docker compose up -d"],
+             accent=ACCENT_GREEN)
+
+    # Label
+    add_text(slide, "一個指令，啟動完整應用：", Inches(6.8), Inches(2.55), Inches(6.0), Inches(0.28),
+             font_size=Pt(12), color=TEXT_DIM)
+
+    # 4 service status cards
+    service_cards = [
+        (PART_COLORS[3], "frontend  (Nginx : 80)"),
+        (ACCENT_BLUE,    "backend   (Python : 8080)"),
+        (PART_COLORS[4], "db        (PostgreSQL : 5432)"),
+        (ACCENT_AMBER,   "redis     (Redis : 6379)"),
+    ]
+    for i, (accent, text) in enumerate(service_cards):
+        add_card(slide, Inches(6.8), Inches(2.75 + i * 0.72), Inches(5.8), Inches(0.65),
+                 body_lines=[text], accent=accent)
+
+    # Volume note
+    add_card(slide, Inches(6.8), Inches(5.65), Inches(5.8), Inches(0.6),
+             body_lines=["Volume: pgdata — 資料持久化，容器重建不遺失"],
+             accent=TEXT_DIM)
+
+    # Callout
+    add_callout(slide, "所有容器在同一虛擬網路，用服務名稱互相連線（如 DB_HOST: db），不需寫 IP",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
+def slide_25(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Container Registry：Image 的倉庫與版本管理")
+    add_part_label(slide, 3, "Container 革命")
+    add_page_number(slide, 25)
+
+    # Top flow: build pipeline
+    # Cards
+    add_card(slide, Inches(0.4), Inches(1.65), Inches(1.8), Inches(0.65),
+             body_lines=["Code + Dockerfile"], accent=TEXT_DIM)
+    add_text(slide, "→", Inches(2.25), Inches(1.7), Inches(0.6), Inches(0.55),
+             font_size=Pt(20), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_card(slide, Inches(3.5), Inches(1.65), Inches(1.8), Inches(0.65),
+             body_lines=["Image"], accent=PART_COLORS[3])
+    add_text(slide, "→", Inches(5.25), Inches(1.7), Inches(0.6), Inches(0.55),
+             font_size=Pt(20), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_card(slide, Inches(6.4), Inches(1.65), Inches(1.8), Inches(0.65),
+             body_lines=["Registry"], accent=ACCENT_AMBER)
+    add_text(slide, "→", Inches(8.15), Inches(1.7), Inches(0.6), Inches(0.55),
+             font_size=Pt(20), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_card(slide, Inches(11.2), Inches(1.65), Inches(1.8), Inches(0.65),
+             body_lines=["Server / K8s"], accent=ACCENT_GREEN)
+
+    # Labels between cards
+    add_text(slide, "docker build", Inches(2.3), Inches(2.3), Inches(1.1), Inches(0.3),
+             font_size=Pt(10), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_text(slide, "docker push", Inches(5.3), Inches(2.3), Inches(1.1), Inches(0.3),
+             font_size=Pt(10), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+    add_text(slide, "docker pull", Inches(8.2), Inches(2.3), Inches(1.1), Inches(0.3),
+             font_size=Pt(10), color=TEXT_DIM, align=PP_ALIGN.CENTER)
+
+    # Middle: two cards side by side
+    add_card(slide, Inches(0.4), Inches(3.0), Inches(5.8), Inches(1.8),
+             title="Registry 選項",
+             body_lines=[
+                 "Docker Hub — 公開免費，私有收費",
+                 "AWS ECR — 與 AWS 整合",
+                 "GCR (Google) / ACR (Azure)",
+                 "Harbor — 自建私有 Registry",
+             ],
+             accent=ACCENT_BLUE)
+    add_card(slide, Inches(6.6), Inches(3.0), Inches(5.8), Inches(1.8),
+             title="Image Tag 策略",
+             body_lines=[
+                 ":latest — ⚠ 生產環境禁用！",
+                 ":v1.2.3 — 語義化版本，推薦",
+                 ":git-abc1234 — Git commit SHA",
+                 ":env-prod / :env-staging — 環境標籤",
+             ],
+             accent=PART_COLORS[2])
+
+    # Callout warning
+    add_callout(slide, "永遠不要在生產環境用 :latest tag！無法追溯版本、無法確定性回滾",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="warning")
+    return slide
+
+
+def slide_26(prs):
+    slide = new_slide(prs)
+    add_slide_title(slide, "Container 化：從維運噩夢到一致部署")
+    add_part_label(slide, 3, "Container 革命")
+    add_page_number(slide, 26)
+
+    # Left header
+    add_text(slide, "❌ 傳統：15+ 台機器，各自設定",
+             Inches(0.4), Inches(1.55), Inches(5.8), Inches(0.35),
+             font_size=Pt(14), color=RGBColor(0xFF, 0x4A, 0x4A), bold=True)
+
+    # 6 small cards stacked
+    old_servers = [
+        "Server A  Python 3.8 / Ubuntu 20",
+        "Server B  Python 3.9 / Ubuntu 22",
+        "Server C  Python 3.8 / CentOS 8",
+        "DB Server  PostgreSQL 13",
+        "Cache  Redis 6",
+        "LB  Nginx 1.18",
+    ]
+    for i, text in enumerate(old_servers):
+        add_card(slide, Inches(0.4), Inches(1.9 + i * 0.65), Inches(5.8), Inches(0.58),
+                 body_lines=[text], accent=CARD_BORDER)
+
+    # Problem text
+    add_text(slide, "問題：每台 SSH 進去設定，每次更新都是手動操作的噩夢",
+             Inches(0.4), Inches(5.9), Inches(5.8), Inches(0.4),
+             font_size=Pt(11), color=RGBColor(0xFF, 0x4A, 0x4A))
+
+    # Center arrow
+    add_text(slide, "→", Inches(6.3), Inches(3.3), Inches(0.8), Inches(0.7),
+             font_size=Pt(36), color=ACCENT_BLUE, align=PP_ALIGN.CENTER, bold=True)
+
+    # Right header
+    add_text(slide, "✅ Container：統一封裝，一致部署",
+             Inches(7.0), Inches(1.55), Inches(5.8), Inches(0.35),
+             font_size=Pt(14), color=ACCENT_GREEN, bold=True)
+
+    # 4 service image cards
+    new_services = [
+        (PART_COLORS[3], "frontend:v2.1  (nginx:alpine)"),
+        (ACCENT_BLUE,    "backend:v2.1  (python:3.11-slim)"),
+        (PART_COLORS[4], "db:latest  (postgres:15)"),
+        (ACCENT_AMBER,   "redis:7  (redis:alpine)"),
+    ]
+    for i, (accent, text) in enumerate(new_services):
+        add_card(slide, Inches(7.0), Inches(1.9 + i * 0.65), Inches(5.8), Inches(0.58),
+                 body_lines=[text], accent=accent)
+
+    # Solution card
+    add_card(slide, Inches(7.0), Inches(4.7), Inches(5.8), Inches(1.5),
+             body_lines=[
+                 "一個 Dockerfile 定義環境",
+                 "docker compose up 一鍵啟動",
+                 "環境完全一致：開發 = 測試 = 生產",
+             ],
+             accent=ACCENT_GREEN)
+
+    # Callout tip
+    add_callout(slide, "Container 解決的是「環境一致性」問題。下一步：如何讓應用程式天生適合 Container 化？",
+                Inches(0.4), Inches(6.6), Inches(12.5), Inches(0.55), style="tip")
+    return slide
+
+
 if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width = SLIDE_W
@@ -935,7 +1286,8 @@ if __name__ == "__main__":
     for fn in [slide_03, slide_04, slide_05, slide_06, slide_07,
                slide_08, slide_09, slide_10, slide_11, slide_12,
                slide_13, slide_14, slide_15, slide_16, slide_17,
-               slide_18, slide_19, slide_20]:
+               slide_18, slide_19, slide_20,
+               slide_21, slide_22, slide_23, slide_24, slide_25, slide_26]:
         fn(prs)
 
     prs.save("cloud_native_slides_v2.pptx")
