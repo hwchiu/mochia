@@ -36,3 +36,28 @@ def sha256_file(path: Path) -> str:
         while chunk := f.read(_CHUNK):
             h.update(chunk)
     return h.hexdigest()
+
+
+def find_duplicates(
+    root: Path,
+    *,
+    recursive: bool,
+    deep: bool,
+) -> dict[str, list[Path]]:
+    """Return groups of duplicate files.
+
+    Fast mode (deep=False): key is ``filename|size_bytes``.
+    Deep mode (deep=True):  key is SHA-256 hex digest.
+    Groups with fewer than 2 files are excluded.
+    """
+    glob = root.rglob("*") if recursive else root.glob("*")
+    buckets: dict[str, list[Path]] = defaultdict(list)
+    for path in glob:
+        if not path.is_file():
+            continue
+        if deep:
+            key = sha256_file(path)
+        else:
+            key = f"{path.name}|{path.stat().st_size}"
+        buckets[key].append(path)
+    return {k: paths for k, paths in buckets.items() if len(paths) >= 2}
