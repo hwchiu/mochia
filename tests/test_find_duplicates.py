@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
-from find_duplicates import sha256_file, find_duplicates, write_report  # noqa: E402
+from find_duplicates import sha256_file, find_duplicates, write_report, main  # noqa: E402
 
 
 class TestSha256File:
@@ -111,4 +111,49 @@ class TestWriteReport:
     def test_empty_duplicates_writes_empty_file(self, tmp_path: Path):
         output = tmp_path / "out.txt"
         write_report({}, output)
+        assert output.read_text() == ""
+
+
+class TestMain:
+    def test_fast_mode_finds_name_size_duplicates(self, tmp_path: Path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (tmp_path / "img.jpg").write_bytes(b"data")
+        (sub / "img.jpg").write_bytes(b"data")
+        output = tmp_path / "report.txt"
+        rc = main([str(tmp_path), "--output", str(output)])
+        assert rc == 0
+        lines = output.read_text().splitlines()
+        assert len(lines) == 2
+        assert "img.jpg|4" in lines[0]
+
+    def test_deep_mode_finds_content_duplicates(self, tmp_path: Path):
+        (tmp_path / "a.txt").write_bytes(b"same")
+        (tmp_path / "b.txt").write_bytes(b"same")
+        output = tmp_path / "report.txt"
+        rc = main([str(tmp_path), "--output", str(output), "--deep"])
+        assert rc == 0
+        lines = output.read_text().splitlines()
+        assert len(lines) == 2
+        # deep mode key is sha256, not filename|size
+        assert "|" not in lines[0].split("  ")[0]
+
+    def test_no_duplicates_writes_empty_report(self, tmp_path: Path):
+        (tmp_path / "a.txt").write_bytes(b"aaa")
+        output = tmp_path / "report.txt"
+        rc = main([str(tmp_path), "--output", str(output)])
+        assert rc == 0
+        assert output.read_text() == ""
+
+    def test_invalid_path_returns_nonzero(self, tmp_path: Path):
+        rc = main([str(tmp_path / "nonexistent")])
+        assert rc == 1
+
+    def test_no_recursive_flag(self, tmp_path: Path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (tmp_path / "img.jpg").write_bytes(b"data")
+        (sub / "img.jpg").write_bytes(b"data")
+        output = tmp_path / "report.txt"
+        main([str(tmp_path), "--output", str(output), "--no-recursive"])
         assert output.read_text() == ""

@@ -75,3 +75,63 @@ def write_report(duplicates: dict[str, list[Path]], output: Path) -> None:
         for path in duplicates[key]:
             lines.append(f"{key}  {path}")
     output.write_text("\n".join(lines))
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="find_duplicates",
+        description="掃描目錄，找出重複檔案並寫入報告",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument("path", help="要掃描的根目錄")
+    parser.add_argument(
+        "--output",
+        default="duplicates.txt",
+        metavar="FILE",
+        help="輸出報告路徑（預設: duplicates.txt）",
+    )
+    parser.add_argument(
+        "--no-recursive",
+        action="store_true",
+        help="不遞迴掃描子目錄",
+    )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="用 SHA-256 精確比對（會讀取檔案內容，雲端檔案會被下載）",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    root = Path(args.path).resolve()
+    if not root.is_dir():
+        print(f"❌ 路徑不存在或不是目錄: {root}")
+        return 1
+
+    mode = "SHA-256 深度模式" if args.deep else "快速模式（檔名+大小）"
+    print(f"🔍 掃描中: {root}  [{mode}]")
+
+    duplicates = find_duplicates(root, recursive=not args.no_recursive, deep=args.deep)
+
+    output = Path(args.output).resolve()
+    write_report(duplicates, output)
+
+    total_files = sum(len(paths) for paths in duplicates.values())
+    total_groups = len(duplicates)
+
+    if total_groups == 0:
+        print("✅ 沒有找到重複檔案")
+    else:
+        print(f"✅ 找到 {total_groups} 組重複，共 {total_files} 個檔案")
+        print(f"📄 報告已寫入: {output}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
