@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
-from find_duplicates import sha256_file, find_duplicates  # noqa: E402
+from find_duplicates import sha256_file, find_duplicates, write_report  # noqa: E402
 
 
 class TestSha256File:
@@ -83,3 +83,32 @@ class TestFindDuplicatesDeep:
         (tmp_path / "b.txt").write_bytes(b"bbb")
         result = find_duplicates(tmp_path, recursive=True, deep=True)
         assert result == {}
+
+
+class TestWriteReport:
+    def test_report_sorted_by_key(self, tmp_path: Path):
+        output = tmp_path / "out.txt"
+        duplicates = {
+            "zzz|100": [Path("/b/file2.txt"), Path("/a/file1.txt")],
+            "aaa|100": [Path("/c/file3.txt"), Path("/d/file4.txt")],
+        }
+        write_report(duplicates, output)
+        lines = output.read_text().splitlines()
+        assert lines[0].startswith("aaa|100")
+        assert lines[2].startswith("zzz|100")
+
+    def test_report_format_two_spaces_separator(self, tmp_path: Path):
+        output = tmp_path / "out.txt"
+        duplicates = {"abc|42": [Path("/foo/a.jpg"), Path("/bar/b.jpg")]}
+        write_report(duplicates, output)
+        lines = output.read_text().splitlines()
+        assert len(lines) == 2
+        for line in lines:
+            key, path = line.split("  ", 1)
+            assert key == "abc|42"
+            assert path in ("/foo/a.jpg", "/bar/b.jpg")
+
+    def test_empty_duplicates_writes_empty_file(self, tmp_path: Path):
+        output = tmp_path / "out.txt"
+        write_report({}, output)
+        assert output.read_text() == ""

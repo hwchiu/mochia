@@ -61,3 +61,17 @@ def find_duplicates(
             key = f"{path.name}|{path.stat().st_size}"
         buckets[key].append(path)
     return {k: paths for k, paths in buckets.items() if len(paths) >= 2}
+
+
+def write_report(duplicates: dict[str, list[Path]], output: Path) -> None:
+    """Write sorted duplicate report to *output*.
+
+    Format: ``<key>  <absolute_path>`` — one line per file, sorted by key.
+    Fast mode key: ``filename|size_bytes``
+    Deep mode key: sha256 hex
+    """
+    lines: list[str] = []
+    for key in sorted(duplicates):
+        for path in duplicates[key]:
+            lines.append(f"{key}  {path}")
+    output.write_text("\n".join(lines))
