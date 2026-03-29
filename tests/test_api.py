@@ -62,6 +62,35 @@ class TestVideosAPI:
         r2 = client.get("/api/videos/?limit=3&skip=3")
         assert len(r2.json()["items"]) == 2
 
+    def test_list_videos_search_by_filename(self, client, db_session):
+        """search 參數應過濾 original_filename（大小寫不分）"""
+        for name in ["lecture_alpha.mp4", "lecture_beta.mp4", "workshop_gamma.mp4"]:
+            db_session.add(
+                Video(
+                    id=uuid.uuid4().hex,
+                    filename=name,
+                    original_filename=name,
+                    file_path=f"/p/{name}",
+                    source="local_scan",
+                    file_size=100,
+                )
+            )
+        db_session.commit()
+
+        r = client.get("/api/videos/?search=lecture")
+        assert r.status_code == 200
+        items = r.json()["items"]
+        assert len(items) == 2
+        assert all("lecture" in v["original_filename"].lower() for v in items)
+
+        r2 = client.get("/api/videos/?search=ALPHA")
+        assert r2.status_code == 200
+        assert len(r2.json()["items"]) == 1
+
+        r3 = client.get("/api/videos/?search=nonexistent")
+        assert r3.status_code == 200
+        assert r3.json()["total"] == 0
+
     def test_get_video_by_id(self, client, sample_video):
         r = client.get(f"/api/videos/{sample_video.id}")
         assert r.status_code == 200

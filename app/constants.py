@@ -9,7 +9,9 @@ from __future__ import annotations
 # ── Video streaming ───────────────────────────────────────────────────────────
 
 # Formats that require server-side FFmpeg transcoding before the browser can play them.
-BROWSER_UNSUPPORTED_FORMATS: frozenset[str] = frozenset({".wmv", ".mkv", ".avi", ".flv"})
+# .mov is included because Chrome/Firefox may not support QuickTime codecs (e.g. ProRes).
+# Transcoding to H.264 fragmented MP4 ensures cross-browser playback.
+BROWSER_UNSUPPORTED_FORMATS: frozenset[str] = frozenset({".wmv", ".mkv", ".avi", ".flv", ".mov"})
 
 # Byte-count for each chunk yielded by the FFmpeg streaming generator (64 KB).
 STREAM_CHUNK_SIZE: int = 64 * 1024

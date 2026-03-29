@@ -86,16 +86,19 @@ def list_videos(
     status: str | None = None,
     source: str | None = None,
     labels: str | None = None,  # comma-separated label names, AND logic
+    search: str | None = None,  # partial match against original_filename
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
-    """列出所有影片，支援狀態、來源和標籤篩選（AND 邏輯）"""
+    """列出所有影片，支援狀態、來源、標籤和檔名搜尋篩選（AND 邏輯）"""
     query = db.query(Video)
     if status:
         query = query.filter(Video.status == status)
     if source:
         query = query.filter(Video.source == source)
+    if search:
+        query = query.filter(Video.original_filename.ilike(f"%{search}%"))
     if labels:
         label_names = [n.strip() for n in labels.split(",") if n.strip()]
         for name in label_names:

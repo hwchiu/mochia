@@ -136,6 +136,7 @@ class TestVideoStream:
         assert r.status_code == 404
 
     def test_stream_mov_format(self, client, db_session, tmp_path):
+        """.mov 現在列入轉碼格式，應透過 FFmpeg 轉碼後以 video/mp4 回傳"""
         f = tmp_path / "test.mov"
         f.write_bytes(b"\x00" * 512)
         vid = Video(
@@ -149,9 +150,16 @@ class TestVideoStream:
         )
         db_session.add(vid)
         db_session.commit()
-        r = client.get(f"/api/videos/{vid.id}/stream")
+        with (
+            patch("app.routers.videos.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("app.routers.videos.subprocess.Popen") as mock_popen,
+        ):
+            mock_proc = MagicMock()
+            mock_proc.stdout.read.side_effect = [b"", b""]
+            mock_popen.return_value = mock_proc
+            r = client.get(f"/api/videos/{vid.id}/stream")
         assert r.status_code == 200
-        assert "quicktime" in r.headers.get("content-type", "").lower()
+        assert "video/mp4" in r.headers.get("content-type", "")
 
     def test_stream_mkv_transcodes_to_mp4(self, client, db_session, tmp_path):
         """MKV 格式應透過 FFmpeg 轉碼後以 video/mp4 回傳（200）"""
@@ -221,8 +229,8 @@ class TestVideoStream:
         assert r.status_code == 404
 
     def test_stream_supported_formats_not_blocked(self, client, db_session, tmp_path):
-        """MP4 / MOV / WebM / M4V 都應可以播放（不回 415）"""
-        for ext in [".mp4", ".mov", ".webm", ".m4v"]:
+        """MP4 / WebM / M4V 都應可以播放（不回 415）；.mov 已移至轉碼格式"""
+        for ext in [".mp4", ".webm", ".m4v"]:
             f = tmp_path / f"test{ext}"
             f.write_bytes(b"\x00" * 256)
             vid = Video(
