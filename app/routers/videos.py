@@ -286,7 +286,7 @@ def open_local_player(video_id: str, db: Session = Depends(get_db)):
         elif system == "Linux":
             subprocess.Popen(["xdg-open", file_path])
         elif system == "Windows":
-            os.startfile(file_path)
+            os.startfile(file_path)  # type: ignore[attr-defined]  # nosec B606
         else:
             raise HTTPException(400, f"不支援的作業系統：{system}")
     except FileNotFoundError as e:

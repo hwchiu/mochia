@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
-from find_duplicates import sha256_file, find_duplicates, write_report, main  # noqa: E402
+from find_duplicates import find_duplicates, main, sha256_file, write_report  # noqa: E402
 
 
 class TestSha256File:
