@@ -21,6 +21,7 @@ import signal
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -93,6 +94,29 @@ def _set_progress(video: Video, db: Session, step: int, message: str, sub: int =
     video.progress_sub = sub
     db.commit()
     logger.info(f"  [{step}/4] {message}")
+
+
+def _warmup_file(file_path: str, progress_cb: Callable[[int], None]) -> None:
+    """Sequential pre-read to force Google Drive File Stream to download the file.
+
+    Google Drive in "Stream files" mode stores virtual placeholders. FFmpeg seeks
+    directly into the file (e.g., to find MP4 moov atoms) without triggering the
+    download. A sequential read from byte 0 forces the full download before FFmpeg
+    runs. Enabled via ENABLE_FILE_WARMUP=true in .env.
+    """
+    chunk_size = 8 * 1024 * 1024  # 8 MB chunks
+    total = Path(file_path).stat().st_size
+    if total == 0:
+        return
+    read = 0
+    with open(file_path, "rb") as fh:
+        while True:
+            chunk = fh.read(chunk_size)
+            if not chunk:
+                break
+            read += len(chunk)
+            pct = min(int(read * 100 / total), 99)
+            progress_cb(pct)
 
 
 def _run_gpt_steps(
@@ -179,6 +203,27 @@ def _process_task(task: TaskQueue, db: Session) -> None:
         raise FileNotFoundError(f"影片檔案不存在: {video_path}")
 
     logger.info(f"▶ 開始處理: {video.original_filename}")
+
+    # ── Step 0 (optional): Google Drive File Stream 預下載 ─────────────────
+    # FFmpeg seeks directly into files which does NOT trigger Google Drive
+    # "stream files" mode to download content.  A prior sequential read forces
+    # the full download so FFmpeg can work normally.
+    if settings.ENABLE_FILE_WARMUP:
+        file_size_mb = Path(video_path).stat().st_size / (1024 * 1024)
+
+        def warmup_cb(pct: int) -> None:
+            _set_progress(
+                video,
+                db,
+                1,
+                f"從雲端下載影片中... ({pct}%)  {file_size_mb:.0f} MB",
+                sub=pct,
+            )
+
+        _set_progress(video, db, 1, f"從雲端下載影片中... ({file_size_mb:.0f} MB)", sub=0)
+        logger.info(f"  [warmup] 開始預讀 {file_size_mb:.0f} MB 影片（ENABLE_FILE_WARMUP=true）")
+        _warmup_file(video_path, warmup_cb)
+        logger.info("  [warmup] 預讀完成，開始 FFmpeg 處理")
 
     # ── 智慧斷點續跑：若逐字稿已存在，跳過耗時的音頻提取與 Whisper 步驟 ──
     existing_transcript = db.query(Transcript).filter(Transcript.video_id == task.video_id).first()
