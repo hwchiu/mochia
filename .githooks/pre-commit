@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #  Git pre-commit hook
-#  每次 git commit 前自動執行：ruff lint + pytest
+#  每次 git commit 前自動執行：ruff lint + ruff format + pytest
 #  安裝：setup.sh 會執行 git config core.hooksPath .githooks
 #  跳過（緊急）：git commit --no-verify
 # ============================================================
@@ -16,15 +16,23 @@ if [ ! -f "$PYTHON" ]; then
   exit 0
 fi
 
-echo "🔍 Pre-commit: ruff lint..."
-if ! "$PYTHON" -m ruff check app/ worker.py cli.py --quiet; then
+echo "🔍 Pre-commit: ruff check (全部檔案，與 CI 一致)..."
+if ! "$PYTHON" -m ruff check .; then
   echo ""
   echo "❌ Ruff lint 失敗。修正方式："
-  echo "   venv/bin/python -m ruff check --fix app/ worker.py cli.py"
+  echo "   venv/bin/python -m ruff check --fix ."
   exit 1
 fi
 
-echo "🧪 Pre-commit: pytest (241 tests)..."
+echo "🎨 Pre-commit: ruff format check (與 CI 一致)..."
+if ! "$PYTHON" -m ruff format --check .; then
+  echo ""
+  echo "❌ Ruff format 失敗。修正方式："
+  echo "   venv/bin/python -m ruff format ."
+  exit 1
+fi
+
+echo "🧪 Pre-commit: pytest..."
 if ! "$PYTHON" -m pytest tests/ -q --tb=short --no-header; then
   echo ""
   echo "❌ 測試失敗。請修正後再 commit。"

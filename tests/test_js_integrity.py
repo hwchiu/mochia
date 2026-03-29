@@ -101,7 +101,9 @@ def _defined_js_functions() -> set[str]:
         sources.append(p.read_text(encoding="utf-8"))
     for p in _TMPL_DIR.glob("*.html"):
         # extract inline <script> blocks
-        for block in re.findall(r"<script[^>]*>(.*?)</script>", p.read_text(encoding="utf-8"), re.DOTALL):
+        for block in re.findall(
+            r"<script[^>]*>(.*?)</script>", p.read_text(encoding="utf-8"), re.DOTALL
+        ):
             sources.append(block)
 
     for src in sources:
@@ -191,10 +193,7 @@ def test_js_template_handlers_reference_defined_functions():
 
     assert not missing, (
         "JS template strings contain on* handlers calling undefined functions:\n"
-        + "\n".join(
-            f"  {fn}()  (in: {', '.join(files)})"
-            for fn, files in sorted(missing.items())
-        )
+        + "\n".join(f"  {fn}()  (in: {', '.join(files)})" for fn, files in sorted(missing.items()))
     )
 
     """Every function called in an HTML on* attribute must be defined in a
@@ -240,7 +239,6 @@ def test_js_getElementById_references_exist_in_html():
         "JS getElementById() calls reference IDs not found in any HTML template\n"
         "(add to _DYNAMIC_IDS if the element is created at runtime):\n"
         + "\n".join(
-            f"  #{id_val}  (in: {', '.join(files)})"
-            for id_val, files in sorted(missing.items())
+            f"  #{id_val}  (in: {', '.join(files)})" for id_val, files in sorted(missing.items())
         )
     )
