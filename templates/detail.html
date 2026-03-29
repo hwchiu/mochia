@@ -11,10 +11,6 @@
   <link rel="stylesheet" href="/static/css/theme.css">
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="/static/js/theme.js"></script>
-  <!-- Markmap -->
-  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.16"></script>
-  <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.16"></script>
   <!-- Marked.js for markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked@9"></script>
   <style>
@@ -31,9 +27,6 @@
     .faq-item.open .faq-a { display:block; }
     .faq-item.open .faq-toggle { transform:rotate(180deg); }
     .faq-toggle { transition:transform .2s; }
-    #mindmap-container { width:100%; height:min(600px, 60vh); min-height:300px; border:1px solid var(--border,#ddd); border-radius:8px; overflow:hidden; cursor:grab; background:#fafafa; }
-    #mindmap-container.grabbing { cursor:grabbing; }
-    #mindmap-container svg { width:100%; height:100%; }
     .chat-messages { height:400px; overflow-y:auto; border:1px solid var(--border,#ddd); border-radius:8px; padding:16px; margin-bottom:12px; display:flex; flex-direction:column; gap:12px; background:var(--bg,#fff); }
     .chat-bubble { max-width:80%; padding:10px 14px; border-radius:12px; line-height:1.6; font-size:14px; }
     .chat-bubble.user { background:var(--primary,#4f46e5); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
@@ -272,7 +265,6 @@
   <div id="notebooklm-section" class="hidden" style="margin-top:20px">
     <div class="tabs">
       <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">📝 摘要</button>
-      <button class="tab-btn" data-tab="mindmap" onclick="switchTab('mindmap')">🧠 心智圖</button>
       <button class="tab-btn" data-tab="faq" onclick="switchTab('faq')">❓ FAQ</button>
       <button class="tab-btn" data-tab="case-analysis" onclick="switchTab('case-analysis')">🔍 案例分析</button>
       <button class="tab-btn" data-tab="qa-chat" onclick="switchTab('qa-chat')">💬 對話</button>
@@ -292,29 +284,6 @@
       <div class="card">
         <div class="card-title">🔑 重點整理</div>
         <div id="key-points-list"></div>
-      </div>
-    </div>
-
-    <!-- Mindmap Tab -->
-    <div id="tab-mindmap" class="tab-panel">
-      <div class="card">
-        <div class="card-title" style="display:flex;align-items:center;gap:8px">
-          <span>🧠 心智圖</span>
-          <button class="btn btn-sm btn-ghost" onclick="resetMindmapZoom()" title="重置縮放">⟳ 重置</button>
-          <button class="btn btn-sm btn-ghost" onclick="openMindmapFullscreen()">⛶ 放大</button>
-          <button class="btn btn-sm btn-ghost" onclick="downloadMindmap()">⬇ 下載</button>
-          <button class="btn btn-sm btn-ghost regen-btn" onclick="confirmRegenerate('mindmap')">🔄 重新生成</button>
-          <span style="margin-left:auto;font-size:12px;color:var(--muted,#888)">滾輪縮放・拖曳移動</span>
-        </div>
-        <div id="mindmap-loading" class="loading-text">載入中...</div>
-        <div id="mindmap-container" style="display:none;position:relative">
-          <svg id="mindmap-svg"></svg>
-        </div>
-        <div id="mindmap-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
-        <details style="margin-top:12px">
-          <summary style="cursor:pointer;color:var(--muted,#888);font-size:13px">查看原始 Markdown</summary>
-          <pre id="mindmap-raw" style="font-size:12px;background:var(--surface,#f5f5f5);padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;margin-top:8px"></pre>
-        </details>
       </div>
     </div>
 
@@ -404,23 +373,6 @@
 </div>
 
 </main>
-
-<!-- Mindmap Fullscreen Modal -->
-<div class="overlay hidden" id="mindmap-fullscreen-overlay" style="z-index:300">
-  <div style="position:relative;width:90vw;height:88vh;background:#fff;border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
-    <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border,#ddd)">
-      <span style="font-weight:600">🧠 心智圖（全螢幕）</span>
-      <span style="font-size:12px;color:var(--muted,#888)">滾輪縮放・拖曳移動</span>
-      <div style="margin-left:auto;display:flex;gap:8px">
-        <button class="btn btn-sm btn-ghost" onclick="downloadMindmap()">⬇ 下載 PNG</button>
-        <button class="btn btn-sm btn-ghost" onclick="closeFullscreen()">✕ 關閉</button>
-      </div>
-    </div>
-    <div id="mindmap-fullscreen-container" style="flex:1;overflow:hidden;cursor:grab">
-      <svg id="mindmap-fullscreen-svg" style="width:100%;height:100%"></svg>
-    </div>
-  </div>
-</div>
 
 <div id="toast-container"></div>
 

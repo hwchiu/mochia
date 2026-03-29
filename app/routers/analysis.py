@@ -15,7 +15,6 @@ from app.services.analyzer import (
     ask_question,
     generate_deep_content,
     generate_faq,
-    generate_mindmap,
 )
 from app.services.analyzer import (
     suggest_labels as _suggest_labels,
@@ -205,20 +204,6 @@ def get_results(video_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/{video_id}/mindmap")
-def get_mindmap(video_id: str, db: Session = Depends(get_db)):
-    """取得心智圖"""
-    video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
-        raise HTTPException(404, "影片不存在")
-    if video.status != "completed":
-        raise HTTPException(409, "分析尚未完成")
-    summary = db.query(Summary).filter(Summary.video_id == video_id).first()
-    if not summary or summary.mindmap is None:
-        raise HTTPException(404, "尚未生成")
-    return {"video_id": video_id, "mindmap": summary.mindmap}
-
-
 @router.get("/{video_id}/faq")
 def get_faq(video_id: str, db: Session = Depends(get_db)):
     """取得 FAQ"""
@@ -343,7 +328,7 @@ def delete_chat_history(video_id: str, db: Session = Depends(get_db)):
 @router.post("/{video_id}/regenerate/{content_type}")
 def regenerate_content(video_id: str, content_type: str, db: Session = Depends(get_db)):
     """重新生成內容"""
-    valid_types = {"mindmap", "faq"}
+    valid_types = {"faq"}
     if content_type not in valid_types:
         raise HTTPException(400, f"無效的內容類型，支援: {', '.join(valid_types)}")
 
@@ -365,12 +350,7 @@ def regenerate_content(video_id: str, content_type: str, db: Session = Depends(g
     # sending the full raw transcript (which can be up to 8 K chars) per request.
     context = _build_qa_context(summary, transcript.content or "")
 
-    if content_type == "mindmap":
-        mindmap_result: str = generate_mindmap(context)
-        summary.mindmap = mindmap_result
-        db.commit()
-        return {"video_id": video_id, "mindmap": mindmap_result}
-    elif content_type == "faq":
+    if content_type == "faq":
         faq_result: list = generate_faq(context)
         summary.faq = json.dumps(faq_result, ensure_ascii=False)
         db.commit()
@@ -388,9 +368,7 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     if not transcript or not transcript.content:
         raise HTTPException(409, "逐字稿不存在，請先完成語音辨識")
 
-    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(
-        transcript.content or ""
-    )
+    summary_text, key_points, category, confidence, faq_list = analyze_all(transcript.content or "")
     seg_list = json.loads(transcript.segments) if transcript.segments else None
     study_notes, case_analysis_text = generate_deep_content(
         transcript.content or "", segments=seg_list
@@ -400,7 +378,6 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
     if summary:
         summary.summary = summary_text
         summary.key_points = json.dumps(key_points, ensure_ascii=False)
-        summary.mindmap = mindmap
         summary.faq = json.dumps(faq_list, ensure_ascii=False)
         summary.study_notes = study_notes
         summary.case_analysis = case_analysis_text or None
@@ -411,7 +388,6 @@ def reanalyze_video(video_id: str, db: Session = Depends(get_db)):
                 video_id=video_id,
                 summary=summary_text,
                 key_points=json.dumps(key_points, ensure_ascii=False),
-                mindmap=mindmap,
                 faq=json.dumps(faq_list, ensure_ascii=False),
                 study_notes=study_notes,
                 case_analysis=case_analysis_text or None,
