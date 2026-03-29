@@ -105,7 +105,7 @@ function renderTable(videos) {
       <td><span class="badge badge-pending" style="text-transform:none;letter-spacing:0">${v.source === "local_scan" ? "本地" : "上傳"}</span></td>
       <td>
         ${v.status === "pending" || v.status === "failed"
-          ? `<button class="btn btn-sm btn-primary" onclick="queueOne('${v.id}')">加入佇列</button>`
+          ? `<button class="btn btn-sm btn-primary" onclick="queueOne('${v.id}', this)">加入佇列</button>`
           : ""}
         ${v.status === "completed"
           ? `<a class="btn btn-sm btn-ghost" href="/video/${v.id}">查看結果</a>`
@@ -134,10 +134,33 @@ function renderPagination(total) {
   }
   html += `<button class="btn btn-sm btn-ghost" onclick="goPage(${cur + 1})" ${cur >= pages - 1 ? "disabled" : ""}>›</button>`;
   html += `<span class="pag-info">第 ${cur + 1} / ${pages} 頁，共 ${total} 支</span>`;
+  if (pages > 2) {
+    html += `
+    <span style="margin-left:8px;display:inline-flex;align-items:center;gap:4px;font-size:13px">
+      跳至
+      <input type="number" id="page-jump-input" min="1" max="${pages}"
+             style="width:50px;padding:4px 6px;border:1px solid var(--border,#ddd);border-radius:4px;font-size:13px;text-align:center"
+             onkeydown="if(event.key==='Enter') jumpToPage(${pages})">
+      <span style="color:var(--muted)">/ ${pages}</span>
+      <button class="btn btn-ghost btn-sm" onclick="jumpToPage(${pages})">前往</button>
+    </span>`;
+  }
   el.innerHTML = html;
 }
 
 function goPage(p) { currentPage = p; loadVideos(); }
+
+function jumpToPage(totalPages) {
+  const input = document.getElementById("page-jump-input");
+  if (!input) return;
+  const page = parseInt(input.value, 10);
+  if (isNaN(page) || page < 1 || page > totalPages) {
+    toast(`請輸入 1 到 ${totalPages} 之間的頁碼`, "warning");
+    return;
+  }
+  currentPage = page - 1;
+  loadVideos();
+}
 
 document.getElementById("filter-status").addEventListener("change", e => { filterStatus = e.target.value; currentPage = 0; loadVideos(); });
 document.getElementById("filter-source").addEventListener("change", e => { filterSource = e.target.value; currentPage = 0; loadVideos(); });
@@ -184,12 +207,17 @@ document.getElementById("btn-cancel-queue").addEventListener("click", async () =
   } catch (e) { toast("操作失敗: " + e.message, "error"); }
 });
 
-async function queueOne(id) {
+async function queueOne(id, btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = "..."; }
   try {
-    const d = await api("POST", `/api/analysis/${id}/queue`);
-    toast(d.message, "success");
-    loadStats(); loadVideos();
-  } catch (e) { toast("操作失敗: " + e.message, "error"); }
+    await api("POST", `/api/analysis/${id}/queue`);
+    toast("已加入佇列", "success");
+    loadVideos();
+  } catch (e) {
+    toast("加入佇列失敗: " + e.message, "error");
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = "加入佇列"; }
+  }
 }
 
 // ─── Scan Modal ───────────────────────────────────────────────────────────────
@@ -536,6 +564,17 @@ startAutoScanPoll();
 // 從 URL ?section= 恢復選中的頁面（從 detail 頁返回時）
 const _initSection = new URLSearchParams(window.location.search).get("section");
 if (_initSection) showSection(_initSection);
+
+// ─── 鍵盤快捷鍵：按 / 跳至全文搜尋 ──────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) return;
+  if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    showSection("search");
+    setTimeout(() => document.getElementById("fts-input")?.focus(), 50);
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 今日待複習

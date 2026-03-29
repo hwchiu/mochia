@@ -1,4 +1,17 @@
 // ─── Toast ───
+function _ensureAriaAnnouncer() {
+  let el = document.getElementById('aria-announcer');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'aria-announcer';
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-atomic', 'true');
+    el.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
 const _TOAST_ICONS = {
   success: 'circle-check',
   error:   'circle-x',
@@ -7,6 +20,11 @@ const _TOAST_ICONS = {
 };
 
 function toast(msg, type = 'info') {
+  // 更新 ARIA announcer（讓螢幕閱讀器播報）
+  const announcer = _ensureAriaAnnouncer();
+  announcer.textContent = '';
+  setTimeout(() => { announcer.textContent = msg; }, 100);
+
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');

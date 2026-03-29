@@ -295,6 +295,23 @@ td.name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-spa
   .card { padding: 14px 16px; }
   .tab-btn { padding: 8px 10px; font-size: var(--text-sm); }
   .modal-box { margin: 16px; border-radius: var(--radius); }
+
+  /* 隱藏表格次要欄位，減少橫向溢出 */
+  table th:nth-child(4),
+  table td:nth-child(4),
+  table th:nth-child(5),
+  table td:nth-child(5),
+  table th:nth-child(6),
+  table td:nth-child(6) {
+    display: none;
+  }
+  /* 影片名稱欄截斷 */
+  table td.name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 .detail-col-left { display: flex; flex-direction: column; gap: 20px; }
 .detail-col-right { position: sticky; top: 1rem; }

@@ -69,6 +69,19 @@ signal.signal(signal.SIGINT, _handle_shutdown)
 # ──────────────────────────── Core Logic ────────────────────────────
 
 
+def _write_heartbeat() -> None:
+    """每次 poll 寫入心跳檔案，供 API 監控 Worker 是否存活"""
+    heartbeat_path = settings.DATA_DIR / "worker_heartbeat.json"
+    try:
+        heartbeat_path.write_text(json.dumps({
+            "pid": os.getpid(),
+            "timestamp": datetime.utcnow().isoformat(),
+            "app_version": settings.APP_VERSION,
+        }))
+    except Exception as e:
+        logger.warning(f"無法寫入心跳檔案: {e}")
+
+
 def _set_progress(video: Video, db: Session, step: int, message: str, sub: int = 0) -> None:
     """更新影片分析進度並立即寫入 DB，供前端輪詢顯示"""
     video.progress_step = step
@@ -152,6 +165,7 @@ def _run_gpt_steps(
 
 def _process_task(task: TaskQueue, db: Session) -> None:
     """執行單一分析任務：音頻提取 → 轉錄 → 分析 → NotebookLM 功能"""
+    audio_path: Path | None = None
     video = db.query(Video).filter(Video.id == task.video_id).first()
     if not video:
         raise ValueError(f"找不到影片 video_id={task.video_id}")
@@ -225,7 +239,8 @@ def _process_task(task: TaskQueue, db: Session) -> None:
         _run_gpt_steps(video, task, db, transcript_text, segments=segments)
 
     finally:
-        cleanup_audio(audio_path)
+        if audio_path:
+            cleanup_audio(audio_path)
 
 
 def _pick_next_task(db: Session) -> TaskQueue | None:
@@ -286,6 +301,7 @@ def run_worker():
         _recover_interrupted_tasks(db)
 
         while _running:
+            _write_heartbeat()
             task = _pick_next_task(db)
 
             if not task:
