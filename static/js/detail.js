@@ -82,6 +82,9 @@ async function loadDetail() {
     if (results.transcript) {
       renderTranscript(results.transcript, results.transcript_segments || null);
     }
+    if (results.transcript_segments && results.transcript_segments.length) {
+      attachSubtitleTrack(results.transcript_segments);
+    }
     // 案例分析若已包含在 results 中直接渲染，否則等 tab 切換時再 lazy load
     if (results.case_analysis !== undefined) {
       renderCaseAnalysis(results.case_analysis);
@@ -211,6 +214,7 @@ async function loadMindmap() {
     containerEl.style.display = "block";
     renderMindmap(markdown);
   } catch (e) {
+    tabLoaded["mindmap"] = false;  // 讓使用者可重試
     loadingEl.style.display = "none";
     errorEl.textContent = e.message.includes("尚未生成") ? "心智圖尚未生成，請點擊「重新生成」" : ("載入失敗: " + e.message);
     errorEl.classList.remove("hidden");
@@ -341,7 +345,20 @@ async function loadFAQ() {
         <div class="faq-a">${item.answer}</div>
       </div>
     `).join("");
+    // 鍵盤可及性
+    listEl.querySelectorAll(".faq-q").forEach((q, i) => {
+      q.setAttribute("tabindex", "0");
+      q.setAttribute("role", "button");
+      q.setAttribute("aria-expanded", "false");
+      q.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          q.click();
+        }
+      });
+    });
   } catch (e) {
+    tabLoaded["faq"] = false;  // 讓使用者可重試
     loadingEl.style.display = "none";
     errorEl.textContent = e.message.includes("尚未生成") ? "FAQ 尚未生成，請點擊「重新生成」" : ("載入失敗: " + e.message);
     errorEl.classList.remove("hidden");
@@ -349,7 +366,10 @@ async function loadFAQ() {
 }
 
 function toggleFAQ(i) {
-  document.getElementById("faq-" + i).classList.toggle("open");
+  const item = document.getElementById("faq-" + i);
+  item.classList.toggle("open");
+  const q = item.querySelector(".faq-q");
+  if (q) q.setAttribute("aria-expanded", item.classList.contains("open") ? "true" : "false");
 }
 
 async function loadChatHistory() {
@@ -427,19 +447,23 @@ async function clearChatHistory() {
 
 async function regenerate(type) {
   const labels = { mindmap: "心智圖", faq: "FAQ" };
-  if (!confirm(`確定要重新生成 ${labels[type] || type} 嗎？這需要一些時間。`)) return;
+  const label = labels[type] || type;
+  if (!confirm(`確定要重新生成 ${label} 嗎？這需要一些時間。`)) return;
 
-  toast(`正在重新生成 ${labels[type] || type}...`, "info");
+  // Disable 所有 regen 按鈕，防止重複點擊
+  const regenBtns = document.querySelectorAll(".regen-btn");
+  regenBtns.forEach(btn => { btn.disabled = true; btn.style.opacity = "0.5"; });
+  toast(`正在重新生成 ${label}，請稍候...`, "info");
 
   try {
     await api("POST", `/api/analysis/${videoId}/regenerate/${type}`);
-    toast(`${labels[type] || type} 已重新生成！`, "success");
-
-    // Reload the relevant tab
+    toast(`${label} 已重新生成！`, "success");
     if (type === "mindmap") { tabLoaded["mindmap"] = false; loadMindmap(); }
     else if (type === "faq") { tabLoaded["faq"] = false; loadFAQ(); }
   } catch (e) {
     toast("重新生成失敗: " + e.message, "error");
+  } finally {
+    regenBtns.forEach(btn => { btn.disabled = false; btn.style.opacity = ""; });
   }
 }
 
@@ -528,7 +552,39 @@ function renderTranscript(text, segments) {
 }
 
 /**
- * Render case analysis markdown with clickable [MM:SS] timestamp links.
+ * Generate a WebVTT subtitle track from Whisper segments and attach it to the video player.
+ * @param {Array<{start:number,end:number,text:string}>} segments
+ */
+function attachSubtitleTrack(segments) {
+  if (!segments || !segments.length) return;
+  const videoEl = document.getElementById("video-player");
+  if (!videoEl) return;
+
+  // 移除舊 track
+  videoEl.querySelectorAll("track.auto-subtitle").forEach(t => t.remove());
+
+  function toVTTTime(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = (s % 60).toFixed(3);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(6,'0')}`;
+  }
+  const vtt = "WEBVTT\n\n" + segments.map((seg, i) =>
+    `${i+1}\n${toVTTTime(seg.start)} --> ${toVTTTime(seg.end)}\n${seg.text.trim()}`
+  ).join("\n\n");
+
+  const blob = new Blob([vtt], { type: "text/vtt" });
+  const url = URL.createObjectURL(blob);
+
+  const track = document.createElement("track");
+  track.kind = "subtitles";
+  track.label = "中文字幕";
+  track.srclang = "zh";
+  track.src = url;
+  track.className = "auto-subtitle";
+  track.default = true;
+  videoEl.appendChild(track);
+}
+
+
  * Timestamp links seek the embedded video player at the top of the page.
  *
  * @param {string|null} text - Markdown case analysis text
@@ -566,6 +622,7 @@ async function loadCaseAnalysis() {
     const data = await api("GET", `/api/analysis/${videoId}/case-analysis`);
     renderCaseAnalysis(data.case_analysis);
   } catch (e) {
+    tabLoaded["case-analysis"] = false;  // 讓使用者可重試
     el.innerHTML = `<p style="color:var(--muted)">載入失敗：${e.message}</p>`;
   }
 }
@@ -627,10 +684,7 @@ function confirmReanalyze() {
 
 /** Confirm before burning GPT tokens on regeneration */
 function confirmRegenerate(type) {
-  const label = type === "mindmap" ? "心智圖" : "FAQ";
-  if (confirm(`重新生成${label}將消耗 API token。確定繼續嗎？`)) {
-    regenerate(type);
-  }
+  regenerate(type);
 }
 
 async function retryVideo(vid) {
@@ -655,7 +709,15 @@ async function queueVideo(vid) {
 
 window.addEventListener("load", () => { loadDetail(); loadAllLabels(); });
 window.addEventListener("beforeunload", () => { if (pollTimer) clearTimeout(pollTimer); });
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeFullscreen(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    const overlay = document.getElementById("mindmap-fullscreen-overlay");
+    if (overlay && !overlay.classList.contains("hidden")) {
+      closeFullscreen();
+      return;
+    }
+  }
+});
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 // Space = play/pause · ← → = ±10s · J/L = ±10s · K = play/pause · M = mute · F = fullscreen
@@ -1039,6 +1101,7 @@ async function loadNote() {
     editor.value = data.content || "";
     renderNotePreview(editor.value);
   } catch (e) {
+    tabLoaded["notes"] = false;  // 讓使用者可重試
     console.error("載入筆記失敗:", e);
   }
 }

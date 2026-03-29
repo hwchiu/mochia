@@ -31,7 +31,7 @@
     .faq-item.open .faq-a { display:block; }
     .faq-item.open .faq-toggle { transform:rotate(180deg); }
     .faq-toggle { transition:transform .2s; }
-    #mindmap-container { width:100%; height:600px; border:1px solid var(--border,#ddd); border-radius:8px; overflow:hidden; cursor:grab; background:#fafafa; }
+    #mindmap-container { width:100%; height:min(600px, 60vh); min-height:300px; border:1px solid var(--border,#ddd); border-radius:8px; overflow:hidden; cursor:grab; background:#fafafa; }
     #mindmap-container.grabbing { cursor:grabbing; }
     #mindmap-container svg { width:100%; height:100%; }
     .chat-messages { height:400px; overflow-y:auto; border:1px solid var(--border,#ddd); border-radius:8px; padding:16px; margin-bottom:12px; display:flex; flex-direction:column; gap:12px; background:var(--bg,#fff); }
@@ -114,6 +114,13 @@
 </button>
 
 <span id="video-id" data-id="{{ video_id }}" style="display:none"></span>
+  <div style="margin-bottom:8px">
+    <a href="/" style="display:inline-flex;align-items:center;gap:4px;color:var(--muted,#888);font-size:13px;text-decoration:none;"
+       onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--muted,#888)'">
+      <i data-lucide="arrow-left" style="width:14px;height:14px" aria-hidden="true"></i>
+      返回影片列表
+    </a>
+  </div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
     <h1 style="font-size:18px;font-weight:700" id="video-name">載入中...</h1>
     <span id="kv-status"></span>

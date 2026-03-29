@@ -107,13 +107,13 @@ def get_video_labels(video_id: str, db: Session = Depends(get_db)):
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(404, "影片不存在")
-    rows = db.query(VideoLabel).filter(VideoLabel.video_id == video_id).all()
-    result = []
-    for row in rows:
-        lbl = db.query(Label).filter(Label.id == row.label_id).first()
-        if lbl:
-            result.append({"id": lbl.id, "name": lbl.name, "color": lbl.color})
-    return result
+    labels = (
+        db.query(Label)
+        .join(VideoLabel, Label.id == VideoLabel.label_id)
+        .filter(VideoLabel.video_id == video_id)
+        .all()
+    )
+    return [{"id": lbl.id, "name": lbl.name, "color": lbl.color} for lbl in labels]
 
 
 @router.post("/videos/{video_id}", status_code=201)

@@ -1,6 +1,8 @@
 """影片管理 API：列表、詳情、刪除、單筆加入佇列"""
 
+import asyncio
 import logging
+import os
 import shutil
 import subprocess
 import uuid
@@ -53,11 +55,15 @@ async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_d
     safe_name = f"{video_id}{ext}"
     dest = settings.UPLOAD_DIR / safe_name
 
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    try:
+        with open(dest, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    except Exception:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(500, "檔案寫入失敗，請重試") from None
 
     file_size = dest.stat().st_size
-    duration = get_video_duration(dest)
+    duration = await asyncio.to_thread(get_video_duration, dest)
 
     video = Video(
         id=video_id,
@@ -280,7 +286,7 @@ def open_local_player(video_id: str, db: Session = Depends(get_db)):
         elif system == "Linux":
             subprocess.Popen(["xdg-open", file_path])
         elif system == "Windows":
-            subprocess.Popen(["start", "", file_path], shell=True)
+            os.startfile(file_path)  # type: ignore[attr-defined]  # nosec B606
         else:
             raise HTTPException(400, f"不支援的作業系統：{system}")
     except FileNotFoundError as e:

@@ -407,6 +407,11 @@ def browse_directory(path: str = "/videos"):
     try:
         for entry in sorted(requested.iterdir()):
             if entry.is_dir() and not entry.name.startswith("."):
+                try:
+                    resolved = entry.resolve()
+                    resolved.relative_to(allowed_root)  # 若超出邊界會 raise ValueError
+                except ValueError:
+                    continue  # 跳過指向邊界外的 symlink
                 subdirs.append(
                     {
                         "name": entry.name,

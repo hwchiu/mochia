@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -31,6 +32,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base: Any = declarative_base()
+logger = logging.getLogger(__name__)
 
 
 class Video(Base):
@@ -66,6 +68,7 @@ class Video(Base):
     video_labels = relationship("VideoLabel", cascade="all, delete-orphan")  # type: ignore[misc]
     review_records = relationship("ReviewRecord", cascade="all, delete-orphan")  # type: ignore[misc]
     notes = relationship("VideoNote", cascade="all, delete-orphan")  # type: ignore[misc]
+    chat_messages = relationship("ChatMessage", cascade="all, delete-orphan")  # type: ignore[misc]
 
 
 class Transcript(Base):
@@ -122,7 +125,7 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id = Column(String, primary_key=True)
-    video_id = Column(String, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     role = Column(String)
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -190,7 +193,7 @@ def _migrate_db():
     ]:
         if col not in existing:
             cursor.execute(f"ALTER TABLE summaries ADD COLUMN {col} {typ}")
-            print(f"[migration] summaries.{col}")
+            logger.info("[migration] summaries.%s", col)
 
     # videos
     cursor.execute("PRAGMA table_info(videos)")
@@ -208,7 +211,7 @@ def _migrate_db():
     ]:
         if col not in vcols:
             cursor.execute(f"ALTER TABLE videos ADD COLUMN {col} {typ}")
-            print(f"[migration] videos.{col}")
+            logger.info("[migration] videos.%s", col)
 
     # transcripts
     try:
@@ -230,6 +233,33 @@ def _migrate_db():
         )
     """)
 
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_taskqueue_status ON task_queue(status)")
+
+    # 重建 chat_messages 以加入 FK（SQLite 不支援 ALTER TABLE ADD CONSTRAINT）
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='chat_messages'")
+    cm_row = cursor.fetchone()
+    if cm_row and "FOREIGN KEY" not in (cm_row[0] or "").upper():
+        logger.info("[migration] 重建 chat_messages 以加入 FK...")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages_new (
+                id TEXT PRIMARY KEY,
+                video_id TEXT REFERENCES videos(id) ON DELETE CASCADE,
+                role TEXT,
+                content TEXT,
+                created_at DATETIME
+            )
+        """)
+        cursor.execute("""
+            INSERT OR IGNORE INTO chat_messages_new (id, video_id, role, content, created_at)
+            SELECT id, video_id, role, content, created_at FROM chat_messages
+        """)
+        cursor.execute("DROP TABLE chat_messages")
+        cursor.execute("ALTER TABLE chat_messages_new RENAME TO chat_messages")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS ix_chat_messages_video_id ON chat_messages(video_id)"
+        )
+
     conn.commit()
     conn.close()
 
@@ -249,7 +279,7 @@ def _drop_filename_unique_index():
     for index_name, index_sql in cursor.fetchall():
         if index_sql and "filename" in index_sql and "UNIQUE" in (index_sql or "").upper():
             cursor.execute(f"DROP INDEX IF EXISTS {index_name}")
-            print(f"[migration] dropped UNIQUE index on videos.filename: {index_name}")
+            logger.info("[migration] dropped UNIQUE index on videos.filename: %s", index_name)
     conn.commit()
     conn.close()
 
