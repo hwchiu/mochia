@@ -4,7 +4,7 @@ convert_to_mp4.py — Batch video converter
 ==========================================
 
 Recursively scans a folder (or converts a single file) and converts
-unsupported/non-seekable formats (avi/flv/mkv/wmv/…) to H.264/AAC MP4
+unsupported/non-seekable formats (avi/flv/mkv/mov/wmv/…) to H.264/AAC MP4
 with a front-loaded moov atom so the browser can seek immediately.
 
 Usage:
@@ -33,7 +33,7 @@ from pathlib import Path
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
-DEFAULT_FORMATS: frozenset[str] = frozenset({".wmv", ".mkv", ".avi", ".flv"})
+DEFAULT_FORMATS: frozenset[str] = frozenset({".wmv", ".mkv", ".avi", ".flv", ".mov"})
 
 # H.264/AAC, CRF 23 (visually transparent), faststart for instant browser seek.
 _FFMPEG_BASE: list[str] = [
