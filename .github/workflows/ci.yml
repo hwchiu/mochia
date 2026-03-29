@@ -27,6 +27,12 @@ jobs:
       - name: Run ruff format check
         run: ruff format --check .
 
+      - name: Check JavaScript syntax
+        run: |
+          find static/js -name "*.js" | while read f; do
+            node --check "$f" || exit 1
+          done
+
   # ─── Type check ───────────────────────────────────────────────
   typecheck:
     name: Type check (mypy)
