@@ -109,6 +109,12 @@ class Settings(BaseSettings):
     VIDEO_DIR_4: str = ""
     VIDEO_DIR_5: str = ""
 
+    # Google Drive / 雲端串流模式預讀
+    # 使用 Google Drive for Desktop「串流模式」時，檔案為虛擬佔位，
+    # FFmpeg 直接 seek 不會觸發下載；設為 true 會在 FFmpeg 前先做
+    # sequential pre-read 強制觸發完整下載。
+    ENABLE_FILE_WARMUP: bool = False
+
 
 settings = Settings()
 

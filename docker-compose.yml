@@ -19,6 +19,12 @@
 #      VIDEO_DIR_2=/Volumes/ExternalDrive/Videos
 #      VIDEO_DIR_3=/Users/hwchiu/Downloads/課程
 #
+#  Google Drive 串流模式（Stream files）設定：
+#    若影片目錄掛載自 Google Drive for Desktop 的「串流模式」，
+#    FFmpeg 直接 seek 不會觸發 GDrive 下載；請在 .env 加入：
+#      ENABLE_FILE_WARMUP=true
+#    開啟後，分析前會先做一次 sequential pre-read 強制觸發下載。
+#
 #  Image 來源：
 #    從 Docker Hub hwchiu/mochia:latest 拉取
 #    支援 linux/amd64（Intel/AMD）與 linux/arm64（Apple Silicon、ARM 伺服器）
