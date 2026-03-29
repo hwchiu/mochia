@@ -523,7 +523,7 @@ function renderTranscript(text, segments) {
       const sec  = seg.start ?? 0;
       const mins = String(Math.floor(sec / 60)).padStart(2, '0');
       const secs = String(Math.floor(sec % 60)).padStart(2, '0');
-      return `<div class="transcript-seg" data-sec="${sec}" onclick="seekTo(${sec})">
+      return `<div class="transcript-seg" data-sec="${sec}" onclick="seekMainPlayer(${sec})">
     <span class="ts-time">${mins}:${secs}</span>
     <span class="ts-text">${seg.text ?? ''}</span>
   </div>`;
