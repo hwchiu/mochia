@@ -256,7 +256,9 @@ def _migrate_db():
         """)
         cursor.execute("DROP TABLE chat_messages")
         cursor.execute("ALTER TABLE chat_messages_new RENAME TO chat_messages")
-        cursor.execute("CREATE INDEX IF NOT EXISTS ix_chat_messages_video_id ON chat_messages(video_id)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS ix_chat_messages_video_id ON chat_messages(video_id)"
+        )
 
     conn.commit()
     conn.close()

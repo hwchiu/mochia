@@ -42,7 +42,9 @@ def get_worker_health() -> dict:
         alive = elapsed < stale_threshold
         return {
             "alive": alive,
-            "reason": None if alive else f"心跳已超過 {int(elapsed)}s 無更新（閾值 {stale_threshold}s）",
+            "reason": None
+            if alive
+            else f"心跳已超過 {int(elapsed)}s 無更新（閾值 {stale_threshold}s）",
             "last_heartbeat": data["timestamp"],
             "elapsed_seconds": round(elapsed, 1),
             "pid": data.get("pid"),

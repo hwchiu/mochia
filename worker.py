@@ -73,11 +73,15 @@ def _write_heartbeat() -> None:
     """每次 poll 寫入心跳檔案，供 API 監控 Worker 是否存活"""
     heartbeat_path = settings.DATA_DIR / "worker_heartbeat.json"
     try:
-        heartbeat_path.write_text(json.dumps({
-            "pid": os.getpid(),
-            "timestamp": datetime.utcnow().isoformat(),
-            "app_version": settings.APP_VERSION,
-        }))
+        heartbeat_path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "app_version": settings.APP_VERSION,
+                }
+            )
+        )
     except Exception as e:
         logger.warning(f"無法寫入心跳檔案: {e}")
 
