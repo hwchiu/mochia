@@ -76,6 +76,7 @@ def db_session_nc(db_session):
 @pytest.fixture(scope="function")
 def client(db_engine):
     from app import app
+    import app.routers.batch as batch_module
 
     Session = sessionmaker(bind=db_engine)
 
@@ -86,10 +87,15 @@ def client(db_engine):
         finally:
             session.close()
 
+    # Patch background-task session factory to use the same test DB
+    original_factory = batch_module._scan_session_factory
+    batch_module._scan_session_factory = Session
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
     app.dependency_overrides.clear()
+    batch_module._scan_session_factory = original_factory
 
 
 # ─── 輔助 Fixtures ────────────────────────────────────────────

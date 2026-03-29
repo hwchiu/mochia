@@ -36,6 +36,25 @@ _auto_scan = AutoScanState()
 _auto_scan_lock = threading.Lock()
 
 
+# ─── 手動掃描狀態（使用者從 UI 觸發）────────────────────────
+
+
+@dataclass
+class ManualScanState:
+    status: str = "idle"  # idle | running | done | error
+    path: str | None = None
+    files_scanned: int = 0
+    files_found: int = 0
+    registered: int = 0
+    skipped: int = 0
+    current_dir: str | None = None
+    error: str | None = None
+
+
+_manual_scan = ManualScanState()
+_manual_scan_lock = threading.Lock()
+
+
 def run_auto_scan() -> None:
     """容器啟動後在背景執行，掃描所有 /videos/source1~5 並登錄影片。"""
     videos_root = Path("/videos")
@@ -106,13 +125,17 @@ def run_auto_scan() -> None:
     )
 
 
-def _scan_directory(scan_path: str, db: Session) -> dict:
+_PROGRESS_INTERVAL = 100  # 每處理 N 個檔案回報一次進度
+
+
+def _scan_directory(scan_path: str, db: Session, progress_cb=None) -> dict:
     """掃描目錄，將新影片登錄到資料庫（不複製檔案）。
 
     演算法：
     - 單次 rglob("*") 走完目錄樹，副檔名用 set lookup（O(1)）過濾
     - 預先載入 DB 所有 file_path 到 set，避免 N 次 SELECT
     - 批次 add + 一次 commit
+    - progress_cb(files_scanned, found, registered, skipped, current_dir) 每 100 檔回呼
     """
     base = Path(scan_path)
     if not base.exists():
@@ -127,34 +150,43 @@ def _scan_directory(scan_path: str, db: Session) -> dict:
         row[0] for row in db.query(Video.file_path).filter(Video.file_path.isnot(None)).all()
     }
 
-    found = skipped = registered = 0
+    found = skipped = registered = files_scanned = 0
     new_videos = []
 
     # 單次遍歷，副檔名 set lookup
-    for video_file in base.rglob("*"):
-        if video_file.suffix.lower() not in ext_set:
+    for entry in base.rglob("*"):
+        if not entry.is_file():
             continue
+        files_scanned += 1
+
+        if entry.suffix.lower() not in ext_set:
+            if progress_cb and files_scanned % _PROGRESS_INTERVAL == 0:
+                progress_cb(files_scanned, found, registered, skipped, str(entry.parent))
+            continue
+
         found += 1
-        abs_path = str(video_file.resolve())
+        abs_path = str(entry.resolve())
 
         if abs_path in existing_paths:
             skipped += 1
-            continue
-
-        new_videos.append(
-            Video(
-                id=uuid.uuid4().hex,
-                filename=video_file.name,
-                original_filename=video_file.name,
-                file_path=abs_path,
-                source="local_scan",
-                file_size=video_file.stat().st_size,
-                duration=None,  # 分析時由 ffprobe 取得
-                status="pending",
+        else:
+            new_videos.append(
+                Video(
+                    id=uuid.uuid4().hex,
+                    filename=entry.name,
+                    original_filename=entry.name,
+                    file_path=abs_path,
+                    source="local_scan",
+                    file_size=entry.stat().st_size,
+                    duration=None,  # 分析時由 ffprobe 取得
+                    status="pending",
+                )
             )
-        )
-        existing_paths.add(abs_path)  # 防止同一次掃描內重複
-        registered += 1
+            existing_paths.add(abs_path)  # 防止同一次掃描內重複
+            registered += 1
+
+        if progress_cb and files_scanned % _PROGRESS_INTERVAL == 0:
+            progress_cb(files_scanned, found, registered, skipped, str(entry.parent))
 
     if new_videos:
         db.add_all(new_videos)
@@ -164,15 +196,48 @@ def _scan_directory(scan_path: str, db: Session) -> dict:
     return {"found": found, "registered": registered, "skipped": skipped}
 
 
+# 允許測試替換 session factory（測試時替換為 test session maker）
+_scan_session_factory = SessionLocal
+
+
+def _run_manual_scan(scan_path: str) -> None:
+    """背景執行手動掃描，持續更新 _manual_scan 狀態。"""
+    db = _scan_session_factory()
+    try:
+
+        def _progress(
+            files_scanned: int, found: int, registered: int, skipped: int, current_dir: str
+        ) -> None:
+            with _manual_scan_lock:
+                _manual_scan.files_scanned = files_scanned
+                _manual_scan.files_found = found
+                _manual_scan.registered = registered
+                _manual_scan.skipped = skipped
+                _manual_scan.current_dir = current_dir
+
+        result = _scan_directory(scan_path, db, progress_cb=_progress)
+        with _manual_scan_lock:
+            _manual_scan.status = "done"
+            _manual_scan.files_found = result["found"]
+            _manual_scan.registered = result["registered"]
+            _manual_scan.skipped = result["skipped"]
+    except Exception as e:
+        with _manual_scan_lock:
+            _manual_scan.status = "error"
+            _manual_scan.error = str(e)
+        logger.exception("手動掃描失敗: %s", scan_path)
+    finally:
+        db.close()
+
+
 @router.post("/scan")
 def scan_directory(
     path: str,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
 ):
     """
     掃描本地目錄，將影片路徑登錄至資料庫（不複製檔案）。
-    對於大型目錄會在背景執行。
+    立即回傳，掃描在背景執行；用 GET /api/batch/manual-scan-status 輪詢進度。
     """
     scan_path = Path(path)
     if not scan_path.exists():
@@ -180,13 +245,36 @@ def scan_directory(
     if not scan_path.is_dir():
         raise HTTPException(400, f"路徑不是目錄: {path}")
 
-    # 先做一個快速計數
-    result = _scan_directory(path, db)
-    return {
-        "message": "掃描完成",
-        "path": path,
-        **result,
-    }
+    with _manual_scan_lock:
+        if _manual_scan.status == "running":
+            raise HTTPException(409, "掃描正在進行中，請稍候")
+        _manual_scan.status = "running"
+        _manual_scan.path = path
+        _manual_scan.files_scanned = 0
+        _manual_scan.files_found = 0
+        _manual_scan.registered = 0
+        _manual_scan.skipped = 0
+        _manual_scan.current_dir = path
+        _manual_scan.error = None
+
+    background_tasks.add_task(_run_manual_scan, path)
+    return {"status": "started"}
+
+
+@router.get("/manual-scan-status")
+def get_manual_scan_status():
+    """回傳手動掃描的即時進度。"""
+    with _manual_scan_lock:
+        return {
+            "status": _manual_scan.status,
+            "path": _manual_scan.path,
+            "files_scanned": _manual_scan.files_scanned,
+            "files_found": _manual_scan.files_found,
+            "registered": _manual_scan.registered,
+            "skipped": _manual_scan.skipped,
+            "current_dir": _manual_scan.current_dir,
+            "error": _manual_scan.error,
+        }
 
 
 @router.post("/queue-all")

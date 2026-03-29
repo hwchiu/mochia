@@ -1208,3 +1208,7 @@ textarea:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

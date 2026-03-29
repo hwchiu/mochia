@@ -96,6 +96,15 @@
       <p class="modal-hint">
         💡 路徑對應宿主機目錄，在 <code>.env</code> 設定 <code>VIDEO_DIR_1</code>~<code>VIDEO_DIR_5</code> 後重啟容器即可新增來源。
       </p>
+
+      <!-- 掃描進度（掃描中時顯示）-->
+      <div id="scan-progress" style="display:none;margin-top:12px;padding:12px 14px;background:var(--surface,#f5f7fa);border:1px solid var(--border,#e0e0e0);border-radius:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="display:inline-block;width:14px;height:14px;border:2px solid var(--primary,#4f46e5);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0"></span>
+          <span id="scan-progress-stats" style="font-size:0.85rem;color:var(--text-secondary,#555)">掃描中...</span>
+        </div>
+        <div id="scan-progress-dir" style="font-size:0.72rem;color:var(--muted,#888);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+      </div>
     </div>
   </div>
 </div>

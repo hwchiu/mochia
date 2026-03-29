@@ -284,17 +284,61 @@ async function runScan() {
   if (!path) { toast("請選擇或輸入目錄路徑", "error"); return; }
 
   const btn = document.getElementById("scan-confirm-btn");
+  const progressBox = document.getElementById("scan-progress");
+  const statsEl = document.getElementById("scan-progress-stats");
+  const dirEl = document.getElementById("scan-progress-dir");
+
   btn.disabled = true; btn.textContent = "掃描中...";
+  progressBox.style.display = "block";
+  statsEl.textContent = "啟動掃描...";
+  dirEl.textContent = "";
+
   try {
-    const d = await api("POST", `/api/batch/scan?path=${encodeURIComponent(path)}`);
-    toast(`掃描完成：新登錄 ${d.registered} 支，跳過 ${d.skipped} 支`, "success");
-    closeScanModal();
-    loadStats(); loadVideos();
+    await api("POST", `/api/batch/scan?path=${encodeURIComponent(path)}`);
+    await _pollManualScan(statsEl, dirEl);
   } catch (e) {
     toast("掃描失敗: " + e.message, "error");
-  } finally {
+    progressBox.style.display = "none";
     btn.disabled = false; btn.textContent = "掃描";
   }
+}
+
+function _pollManualScan(statsEl, dirEl) {
+  return new Promise((resolve) => {
+    const tid = setInterval(async () => {
+      try {
+        const s = await api("GET", "/api/batch/manual-scan-status");
+        if (s.status === "running" || s.status === "done") {
+          statsEl.textContent =
+            `已掃描 ${s.files_scanned.toLocaleString()} 個檔案` +
+            ` ／ 發現 ${s.files_found} 支影片` +
+            ` ／ 新登錄 ${s.registered} 支` +
+            ` ／ 跳過 ${s.skipped} 支`;
+          if (s.current_dir) dirEl.textContent = s.current_dir;
+        }
+        if (s.status === "done") {
+          clearInterval(tid);
+          document.getElementById("scan-progress").style.display = "none";
+          const btn = document.getElementById("scan-confirm-btn");
+          btn.disabled = false; btn.textContent = "掃描";
+          toast(`掃描完成：新登錄 ${s.registered} 支，跳過 ${s.skipped} 支`, "success");
+          closeScanModal();
+          loadStats(); loadVideos();
+          resolve();
+        } else if (s.status === "error") {
+          clearInterval(tid);
+          document.getElementById("scan-progress").style.display = "none";
+          const btn = document.getElementById("scan-confirm-btn");
+          btn.disabled = false; btn.textContent = "掃描";
+          toast("掃描失敗：" + (s.error || "未知錯誤"), "error");
+          resolve();
+        }
+      } catch {
+        clearInterval(tid);
+        resolve();
+      }
+    }, 800);
+  });
 }
 
 document.getElementById("btn-scan").addEventListener("click", openScanModal);

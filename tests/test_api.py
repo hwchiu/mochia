@@ -212,9 +212,12 @@ class TestBatchAPI:
     def test_scan_empty_directory(self, client, tmp_path):
         r = client.post(f"/api/batch/scan?path={tmp_path}")
         assert r.status_code == 200
-        body = r.json()
-        assert body["found"] == 0
-        assert body["registered"] == 0
+        assert r.json()["status"] == "started"
+        # background task ran synchronously in TestClient
+        s = client.get("/api/batch/manual-scan-status").json()
+        assert s["status"] == "done"
+        assert s["files_found"] == 0
+        assert s["registered"] == 0
 
     def test_scan_directory_with_videos(self, client, tmp_path):
         """掃描包含假影片的目錄"""
@@ -227,24 +230,30 @@ class TestBatchAPI:
         r = client.post(f"/api/batch/scan?path={tmp_path}")
 
         assert r.status_code == 200
-        body = r.json()
-        assert body["found"] == 3
-        assert body["registered"] == 3
-        assert body["skipped"] == 0
+        assert r.json()["status"] == "started"
+        s = client.get("/api/batch/manual-scan-status").json()
+        assert s["status"] == "done"
+        assert s["files_found"] == 3
+        assert s["registered"] == 3
+        assert s["skipped"] == 0
 
-    def test_scan_skips_already_registered(self, client, tmp_path, db_session):
+    def test_scan_skips_already_registered(self, client, tmp_path):
         """已登錄的影片不重複登錄"""
         f = tmp_path / "existing.mp4"
         f.write_bytes(b"\x00" * 100)
 
         # 先登錄一次
         r1 = client.post(f"/api/batch/scan?path={tmp_path}")
-        assert r1.json()["registered"] == 1
+        assert r1.json()["status"] == "started"
+        s1 = client.get("/api/batch/manual-scan-status").json()
+        assert s1["registered"] == 1
 
         # 再掃描一次
         r2 = client.post(f"/api/batch/scan?path={tmp_path}")
-        assert r2.json()["registered"] == 0
-        assert r2.json()["skipped"] == 1
+        assert r2.json()["status"] == "started"
+        s2 = client.get("/api/batch/manual-scan-status").json()
+        assert s2["registered"] == 0
+        assert s2["skipped"] == 1
 
     def test_queue_all_pending(self, client, db_session):
         """queue-all 將所有 pending 影片加入佇列"""
