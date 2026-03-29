@@ -585,6 +585,7 @@ function attachSubtitleTrack(segments) {
 }
 
 
+/**
  * Timestamp links seek the embedded video player at the top of the page.
  *
  * @param {string|null} text - Markdown case analysis text

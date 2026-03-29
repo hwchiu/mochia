@@ -9,16 +9,25 @@
 
   // ── Theme ──────────────────────────────────────────────────────────────
 
+  // Replace or create the Lucide <i> icon inside a button.
+  // After createIcons() runs, the <i> is swapped to <svg> — this handles both cases.
+  function _setLucideIcon(btn, iconName) {
+    const existing = btn.querySelector('i, svg');
+    const i = document.createElement('i');
+    i.setAttribute('data-lucide', iconName);
+    i.setAttribute('aria-hidden', 'true');
+    if (existing) existing.replaceWith(i); else btn.appendChild(i);
+    if (window.lucide) lucide.createIcons({ nodes: [btn] });
+  }
+
   function applyTheme(theme) {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem(THEME_KEY, theme);
     // Update button icon after DOM is available
     const btn = document.getElementById('theme-toggle');
     if (btn) {
-      const icon = theme === 'dark' ? 'sun' : 'moon';
-      btn.querySelector('i').setAttribute('data-lucide', icon);
       btn.title = theme === 'dark' ? '切換淺色模式' : '切換暗色模式';
-      if (window.lucide) lucide.createIcons({ nodes: [btn] });
+      _setLucideIcon(btn, theme === 'dark' ? 'sun' : 'moon');
     }
   }
 
@@ -36,8 +45,7 @@
     if (btn) {
       btn.title = collapsed ? '展開側欄' : '收合側欄';
       btn.setAttribute('aria-label', btn.title);
-      btn.querySelector('i').setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
-      if (window.lucide) lucide.createIcons({ nodes: [btn] });
+      _setLucideIcon(btn, collapsed ? 'panel-left-open' : 'panel-left-close');
     }
   }
 

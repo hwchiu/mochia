@@ -32,6 +32,23 @@ if ! "$PYTHON" -m ruff format --check .; then
   exit 1
 fi
 
+echo "🌐 Pre-commit: JavaScript syntax check..."
+if command -v node &> /dev/null; then
+  JS_ERRORS=0
+  while IFS= read -r -d '' jsfile; do
+    if ! node --check "$jsfile" 2>&1; then
+      JS_ERRORS=1
+    fi
+  done < <(find "$ROOT/static/js" -name "*.js" -print0 2>/dev/null)
+  if [ "$JS_ERRORS" -ne 0 ]; then
+    echo ""
+    echo "❌ JavaScript 語法錯誤。請修正後再 commit。"
+    exit 1
+  fi
+else
+  echo "⚠  node 未安裝，跳過 JS 語法檢查"
+fi
+
 echo "🧪 Pre-commit: pytest..."
 if ! "$PYTHON" -m pytest tests/ -q --tb=short --no-header; then
   echo ""
