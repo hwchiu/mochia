@@ -26,7 +26,7 @@ skip_covered = false
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-exclude = ["venv", ".venv", "__pycache__", "*.egg-info", ".github/skills"]
+exclude = ["venv", ".venv", "__pycache__", "*.egg-info", ".github/skills", "generate_k8s_slides.py"]
 
 [tool.ruff.lint]
 select = [
