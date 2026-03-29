@@ -63,6 +63,8 @@ let currentPage = 0;
 const PAGE_SIZE = 50;
 let filterStatus = "";
 let filterSource = "";
+let filterSearch = "";
+let _searchDebounceTimer = null;
 
 function _tableSkeletonHtml(rows = 6) {
   return Array.from({ length: rows }, () =>
@@ -79,6 +81,7 @@ async function loadVideos() {
     const params = new URLSearchParams({ skip: currentPage * PAGE_SIZE, limit: PAGE_SIZE });
     if (filterStatus) params.set("status", filterStatus);
     if (filterSource) params.set("source", filterSource);
+    if (filterSearch) params.set("search", filterSearch);
     const d = await api("GET", `/api/videos/?${params}`);
     renderTable(d.items);
     renderPagination(d.total);
@@ -164,6 +167,10 @@ function jumpToPage(totalPages) {
 
 document.getElementById("filter-status").addEventListener("change", e => { filterStatus = e.target.value; currentPage = 0; loadVideos(); });
 document.getElementById("filter-source").addEventListener("change", e => { filterSource = e.target.value; currentPage = 0; loadVideos(); });
+document.getElementById("filter-search").addEventListener("input", e => {
+  clearTimeout(_searchDebounceTimer);
+  _searchDebounceTimer = setTimeout(() => { filterSearch = e.target.value.trim(); currentPage = 0; loadVideos(); }, 300);
+});
 document.getElementById("select-all").addEventListener("change", e => {
   document.querySelectorAll(".row-check").forEach(cb => cb.checked = e.target.checked);
 });
