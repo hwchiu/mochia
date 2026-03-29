@@ -75,8 +75,8 @@ def db_session_nc(db_session):
 
 @pytest.fixture(scope="function")
 def client(db_engine):
-    from app import app
     import app.routers.batch as batch_module
+    from app import app
 
     Session = sessionmaker(bind=db_engine)
 
