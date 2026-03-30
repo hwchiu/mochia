@@ -240,7 +240,7 @@ def _process_task(task: TaskQueue, db: Session) -> None:
 
     # Step 1: 提取音頻；順便補上 duration（掃描時不跑 ffprobe，此時才填入）
     if video.duration is None:
-        video.duration = get_video_duration(video_path)
+        video.duration = get_video_duration(video_path)  # type: ignore[assignment]
         db.commit()
 
     def ffmpeg_cb(pct: int) -> None:
