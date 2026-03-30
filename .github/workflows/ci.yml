@@ -50,7 +50,7 @@ jobs:
           pip install mypy==1.10.0 types-aiofiles
 
       - name: Run mypy
-        run: mypy app/ --ignore-missing-imports --no-error-summary
+        run: mypy app/ worker.py --ignore-missing-imports --no-error-summary
 
   # ─── Security ─────────────────────────────────────────────────
   security:

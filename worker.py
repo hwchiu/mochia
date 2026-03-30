@@ -127,9 +127,9 @@ def _run_gpt_steps(
     segments: list[dict] | None = None,
 ) -> None:
     """執行 Step 3+4：GPT 分析 + NotebookLM 功能生成（可獨立重跑）"""
-    # Step 3: GPT 合併分析（摘要 + 分類 + 心智圖 + FAQ）
+    # Step 3: GPT 合併分析（摘要 + 分類 + FAQ）
     _set_progress(video, db, 3, f"GPT 分析中... ({len(transcript_text)} 字)", sub=0)
-    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(transcript_text)
+    summary_text, key_points, category, confidence, faq_list = analyze_all(transcript_text)
     _set_progress(video, db, 3, f"GPT 分析完成 → {category}", sub=100)
 
     # Upsert Summary — query once, reuse the same object for both step 3 & step 4
@@ -149,14 +149,14 @@ def _run_gpt_steps(
     existing_cls = db.query(Classification).filter(Classification.video_id == task.video_id).first()
     if existing_cls:
         existing_cls.category = category
-        existing_cls.confidence = confidence
+        existing_cls.confidence = confidence  # type: ignore[assignment]
     else:
         db.add(
             Classification(
                 id=uuid.uuid4().hex,
                 video_id=task.video_id,
                 category=category,
-                confidence=confidence,
+                confidence=confidence,  # type: ignore[arg-type]
             )
         )
 
@@ -166,7 +166,6 @@ def _run_gpt_steps(
     _set_progress(video, db, 4, "深度內容生成完成", sub=100)
 
     # Reuse same summary_record — no second DB query needed
-    summary_record.mindmap = mindmap
     summary_record.faq = json.dumps(faq_list, ensure_ascii=False)
     summary_record.study_notes = study_notes
     summary_record.case_analysis = case_analysis or None
@@ -185,7 +184,7 @@ def _run_gpt_steps(
     _set_progress(video, db, 4, "分析完成！", sub=100)
     # 重建 FTS 全文搜尋索引
     try:
-        rebuild_fts_index(task.video_id, db)
+        rebuild_fts_index(task.video_id or "", db)
     except Exception as e:
         logger.warning(f"FTS 索引更新失敗 (非致命): {e}")
     logger.info(f"✅ 完成: {video.original_filename}")
@@ -241,7 +240,7 @@ def _process_task(task: TaskQueue, db: Session) -> None:
 
     # Step 1: 提取音頻；順便補上 duration（掃描時不跑 ffprobe，此時才填入）
     if video.duration is None:
-        video.duration = get_video_duration(video_path)
+        video.duration = get_video_duration(video_path)  # type: ignore[assignment]
         db.commit()
 
     def ffmpeg_cb(pct: int) -> None:
@@ -304,10 +303,10 @@ def _pick_next_task(db: Session) -> TaskQueue | None:
 
 def _handle_failure(task: TaskQueue, video: Video | None, error: Exception, db: Session) -> None:
     """處理任務失敗：記錄錯誤、決定是否重試"""
-    task.retry_count += 1
+    task.retry_count = (task.retry_count or 0) + 1  # type: ignore[assignment]
     task.error_message = str(error)[:500]
 
-    if task.retry_count >= task.max_retries:
+    if (task.retry_count or 0) >= (task.max_retries or 3):
         task.status = "failed"
         if video:
             video.status = "failed"
