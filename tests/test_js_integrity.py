@@ -172,6 +172,45 @@ def _js_template_handler_calls() -> dict[str, list[str]]:
     return calls
 
 
+# Approved external CDN scripts.  Each entry is a URL prefix — any <script src>
+# that starts with one of these is accepted.  Anything else will FAIL the test.
+#
+# Rules for adding a new entry:
+#  1. The feature must degrade gracefully when the CDN is unreachable (try/catch
+#     in JS, error message shown to user — not a white page or silent breakage).
+#  2. The URL must pin a specific version (never "@latest").
+#  3. Explain WHY it cannot be vendored locally in the comment.
+#
+# This allowlist would have caught the Markmap CDN incident: markmap-view and
+# markmap-lib were added WITHOUT graceful fallback and WITHOUT approval here,
+# causing the 心智圖 tab to silently break whenever jsDelivr was unreachable.
+_APPROVED_CDN_SCRIPTS: frozenset[str] = frozenset(
+    {
+        # marked@9: renders markdown for study-notes / case-analysis tabs.
+        # Graceful degradation: raw markdown is shown as plain text if load fails.
+        "https://cdn.jsdelivr.net/npm/marked@9",
+        # lucide@0.378: decorative SVG icons (all have aria-hidden="true").
+        # Graceful degradation: icons just don't render; all text labels remain.
+        # JS guard: detail.js uses `if (window.lucide) lucide.createIcons(...)`.
+        "https://unpkg.com/lucide@0.378.0",
+    }
+)
+
+
+def _html_external_scripts() -> dict[str, list[str]]:
+    """Return {url: [template_names]} for every external <script src> in HTML templates."""
+    found: dict[str, list[str]] = {}
+    # Matches <script src="https://..." or <script src="//..."
+    pattern = re.compile(r'<script[^>]+src=["\']((https?:)?//[^"\']+)["\']', re.IGNORECASE)
+    for p in _TMPL_DIR.glob("*.html"):
+        for match in pattern.finditer(p.read_text(encoding="utf-8")):
+            url = match.group(1)
+            if url.startswith("//"):
+                url = "https:" + url
+            found.setdefault(url, []).append(p.name)
+    return found
+
+
 # ── tests ─────────────────────────────────────────────────────────────────────
 
 
@@ -241,4 +280,31 @@ def test_js_getElementById_references_exist_in_html():
         + "\n".join(
             f"  #{id_val}  (in: {', '.join(files)})" for id_val, files in sorted(missing.items())
         )
+    )
+
+
+def test_no_unapproved_cdn_scripts():
+    """Every external CDN <script src> in HTML templates must appear in _APPROVED_CDN_SCRIPTS.
+
+    This test would have caught the Markmap CDN incident:
+      - markmap-view@0.16 and markmap-lib@0.16 were loaded from jsDelivr
+      - When jsDelivr was unreachable, window.markmap was undefined
+      - The 心智圖 tab silently broke with no recovery path
+      - No test failed because our tests only checked API endpoints, not CDN deps
+
+    To add a new CDN dependency:
+      1. Add its URL prefix to _APPROVED_CDN_SCRIPTS above
+      2. Verify it has graceful degradation in JS (try/catch + user-visible error)
+      3. Pin a specific version (never @latest)
+    """
+    external = _html_external_scripts()
+    violations = [
+        f"{', '.join(sorted(set(templates)))}: {url}"
+        for url, templates in external.items()
+        if not any(url.startswith(approved) for approved in _APPROVED_CDN_SCRIPTS)
+    ]
+    assert not violations, (
+        "Unapproved external CDN scripts found in HTML templates.\n"
+        "Add to _APPROVED_CDN_SCRIPTS (with graceful-fallback proof) or vendor locally:\n"
+        + "\n".join(f"  {v}" for v in sorted(violations))
     )

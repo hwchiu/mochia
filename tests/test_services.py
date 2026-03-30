@@ -347,7 +347,95 @@ class TestAnalyzer:
             assert category == "未分類 (Uncategorized)"
             assert confidence == 0.0
 
-    def test_analyze_all_truncates_long_transcript(self):
+    def test_analyze_all_missing_faq_field_returns_empty_list(self):
+        """If GPT omits the 'faq' field entirely, analyze_all returns empty list.
+
+        Root cause of the FAQ-token-starvation incident: mindmap markdown
+        consumed ~300 tokens in the GPT response, leaving too little room for
+        the faq field.  GPT would either omit it or the JSON would be truncated.
+        This test documents the safe fallback behaviour.
+        """
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_settings.CATEGORIES = ["占星學 (Astrology)", "未分類 (Uncategorized)"]
+
+            mock_client = MagicMock()
+            mock_get.return_value = mock_client
+            # GPT returns valid JSON but without 'faq' key
+            no_faq = self._full_result_json()
+            no_faq_dict = json.loads(no_faq)
+            del no_faq_dict["faq"]
+            mock_client.chat.completions.create.return_value = self._make_mock_response(
+                json.dumps(no_faq_dict)
+            )
+
+            from app.services.analyzer import analyze_all
+
+            _, _, _, _, faq_list = analyze_all("逐字稿內容")
+            assert faq_list == []
+
+    def test_analyze_all_truncated_json_raises_value_error(self):
+        """If GPT returns truncated / invalid JSON, analyze_all raises ValueError.
+
+        This is the 'worst case' of the token-starvation incident: GPT cuts off
+        mid-JSON, producing a parse error.  The caller (worker.py) catches this
+        and marks the task as failed so the user knows to retry.
+        """
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_settings.CATEGORIES = ["未分類 (Uncategorized)"]
+
+            mock_client = MagicMock()
+            mock_get.return_value = mock_client
+            mock_client.chat.completions.create.return_value = self._make_mock_response(
+                '{"summary": "部分摘要", "key_points": [{"theme": "占'  # truncated
+            )
+
+            import pytest
+
+            from app.services.analyzer import analyze_all
+
+            with pytest.raises(ValueError, match="無效 JSON"):
+                analyze_all("逐字稿內容")
+
+    def test_analyze_all_all_fields_populated(self):
+        """analyze_all with a well-formed GPT response populates all 5 return fields.
+
+        This is the 'happy path completeness' test: ensures that after a
+        successful GPT call, every field (summary, key_points, category,
+        confidence, faq_list) is present and non-empty.  Had this test existed,
+        the empty-FAQ regression would have been caught immediately.
+        """
+        with (
+            patch("app.services.analyzer._get_client") as mock_get,
+            patch("app.services.analyzer.settings") as mock_settings,
+        ):
+            mock_settings.AZURE_OPENAI_DEPLOYMENT = "gpt-35-turbo"
+            mock_settings.CATEGORIES = ["占星學 (Astrology)", "未分類 (Uncategorized)"]
+
+            mock_client = MagicMock()
+            mock_get.return_value = mock_client
+            mock_client.chat.completions.create.return_value = self._make_mock_response(
+                self._full_result_json()
+            )
+
+            from app.services.analyzer import analyze_all
+
+            summary, key_points, category, confidence, faq_list = analyze_all("測試逐字稿")
+
+            assert summary, "summary must not be empty"
+            assert key_points, "key_points must not be empty"
+            assert category, "category must not be empty"
+            assert confidence > 0, "confidence must be > 0"
+            assert faq_list, "faq_list must not be empty"
+            assert all("question" in item and "answer" in item for item in faq_list)
+
         """逐字稿超長時截斷後送分析，prompt 包含省略提示"""
         with (
             patch("app.services.analyzer._get_client") as mock_get,
