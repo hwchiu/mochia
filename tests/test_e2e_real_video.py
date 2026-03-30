@@ -106,29 +106,32 @@ def _make_analyzer_client() -> MagicMock:
 def real_mp4(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Generate a real 2-second silent black MP4 using FFmpeg (once per module)."""
     out = tmp_path_factory.mktemp("e2e_mp4") / "test_e2e.mp4"
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "color=black:size=320x240:rate=1",
-            "-f",
-            "lavfi",
-            "-i",
-            "anullsrc=r=16000:cl=mono",
-            "-t",
-            "2",
-            "-shortest",
-            "-c:v",
-            "libx264",
-            "-c:a",
-            "aac",
-            str(out),
-        ],
-        capture_output=True,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=black:size=320x240:rate=1",
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=r=16000:cl=mono",
+                "-t",
+                "2",
+                "-shortest",
+                "-c:v",
+                "libx264",
+                "-c:a",
+                "aac",
+                str(out),
+            ],
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        pytest.skip("FFmpeg not found on PATH — skipping E2E real-video tests")
     if result.returncode != 0:
         pytest.skip(f"FFmpeg not available or failed: {result.stderr.decode()[:200]}")
     assert out.exists() and out.stat().st_size > 0, "FFmpeg produced empty file"
