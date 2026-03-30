@@ -273,7 +273,6 @@ class TestAnalyzer:
             ],
             "category": "占星學 (Astrology)",
             "confidence": 0.88,
-            "mindmap": "# 占星學\n## 基礎",
             "faq": [{"question": "Q1", "answer": "A1"}],
         }
         if overrides:
@@ -298,15 +297,12 @@ class TestAnalyzer:
 
             from app.services.analyzer import analyze_all
 
-            summary, key_points, category, confidence, mindmap, faq_list = analyze_all(
-                "這是測試逐字稿"
-            )
+            summary, key_points, category, confidence, faq_list = analyze_all("這是測試逐字稿")
 
             assert summary == "這是一部占星學入門影片"
             assert len(key_points) == 3
             assert category == "占星學 (Astrology)"
             assert abs(confidence - 0.88) < 0.001
-            assert "占星學" in mindmap
             assert len(faq_list) == 1
 
     def test_analyze_all_with_markdown_code_block(self):
@@ -326,7 +322,7 @@ class TestAnalyzer:
 
             from app.services.analyzer import analyze_all
 
-            summary, _, category, _, _, _ = analyze_all("測試")
+            summary, _, category, _, _ = analyze_all("測試")
             assert summary == "摘要內容"
             assert category == "未分類 (Uncategorized)"
 
@@ -347,7 +343,7 @@ class TestAnalyzer:
 
             from app.services.analyzer import analyze_all
 
-            _, _, category, confidence, _, _ = analyze_all("測試")
+            _, _, category, confidence, _ = analyze_all("測試")
             assert category == "未分類 (Uncategorized)"
             assert confidence == 0.0
 

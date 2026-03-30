@@ -21,22 +21,6 @@ class TestAnalyzerNotebookLM:
         mock_client.chat.completions.create.return_value = mock_response
         return mock_client
 
-    def test_generate_mindmap_success(self):
-        """generate_mindmap 應返回以 # 開頭的 Markdown 字串"""
-        from app.services.analyzer import generate_mindmap
-
-        mindmap_md = (
-            "# 占星學基礎\n## 星座\n### 火象星座\n### 土象星座\n## 行星\n### 太陽\n### 月亮"
-        )
-        mock_client = self._mock_client(mindmap_md)
-
-        with patch("app.services.analyzer._get_client", return_value=mock_client):
-            result = generate_mindmap("這是關於占星學的逐字稿內容")
-
-        assert isinstance(result, str)
-        assert result.startswith("#")
-        assert "##" in result
-
     def test_generate_faq_success(self):
         """generate_faq 應返回 list of dict"""
         from app.services.analyzer import generate_faq
@@ -113,56 +97,12 @@ class TestAnalyzerNotebookLM:
         assert any(m["role"] == "user" and "太陽星座" in m["content"] for m in messages)
         assert isinstance(result, str)
 
-    def test_generate_mindmap_truncates_long_transcript(self):
-        """長逐字稿應被截斷"""
-        from app.services.analyzer import MAX_TRANSCRIPT_CHARS, generate_mindmap
-
-        mock_client = self._mock_client("# Test\n## Branch1\n### Item1")
-
-        long_transcript = "測試內容 " * (MAX_TRANSCRIPT_CHARS // 5)
-
-        with patch("app.services.analyzer._get_client", return_value=mock_client):
-            generate_mindmap(long_transcript)
-
-        # Verify the user message was truncated
-        call_args = mock_client.chat.completions.create.call_args
-        messages = call_args[1]["messages"] if "messages" in call_args[1] else call_args[0][0]
-        user_msg = next(m for m in messages if m["role"] == "user")
-        assert len(user_msg["content"]) <= MAX_TRANSCRIPT_CHARS + 200  # allow for prompt overhead
-
 
 # ─── API endpoint tests ─────────────────────────────────────────
 
 
 class TestNotebookLMAPI:
     """測試 NotebookLM 相關 API 端點"""
-
-    def test_get_mindmap_success(self, client, completed_video_full):
-        """成功獲取心智圖"""
-        resp = client.get(f"/api/analysis/{completed_video_full.id}/mindmap")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "mindmap" in data
-        assert data["mindmap"].startswith("#")
-        assert data["video_id"] == completed_video_full.id
-
-    def test_get_mindmap_not_found(self, client):
-        """影片不存在時返回 404"""
-        resp = client.get("/api/analysis/nonexistent/mindmap")
-        assert resp.status_code == 404
-
-    def test_get_mindmap_not_completed(self, client, sample_video):
-        """分析未完成時返回 400"""
-        resp = client.get(f"/api/analysis/{sample_video.id}/mindmap")
-        assert resp.status_code == 409
-        assert "尚未完成" in resp.json()["detail"]
-
-    def test_get_mindmap_not_generated(self, client, completed_video):
-        """心智圖未生成時返回 404"""
-        # completed_video fixture has mindmap=None
-        resp = client.get(f"/api/analysis/{completed_video.id}/mindmap")
-        assert resp.status_code == 404
-        assert "尚未生成" in resp.json()["detail"]
 
     def test_get_faq_success(self, client, completed_video_full):
         """成功獲取 FAQ"""
@@ -309,16 +249,6 @@ class TestNotebookLMAPI:
         count = db_session.query(ChatMessage).filter(ChatMessage.video_id == vid_id).count()
         assert count == 0
 
-    def test_regenerate_mindmap(self, client, completed_video_full):
-        """重新生成心智圖"""
-        new_mindmap = "# 新心智圖\n## 分支1\n### 子項目1"
-        with patch("app.routers.analysis.generate_mindmap", return_value=new_mindmap):
-            resp = client.post(f"/api/analysis/{completed_video_full.id}/regenerate/mindmap")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "mindmap" in data
-        assert data["mindmap"] == new_mindmap
-
     def test_regenerate_faq(self, client, completed_video_full):
         """重新生成 FAQ"""
         new_faq = [{"question": "新問題", "answer": "新答案"}]
@@ -328,11 +258,6 @@ class TestNotebookLMAPI:
         data = resp.json()
         assert "faq" in data
 
-    def test_regenerate_study_notes(self, client, completed_video_full):
-        """study_notes 已移除，應返回 400"""
-        resp = client.post(f"/api/analysis/{completed_video_full.id}/regenerate/study_notes")
-        assert resp.status_code == 400
-
     def test_regenerate_invalid_type(self, client, completed_video_full):
         """無效的 content_type 應返回 400"""
         resp = client.post(f"/api/analysis/{completed_video_full.id}/regenerate/invalid_type")
@@ -340,5 +265,5 @@ class TestNotebookLMAPI:
 
     def test_regenerate_not_completed(self, client, sample_video):
         """未完成的影片不能重新生成"""
-        resp = client.post(f"/api/analysis/{sample_video.id}/regenerate/mindmap")
+        resp = client.post(f"/api/analysis/{sample_video.id}/regenerate/faq")
         assert resp.status_code == 409

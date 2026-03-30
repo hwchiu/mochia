@@ -64,42 +64,6 @@ def _chat(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
     return content.strip() if content else ""
 
 
-def generate_mindmap(transcript: str) -> str:
-    """Generate Markmap-compatible Markdown mind map from transcript.
-
-    Args:
-        transcript: Full transcript text to convert into a mind map.
-
-    Returns:
-        Markmap-compatible Markdown string with # root node and ## branches.
-
-    Raises:
-        openai.APIError: If API call fails after retries.
-    """
-    transcript_for_gpt = _prepare_transcript(transcript)
-
-    system_prompt = """你是一位專業的知識整理專家，擅長將內容整理成結構化的心智圖。
-請根據影片逐字稿，生成 Markmap 相容的 Markdown 格式心智圖。
-直接輸出 Markdown，不要有任何額外說明。"""
-
-    user_content = f"""請將以下逐字稿整理成心智圖（Markmap Markdown 格式）：
-
-{transcript_for_gpt}
-
-要求：
-- 使用 # 作為根節點（影片主題）
-- 使用 ## 作為主要分支（3-5個）
-- 使用 ### 作為子分支
-- 使用 #### 作為細節（如有必要）
-- 使用繁體中文
-- 只輸出 Markdown，不要有任何額外說明"""
-
-    logger.info("開始生成心智圖...")
-    result = _chat(system_prompt, user_content)
-    logger.info("心智圖生成完成")
-    return result
-
-
 def generate_faq(transcript: str) -> list[dict]:
     """Generate FAQ list (5-8 Q&A pairs) from transcript.
 
@@ -231,11 +195,11 @@ def suggest_labels(summary: str) -> list[str]:
 
 def analyze_all(
     transcript: str,
-) -> tuple[str, list[dict], str, float, str, list[dict]]:
-    """Single GPT call combining analyze + mindmap + faq to reduce token usage.
+) -> tuple[str, list[dict], str, float, list[dict]]:
+    """Single GPT call combining analyze + faq to reduce token usage.
 
     Returns:
-        Tuple of (summary, key_points, category, confidence, mindmap, faq_list)
+        Tuple of (summary, key_points, category, confidence, faq_list)
     """
     transcript_for_gpt = _prepare_transcript(transcript)
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
@@ -262,9 +226,9 @@ JSON 格式：
   ],
   "category": "從可選類別選一",
   "confidence": 0.85,
-  "mindmap": "# 影片主題\\n## 主要分支1\\n### 子項目\\n## 主要分支2",
   "faq": [
-    {{"question": "問題1", "answer": "回答1"}}
+    {{"question": "問題1", "answer": "回答1"}},
+    {{"question": "問題2", "answer": "回答2"}}
   ]
 }}
 
@@ -274,13 +238,12 @@ JSON 格式：
 注意：
 - summary 詳盡完整，600-1000字，繁體中文，段落間有邏輯銜接
 - key_points 列出 5-8 個主題，每個主題 3-5 條具體說明
-- mindmap 使用 Markmap Markdown：# 根節點，## 主分支（3-5個），### 子分支
 - faq 提供 5-8 個問答，問題有教育價值，回答簡潔完整
 - category 必須完全符合可選類別之一
 - confidence 為 0-1 之間的浮點數"""
 
-    logger.info("開始 GPT 合併分析（摘要 + 分類 + 心智圖 + FAQ）")
-    raw = _chat(system_prompt, user_content, max_tokens=4500)
+    logger.info("開始 GPT 合併分析（摘要 + 分類 + FAQ）")
+    raw = _chat(system_prompt, user_content, max_tokens=5000)
 
     raw = raw.strip()
     if raw.startswith("```"):
@@ -307,12 +270,11 @@ JSON 格式：
         category = "未分類 (Uncategorized)"
         confidence = 0.0
 
-    mindmap = result.get("mindmap", "")
     faq_raw = result.get("faq", [])
     faq_list = faq_raw if isinstance(faq_raw, list) else []
 
     logger.info(f"合併分析完成 - 分類: {category} ({confidence:.0%})")
-    return summary, key_points, category, confidence, mindmap, faq_list
+    return summary, key_points, category, confidence, faq_list
 
 
 def _seg_to_line(seg: dict) -> str:

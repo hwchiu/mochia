@@ -188,136 +188,11 @@ function switchTab(tabName) {
     tabLoaded[tabName] = true;
     const panelEl = document.getElementById("tab-" + tabName);
     if (panelEl && tabName !== "qa-chat") panelEl.innerHTML = _contentSkeletonHtml();
-    if (tabName === "mindmap") loadMindmap();
-    else if (tabName === "faq") loadFAQ();
+    if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
     else if (tabName === "notes") loadNote();
     else if (tabName === "qa-chat") { /* chat history already loaded */ }
   }
-}
-
-async function loadMindmap() {
-  const loadingEl = document.getElementById("mindmap-loading");
-  const containerEl = document.getElementById("mindmap-container");
-  const errorEl = document.getElementById("mindmap-error");
-  const rawEl = document.getElementById("mindmap-raw");
-
-  loadingEl.style.display = "block";
-  containerEl.style.display = "none";
-  errorEl.classList.add("hidden");
-
-  try {
-    const data = await api("GET", `/api/analysis/${videoId}/mindmap`);
-    const markdown = data.mindmap;
-    rawEl.textContent = markdown;
-    loadingEl.style.display = "none";
-    containerEl.style.display = "block";
-    renderMindmap(markdown);
-  } catch (e) {
-    tabLoaded["mindmap"] = false;  // 讓使用者可重試
-    loadingEl.style.display = "none";
-    errorEl.textContent = e.message.includes("尚未生成") ? "心智圖尚未生成，請點擊「重新生成」" : ("載入失敗: " + e.message);
-    errorEl.classList.remove("hidden");
-  }
-}
-
-let _mindmapInstance = null;
-let _mindmapMarkdown = "";   // store raw markdown for fullscreen re-render
-let _mindmapFullscreenInstance = null;
-
-function renderMindmap(markdown) {
-  _mindmapMarkdown = markdown;
-  try {
-    if (!window.markmap) {
-      document.getElementById("mindmap-error").textContent = "Markmap 庫載入失敗，請檢查網路連線";
-      document.getElementById("mindmap-error").classList.remove("hidden");
-      document.getElementById("mindmap-container").style.display = "none";
-      return;
-    }
-    const { Transformer, Markmap } = window.markmap;
-    const transformer = new Transformer();
-    const { root } = transformer.transform(markdown);
-    const svg = document.getElementById("mindmap-svg");
-    svg.innerHTML = "";
-    if (_mindmapInstance) { try { _mindmapInstance.destroy(); } catch(_) {} }
-    _mindmapInstance = Markmap.create(svg, {
-      zoom: true,      // 滾輪縮放
-      pan: true,       // 拖曳移動
-      duration: 300,
-    });
-    _mindmapInstance.setData(root);
-    setTimeout(() => _mindmapInstance.fit(), 100);
-  } catch (e) {
-    document.getElementById("mindmap-error").textContent = "心智圖渲染失敗: " + e.message;
-    document.getElementById("mindmap-error").classList.remove("hidden");
-    document.getElementById("mindmap-container").style.display = "none";
-  }
-}
-
-function resetMindmapZoom() {
-  if (_mindmapInstance) _mindmapInstance.fit();
-}
-
-function openMindmapFullscreen() {
-  if (!_mindmapMarkdown) { toast("心智圖尚未載入", "info"); return; }
-  const overlay = document.getElementById("mindmap-fullscreen-overlay");
-  overlay.classList.remove("hidden");
-
-  // Re-render in fullscreen SVG
-  const { Transformer, Markmap } = window.markmap;
-  const transformer = new Transformer();
-  const { root } = transformer.transform(_mindmapMarkdown);
-  const svg = document.getElementById("mindmap-fullscreen-svg");
-  svg.innerHTML = "";
-  if (_mindmapFullscreenInstance) { try { _mindmapFullscreenInstance.destroy(); } catch(_) {} }
-  _mindmapFullscreenInstance = Markmap.create(svg, { zoom: true, pan: true, duration: 200 });
-  _mindmapFullscreenInstance.setData(root);
-  setTimeout(() => _mindmapFullscreenInstance.fit(), 150);
-}
-
-function closeFullscreen() {
-  document.getElementById("mindmap-fullscreen-overlay").classList.add("hidden");
-}
-
-function downloadMindmap() {
-  const svgEl = document.getElementById(
-    document.getElementById("mindmap-fullscreen-overlay").classList.contains("hidden")
-      ? "mindmap-svg" : "mindmap-fullscreen-svg"
-  );
-  if (!svgEl || !svgEl.innerHTML) { toast("心智圖尚未載入", "info"); return; }
-
-  // Compute actual SVG bounding box
-  const bbox = svgEl.getBBox ? svgEl.getBBox() : null;
-  const w = (bbox && bbox.width > 0) ? bbox.width + 40 : svgEl.clientWidth || 1200;
-  const h = (bbox && bbox.height > 0) ? bbox.height + 40 : svgEl.clientHeight || 800;
-
-  // Clone SVG and set explicit size
-  const clone = svgEl.cloneNode(true);
-  clone.setAttribute("width", w);
-  clone.setAttribute("height", h);
-  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-
-  const svgData = new XMLSerializer().serializeToString(clone);
-  const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgData);
-
-  const img = new Image();
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    const scale = 2;  // retina quality
-    canvas.width = w * scale;
-    canvas.height = h * scale;
-    const ctx = canvas.getContext("2d");
-    ctx.scale(scale, scale);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, 0, 0, w, h);
-    const link = document.createElement("a");
-    link.download = "mindmap.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  };
-  img.onerror = () => toast("下載失敗，請嘗試放大後再試", "error");
-  img.src = svgUrl;
 }
 
 async function loadFAQ() {
@@ -446,7 +321,7 @@ async function clearChatHistory() {
 }
 
 async function regenerate(type) {
-  const labels = { mindmap: "心智圖", faq: "FAQ" };
+  const labels = { faq: "FAQ" };
   const label = labels[type] || type;
   if (!confirm(`確定要重新生成 ${label} 嗎？這需要一些時間。`)) return;
 
@@ -458,8 +333,7 @@ async function regenerate(type) {
   try {
     await api("POST", `/api/analysis/${videoId}/regenerate/${type}`);
     toast(`${label} 已重新生成！`, "success");
-    if (type === "mindmap") { tabLoaded["mindmap"] = false; loadMindmap(); }
-    else if (type === "faq") { tabLoaded["faq"] = false; loadFAQ(); }
+    if (type === "faq") { tabLoaded["faq"] = false; loadFAQ(); }
   } catch (e) {
     toast("重新生成失敗: " + e.message, "error");
   } finally {
@@ -710,15 +584,6 @@ async function queueVideo(vid) {
 
 window.addEventListener("load", () => { loadDetail(); loadAllLabels(); });
 window.addEventListener("beforeunload", () => { if (pollTimer) clearTimeout(pollTimer); });
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape") {
-    const overlay = document.getElementById("mindmap-fullscreen-overlay");
-    if (overlay && !overlay.classList.contains("hidden")) {
-      closeFullscreen();
-      return;
-    }
-  }
-});
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 // Space = play/pause · ← → = ±10s · J/L = ±10s · K = play/pause · M = mute · F = fullscreen
