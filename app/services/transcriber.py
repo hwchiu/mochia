@@ -178,7 +178,7 @@ def _transcribe_single(audio_path: Path, language: str) -> tuple[str, list[dict]
     text = response.text
     segments = [
         {"start": float(s.start), "end": float(s.end), "text": s.text.strip()}
-        for s in (response.segments or [])
+        for s in (response.segments or [])  # type: ignore[attr-defined]
     ]
     return text, segments
 

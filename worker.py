@@ -149,14 +149,14 @@ def _run_gpt_steps(
     existing_cls = db.query(Classification).filter(Classification.video_id == task.video_id).first()
     if existing_cls:
         existing_cls.category = category
-        existing_cls.confidence = confidence
+        existing_cls.confidence = confidence  # type: ignore[assignment]
     else:
         db.add(
             Classification(
                 id=uuid.uuid4().hex,
                 video_id=task.video_id,
                 category=category,
-                confidence=confidence,
+                confidence=confidence,  # type: ignore[arg-type]
             )
         )
 
@@ -184,7 +184,7 @@ def _run_gpt_steps(
     _set_progress(video, db, 4, "分析完成！", sub=100)
     # 重建 FTS 全文搜尋索引
     try:
-        rebuild_fts_index(task.video_id, db)
+        rebuild_fts_index(task.video_id or "", db)
     except Exception as e:
         logger.warning(f"FTS 索引更新失敗 (非致命): {e}")
     logger.info(f"✅ 完成: {video.original_filename}")
@@ -303,10 +303,10 @@ def _pick_next_task(db: Session) -> TaskQueue | None:
 
 def _handle_failure(task: TaskQueue, video: Video | None, error: Exception, db: Session) -> None:
     """處理任務失敗：記錄錯誤、決定是否重試"""
-    task.retry_count += 1
+    task.retry_count = (task.retry_count or 0) + 1  # type: ignore[assignment]
     task.error_message = str(error)[:500]
 
-    if task.retry_count >= task.max_retries:
+    if (task.retry_count or 0) >= (task.max_retries or 3):
         task.status = "failed"
         if video:
             video.status = "failed"
