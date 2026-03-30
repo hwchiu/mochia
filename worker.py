@@ -127,9 +127,9 @@ def _run_gpt_steps(
     segments: list[dict] | None = None,
 ) -> None:
     """執行 Step 3+4：GPT 分析 + NotebookLM 功能生成（可獨立重跑）"""
-    # Step 3: GPT 合併分析（摘要 + 分類 + 心智圖 + FAQ）
+    # Step 3: GPT 合併分析（摘要 + 分類 + FAQ）
     _set_progress(video, db, 3, f"GPT 分析中... ({len(transcript_text)} 字)", sub=0)
-    summary_text, key_points, category, confidence, mindmap, faq_list = analyze_all(transcript_text)
+    summary_text, key_points, category, confidence, faq_list = analyze_all(transcript_text)
     _set_progress(video, db, 3, f"GPT 分析完成 → {category}", sub=100)
 
     # Upsert Summary — query once, reuse the same object for both step 3 & step 4
@@ -166,7 +166,6 @@ def _run_gpt_steps(
     _set_progress(video, db, 4, "深度內容生成完成", sub=100)
 
     # Reuse same summary_record — no second DB query needed
-    summary_record.mindmap = mindmap
     summary_record.faq = json.dumps(faq_list, ensure_ascii=False)
     summary_record.study_notes = study_notes
     summary_record.case_analysis = case_analysis or None
