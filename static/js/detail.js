@@ -1033,7 +1033,8 @@ function initEmbeddedPlayer(filename) {
   const seekSec = _getInitialSeekSec();
   if (seekSec != null) {
     const doSeek = () => {
-      video.currentTime = seekSec;
+      const maxSec = Number.isFinite(video.duration) ? video.duration : seekSec;
+      video.currentTime = Math.max(0, Math.min(seekSec, maxSec));
     };
     if (video.readyState >= 1) {
       doSeek();

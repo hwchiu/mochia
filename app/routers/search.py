@@ -22,7 +22,10 @@ def _get_fts_conn():
 def _format_mmss(sec: float | int | None) -> str | None:
     if sec is None:
         return None
-    total = max(0, int(float(sec)))
+    try:
+        total = max(0, int(float(sec)))
+    except (TypeError, ValueError):
+        return None
     mins = total // 60
     secs = total % 60
     return f"{mins:02d}:{secs:02d}"
@@ -70,20 +73,29 @@ def rebuild_fts_index(video_id: str, db: Session) -> None:
         except Exception:
             segments = []
 
+        segment_values: list[tuple[str, int, float, float, str]] = []
         for idx, seg in enumerate(segments):
             if not isinstance(seg, dict):
+                logger.warning("忽略無效 segment（非物件）: video_id=%s idx=%s", video_id, idx)
                 continue
             text = str(seg.get("text", "")).strip()
             if not text:
+                logger.warning("忽略空白 segment: video_id=%s idx=%s", video_id, idx)
                 continue
-            start_sec = float(seg.get("start", 0.0) or 0.0)
-            end_sec = float(seg.get("end", start_sec) or start_sec)
-            cur.execute(
+            try:
+                start_sec = float(seg.get("start", 0.0) or 0.0)
+                end_sec = float(seg.get("end", start_sec) or start_sec)
+            except (TypeError, ValueError):
+                logger.warning("忽略無效時間 segment: video_id=%s idx=%s", video_id, idx)
+                continue
+            segment_values.append((video_id, idx, start_sec, end_sec, text))
+        if segment_values:
+            cur.executemany(
                 """
                 INSERT INTO segment_fts(video_id, seg_idx, start_sec, end_sec, text)
                 VALUES (?,?,?,?,?)
                 """,
-                (video_id, idx, start_sec, end_sec, text),
+                segment_values,
             )
     conn.commit()
     conn.close()

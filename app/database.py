@@ -176,6 +176,7 @@ class VideoNote(Base):
 
 def _migrate_db():
     """補齊新欄位與新資料表（不破壞已有資料）"""
+    import re
     import sqlite3
 
     db_path = str(settings.DATA_DIR / "video_analyzer.db")
@@ -221,6 +222,8 @@ def _migrate_db():
             raise
 
     # FTS5 全文搜尋虛擬表
+    # NOTE: 不要使用 content=''（contentless FTS）。
+    # 我們需要保留 UNINDEXED 欄位（video_id/start_sec 等）供搜尋結果回傳。
     cursor.execute("""
         CREATE VIRTUAL TABLE IF NOT EXISTS video_fts USING fts5(
             video_id UNINDEXED,
@@ -245,7 +248,7 @@ def _migrate_db():
     # 需重建表以保留 video_id/start_sec 等欄位值。
     cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='video_fts'")
     video_fts_sql = (cursor.fetchone() or [""])[0] or ""
-    if "content=''" in video_fts_sql.replace(" ", "").lower():
+    if re.search(r"\bcontent\s*=\s*''", video_fts_sql, re.IGNORECASE):
         cursor.execute("DROP TABLE IF EXISTS video_fts")
         cursor.execute("""
             CREATE VIRTUAL TABLE video_fts USING fts5(
@@ -261,7 +264,7 @@ def _migrate_db():
 
     cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='segment_fts'")
     segment_fts_sql = (cursor.fetchone() or [""])[0] or ""
-    if "content=''" in segment_fts_sql.replace(" ", "").lower():
+    if re.search(r"\bcontent\s*=\s*''", segment_fts_sql, re.IGNORECASE):
         cursor.execute("DROP TABLE IF EXISTS segment_fts")
         cursor.execute("""
             CREATE VIRTUAL TABLE segment_fts USING fts5(
