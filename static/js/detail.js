@@ -1030,10 +1030,29 @@ function initEmbeddedPlayer(filename) {
   source.type = mimeMap[ext] || "video/mp4";
   source.src = `/api/videos/${videoId}/stream`;
   video.load();
+  const seekSec = _getInitialSeekSec();
+  if (seekSec != null) {
+    const doSeek = () => {
+      video.currentTime = seekSec;
+    };
+    if (video.readyState >= 1) {
+      doSeek();
+    } else {
+      video.addEventListener("loadedmetadata", doSeek, { once: true });
+    }
+  }
 
   // Start transcript sync and mini player after player is initialised
   initTranscriptSync();
   initMiniPlayer();
+}
+
+function _getInitialSeekSec() {
+  const raw = new URLSearchParams(window.location.search).get("t");
+  if (raw == null) return null;
+  const sec = Number(raw);
+  if (Number.isNaN(sec) || sec < 0) return null;
+  return sec;
 }
 
 /**

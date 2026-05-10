@@ -682,10 +682,11 @@ async function doSearch() {
       <div class="card" style="margin-bottom:12px">
         <div style="display:flex;align-items:flex-start;gap:12px">
           <div style="flex:1;min-width:0">
-            <a href="/video/${item.id}" style="font-weight:700;font-size:14px;color:var(--primary,#4f46e5);text-decoration:none">
+            <a href="/video/${item.id}${item.start_sec != null ? `?t=${encodeURIComponent(item.start_sec)}` : ""}" style="font-weight:700;font-size:14px;color:var(--primary,#4f46e5);text-decoration:none">
               ${item.title_highlight || escapeHtml(item.filename)}
             </a>
             ${item.category ? `<span style="margin-left:8px;font-size:12px;color:var(--muted)">${item.category}</span>` : ""}
+            ${item.timestamp ? `<span style="margin-left:8px;font-size:12px;color:var(--primary,#4f46e5);font-weight:600">[${item.timestamp}]</span>` : ""}
             <div style="margin-top:6px;font-size:13px;color:var(--text,#333);line-height:1.6">
               ${item.snippet || ""}
             </div>
@@ -693,7 +694,7 @@ async function doSearch() {
               ${(item.labels||[]).map(l => `<span class="label-chip" style="background:${l.color}22;color:${l.color};border:1px solid ${l.color}">${escapeHtml(l.name)}</span>`).join("")}
             </div>
           </div>
-          <a href="/video/${item.id}" class="btn btn-ghost btn-sm" style="white-space:nowrap">查看 →</a>
+          <a href="/video/${item.id}${item.start_sec != null ? `?t=${encodeURIComponent(item.start_sec)}` : ""}" class="btn btn-ghost btn-sm" style="white-space:nowrap">${item.timestamp ? "跳到片段 →" : "查看 →"}</a>
         </div>
       </div>
     `).join("");
