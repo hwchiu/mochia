@@ -166,14 +166,14 @@ def get_quiz(video_id: str, db: Session = Depends(get_db)):
     items = db.query(QuizItem).filter(QuizItem.quiz_id == quiz.id).all()
     return QuizOut(
         video_id=video_id,
-        total_items=quiz.total_items or 0,
+        total_items=int(quiz.total_items or 0),
         items=[
             QuizItemOut(
-                id=item.id or "",
-                question_type=item.question_type or "mcq",
-                question=item.question or "",
+                id=str(item.id or ""),
+                question_type=str(item.question_type or ""),
+                question=str(item.question or ""),
                 options=json.loads(item.options) if item.options else None,
-                answer=item.answer or "",
+                answer=str(item.answer or ""),
                 explanation=item.explanation,
                 concept_name=item.concept_name,
                 source_seg_idx=item.source_seg_idx,
@@ -237,10 +237,10 @@ def submit_attempt(req: AttemptRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return AttemptResponse(
-        id=attempt.id or "",
-        quiz_item_id=item.id or "",
+        id=str(attempt.id or ""),
+        quiz_item_id=str(item.id or ""),
         is_correct=is_correct,
-        correct_answer=item.answer or "",
+        correct_answer=str(item.answer or ""),
         explanation=item.explanation or "",
     )
 
@@ -278,7 +278,7 @@ def get_wrong_answers(limit: int = 50, db: Session = Depends(get_db)):
                 "concept_name": item.concept_name,
                 "source_start_sec": item.source_start_sec,
                 "source_end_sec": item.source_end_sec,
-                "attempted_at": attempt.attempted_at.isoformat() if attempt.attempted_at else "",
+                "attempted_at": attempt.attempted_at.isoformat() if attempt.attempted_at else None,
             }
         )
     return {"total": len(result), "items": result}
