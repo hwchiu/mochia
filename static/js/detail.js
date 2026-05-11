@@ -191,7 +191,63 @@ function switchTab(tabName) {
     if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
     else if (tabName === "notes") loadNote();
+    else if (tabName === "concepts") loadConcepts();
     else if (tabName === "qa-chat") { /* chat history already loaded */ }
+  }
+}
+
+async function loadConcepts() {
+  const loadingEl = document.getElementById("concepts-loading");
+  const listEl = document.getElementById("concepts-list");
+  const emptyEl = document.getElementById("concepts-empty");
+  if (!loadingEl || !listEl) return;
+
+  loadingEl.style.display = "block";
+  listEl.innerHTML = "";
+  if (emptyEl) emptyEl.classList.add("hidden");
+
+  try {
+    const data = await api("GET", `/api/concepts/by-video/${videoId}`);
+    loadingEl.style.display = "none";
+    if (!data.items || data.items.length === 0) {
+      if (emptyEl) emptyEl.classList.remove("hidden");
+      return;
+    }
+    listEl.innerHTML = data.items.map(concept => {
+      const segsJson = JSON.stringify(concept.segments || []);
+      const segLinks = (concept.segments || []).map((seg, si) => `
+        <span class="concept-seg-link" data-sec="${seg.start_sec}" data-concept-idx="${si}" title="跳轉至 ${seg.timestamp}" style="cursor:pointer;color:var(--primary,#4f46e5);font-size:12px;padding:2px 8px;border:1px solid var(--primary,#4f46e5);border-radius:12px;margin-right:6px;margin-bottom:4px;display:inline-block">
+          ⏱ ${seg.timestamp}
+        </span>
+      `).join("");
+      return `
+        <div class="concept-card" style="margin-bottom:14px;padding:14px 16px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--surface,#fafafa)">
+          <div style="font-weight:600;font-size:15px;color:var(--text,#222);margin-bottom:4px">🔵 ${concept.name}</div>
+          ${concept.description ? `<p style="font-size:13px;color:var(--text,#444);margin:6px 0 10px;line-height:1.7">${concept.description}</p>` : ""}
+          ${segLinks ? `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center"><span style="font-size:12px;color:var(--muted,#888);margin-right:4px">出處：</span>${segLinks}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+    // Attach click handlers to timestamp links (avoids inline onclick)
+    listEl.querySelectorAll(".concept-seg-link").forEach(el => {
+      el.addEventListener("click", () => seekMainPlayer(parseFloat(el.dataset.sec)));
+    });
+  } catch (e) {
+    if (loadingEl) loadingEl.style.display = "none";
+    if (listEl) listEl.innerHTML = `<p style="color:var(--danger,#ef4444)">載入失敗: ${e.message}</p>`;
+    tabLoaded["concepts"] = false;
+  }
+}
+
+async function rebuildConcepts() {
+  try {
+    toast("知識點抽取中，請稍候...", "info");
+    await api("POST", `/api/concepts/rebuild/${videoId}`);
+    tabLoaded["concepts"] = false;
+    loadConcepts();
+    toast("知識點已重新抽取", "success");
+  } catch (e) {
+    toast("知識點抽取失敗: " + e.message, "error");
   }
 }
 

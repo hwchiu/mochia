@@ -266,6 +266,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">📝 摘要</button>
       <button class="tab-btn" data-tab="faq" onclick="switchTab('faq')">❓ FAQ</button>
+      <button class="tab-btn" data-tab="concepts" onclick="switchTab('concepts')">🧠 知識點</button>
       <button class="tab-btn" data-tab="case-analysis" onclick="switchTab('case-analysis')">🔍 案例分析</button>
       <button class="tab-btn" data-tab="qa-chat" onclick="switchTab('qa-chat')">💬 對話</button>
       <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">📓 筆記</button>
@@ -297,6 +298,25 @@
         <div id="faq-loading" class="loading-text">載入中...</div>
         <div id="faq-list"></div>
         <div id="faq-error" class="hidden" style="color:var(--danger,#ef4444);padding:12px"></div>
+      </div>
+    </div>
+
+    <!-- Concepts Tab -->
+    <div id="tab-concepts" class="tab-panel">
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>🧠 知識點</span>
+          <button class="btn btn-sm btn-ghost" onclick="rebuildConcepts()">🔄 重新抽取</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted,#888);margin-bottom:12px">
+          ⏱️ 點擊 <strong>⏱ MM:SS</strong> 時間戳，影片將自動跳轉到對應位置。
+          每個知識點附帶出處片段，可直接回看原始說明。
+        </p>
+        <div id="concepts-loading" class="loading-text">載入中...</div>
+        <div id="concepts-list"></div>
+        <div id="concepts-empty" class="hidden" style="color:var(--muted,#888);padding:20px;text-align:center">
+          尚未抽取知識點。點擊「重新抽取」或等待下次分析完成。
+        </div>
       </div>
     </div>
 
