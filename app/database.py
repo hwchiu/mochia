@@ -174,6 +174,75 @@ class VideoNote(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ── M2 知識圖譜 ────────────────────────────────────────────────────────────────
+
+
+class Concept(Base):
+    """知識點（概念節點）"""
+
+    __tablename__ = "concepts"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, unique=True, index=True)
+    description = Column(Text, nullable=True)
+    video_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    relations_from = relationship(  # type: ignore[misc]
+        "ConceptRelation",
+        foreign_keys="ConceptRelation.source_concept_id",
+        cascade="all, delete-orphan",
+    )
+    relations_to = relationship(  # type: ignore[misc]
+        "ConceptRelation",
+        foreign_keys="ConceptRelation.target_concept_id",
+        cascade="all, delete-orphan",
+    )
+    segment_links = relationship("SegmentConcept", cascade="all, delete-orphan")  # type: ignore[misc]
+
+
+class ConceptRelation(Base):
+    """知識點之間的關係邊"""
+
+    __tablename__ = "concept_relations"
+
+    id = Column(String, primary_key=True)
+    source_concept_id = Column(
+        String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True
+    )
+    target_concept_id = Column(
+        String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True
+    )
+    relation_type = Column(String, default="related")  # related / prerequisite / part_of
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_concept_id", "target_concept_id", "relation_type",
+            name="uq_concept_relation",
+        ),
+    )
+
+
+class SegmentConcept(Base):
+    """片段與知識點的關聯（可追溯回原始時間點）"""
+
+    __tablename__ = "segment_concepts"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    concept_id = Column(String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True)
+    seg_idx = Column(Integer)       # segment index in transcript.segments JSON
+    start_sec = Column(Float)       # segment start time (seconds)
+    end_sec = Column(Float)         # segment end time (seconds)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("video_id", "concept_id", "seg_idx", name="uq_seg_concept"),
+    )
+
+
 def _migrate_db():
     """補齊新欄位與新資料表（不破壞已有資料）"""
     import re
@@ -280,6 +349,55 @@ def _migrate_db():
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_taskqueue_status ON task_queue(status)")
+
+    # M2 知識圖譜表（idempotent）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS concepts (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            description TEXT,
+            video_count INTEGER DEFAULT 0,
+            created_at DATETIME,
+            updated_at DATETIME
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_concepts_name ON concepts(name)")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS concept_relations (
+            id TEXT PRIMARY KEY,
+            source_concept_id TEXT REFERENCES concepts(id) ON DELETE CASCADE,
+            target_concept_id TEXT REFERENCES concepts(id) ON DELETE CASCADE,
+            relation_type TEXT DEFAULT 'related',
+            created_at DATETIME,
+            UNIQUE(source_concept_id, target_concept_id, relation_type)
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_concept_rel_src ON concept_relations(source_concept_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_concept_rel_tgt ON concept_relations(target_concept_id)"
+    )
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS segment_concepts (
+            id TEXT PRIMARY KEY,
+            video_id TEXT REFERENCES videos(id) ON DELETE CASCADE,
+            concept_id TEXT REFERENCES concepts(id) ON DELETE CASCADE,
+            seg_idx INTEGER,
+            start_sec REAL,
+            end_sec REAL,
+            created_at DATETIME,
+            UNIQUE(video_id, concept_id, seg_idx)
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_seg_concept_video ON segment_concepts(video_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_seg_concept_concept ON segment_concepts(concept_id)"
+    )
 
     # 重建 chat_messages 以加入 FK（SQLite 不支援 ALTER TABLE ADD CONSTRAINT）
     cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='chat_messages'")

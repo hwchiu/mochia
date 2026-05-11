@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import Classification, SessionLocal, Summary, TaskQueue, Transcript, Video
+from app.routers.concepts import rebuild_concepts_for_video
 from app.routers.search import rebuild_fts_index
 from app.services.analyzer import (
     analyze_all,
@@ -187,6 +188,12 @@ def _run_gpt_steps(
         rebuild_fts_index(task.video_id or "", db)
     except Exception as e:
         logger.warning(f"FTS 索引更新失敗 (非致命): {e}")
+    # 抽取知識點（M2）
+    try:
+        n_concepts = rebuild_concepts_for_video(task.video_id or "", db)
+        logger.info(f"知識點索引完成: {n_concepts} 個概念")
+    except Exception as e:
+        logger.warning(f"知識點抽取失敗 (非致命): {e}")
     logger.info(f"✅ 完成: {video.original_filename}")
 
 

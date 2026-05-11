@@ -426,3 +426,140 @@ def extract_case_analysis(transcript: str) -> str:
 
     logger.info("案例分析擷取完成")
     return raw
+
+
+def extract_concepts(
+    transcript: str,
+    segments: list[dict] | None = None,
+) -> list[dict]:
+    """Extract knowledge concepts from a video transcript.
+
+    Uses GPT to identify key concepts, their descriptions, relationships, and
+    the specific segments that mention each concept.
+
+    Args:
+        transcript: Full transcript text.
+        segments: Optional list of Whisper segment dicts with 'start', 'end', 'text'.
+            When provided, each concept will include matching segment indices.
+
+    Returns:
+        List of concept dicts with keys:
+            - name: str — concept name (short, 2–12 chars)
+            - description: str — brief explanation
+            - relations: list[dict] — [{name, relation_type}] related concepts
+            - segments: list[dict] — [{seg_idx, start_sec, end_sec}] evidence segments
+        Returns empty list on parse failure.
+    """
+    if segments:
+        transcript_for_gpt = _format_timestamped_transcript(segments, max_chars=6000)
+    else:
+        transcript_for_gpt = _prepare_transcript(transcript, max_chars=6000)
+
+    system_prompt = """你是一位知識管理專家，擅長從教學影片中提取核心知識點並建立知識圖譜。
+請根據影片逐字稿，識別 5-12 個核心知識點（概念），並說明每個概念之間的關係。
+僅以 JSON 格式回傳，不要有任何額外說明或 markdown 格式。"""
+
+    user_content = f"""請分析以下影片逐字稿，提取核心知識點與概念關係。
+
+逐字稿：
+{transcript_for_gpt}
+
+請以 JSON 陣列格式回傳（純 JSON，不要 markdown code block）：
+[
+  {{
+    "name": "概念名稱（2-12字）",
+    "description": "概念的簡短說明（50-120字）",
+    "relations": [
+      {{"name": "相關概念名稱", "relation_type": "related"}}
+    ],
+    "segment_keywords": ["在影片中出現此概念時的關鍵詞1", "關鍵詞2"]
+  }}
+]
+
+relation_type 可選值：
+- related（相關）
+- prerequisite（前置知識）
+- part_of（組成部分）
+
+要求：
+- 5-12 個概念，名稱簡潔（2-12字），繁體中文
+- 每個概念的 description 清楚說明意義與應用
+- 只列出確實存在於影片內容中的概念
+- relations 引用的概念名稱必須出現在本次回傳的概念列表中
+- segment_keywords 為 2-5 個該概念在逐字稿中出現時的代表性詞語"""
+
+    logger.info("開始抽取知識點...")
+    raw = _chat(system_prompt, user_content, max_tokens=3000)
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        raw = raw.rsplit("```", 1)[0].strip()
+
+    try:
+        concepts_raw = json.loads(raw)
+        if not isinstance(concepts_raw, list):
+            logger.warning("extract_concepts: GPT 回傳非列表，返回空結果")
+            return []
+    except json.JSONDecodeError:
+        logger.warning("extract_concepts: JSON 解析失敗，raw=%r", raw[:200])
+        return []
+
+    # Match concepts to segments by keyword search
+    seg_lookup: list[dict] = []
+    if segments:
+        for idx, seg in enumerate(segments):
+            text = str(seg.get("text", "")).strip()
+            if text:
+                seg_lookup.append(
+                    {
+                        "idx": idx,
+                        "text": text,
+                        "start": float(seg.get("start", 0.0) or 0.0),
+                        "end": float(seg.get("end", 0.0) or 0.0),
+                    }
+                )
+
+    result: list[dict] = []
+    for item in concepts_raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        description = str(item.get("description", "")).strip()
+        relations = item.get("relations", [])
+        if not isinstance(relations, list):
+            relations = []
+        keywords: list[str] = item.get("segment_keywords", [])
+        if not isinstance(keywords, list):
+            keywords = []
+
+        # Find segments that contain any keyword
+        matched_segs: list[dict] = []
+        if seg_lookup and keywords:
+            for s in seg_lookup:
+                if any(kw in s["text"] for kw in keywords if kw):
+                    matched_segs.append(
+                        {"seg_idx": s["idx"], "start_sec": s["start"], "end_sec": s["end"]}
+                    )
+
+        result.append(
+            {
+                "name": name,
+                "description": description,
+                "relations": [
+                    {
+                        "name": str(r.get("name", "")).strip(),
+                        "relation_type": str(r.get("relation_type", "related")).strip(),
+                    }
+                    for r in relations
+                    if isinstance(r, dict) and r.get("name")
+                ],
+                "segments": matched_segs,
+            }
+        )
+
+    logger.info("知識點抽取完成，共 %d 個概念", len(result))
+    return result
+

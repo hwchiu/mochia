@@ -58,16 +58,29 @@ _DEEP_CONTENT_JSON = json.dumps(
     }
 )
 
+_CONCEPTS_JSON = json.dumps(
+    [
+        {
+            "name": "太陽星座",
+            "description": "出生時太陽所在的星座，代表核心自我",
+            "relations": [],
+            "segment_keywords": ["太陽", "星座"],
+        }
+    ]
+)
+
 
 def _make_analyzer_client() -> MagicMock:
     """Return a fake AzureOpenAI client whose chat.completions.create yields:
     call 1 → analyze_all JSON
     call 2 → generate_deep_content JSON
+    call 3 → extract_concepts JSON
     """
     client = MagicMock()
     client.chat.completions.create.side_effect = [
         MagicMock(choices=[MagicMock(message=MagicMock(content=_ANALYZE_ALL_JSON))]),
         MagicMock(choices=[MagicMock(message=MagicMock(content=_DEEP_CONTENT_JSON))]),
+        MagicMock(choices=[MagicMock(message=MagicMock(content=_CONCEPTS_JSON))]),
     ]
     return client
 
@@ -205,12 +218,12 @@ class TestWorkerRealAnalyzeAll:
         db_session.refresh(task)
         assert task.status == "done"
 
-    def test_gpt_called_exactly_twice(self, db_session, tmp_path, video_and_task):
-        """Worker must make exactly 2 GPT calls: analyze_all + generate_deep_content."""
+    def test_gpt_called_exactly_three_times(self, db_session, tmp_path, video_and_task):
+        """Worker must make exactly 3 GPT calls: analyze_all + generate_deep_content + extract_concepts."""
         video, task = video_and_task
         analyzer_client = _make_analyzer_client()
         self._run_task(task, db_session, tmp_path, analyzer_client)
-        assert analyzer_client.chat.completions.create.call_count == 2
+        assert analyzer_client.chat.completions.create.call_count == 3
 
     def test_rerun_overwrites_existing_records(self, db_session, tmp_path, video_and_task):
         """Running _process_task twice must update records, not duplicate them."""
@@ -237,6 +250,7 @@ class TestWorkerRealAnalyzeAll:
         second_client.chat.completions.create.side_effect = [
             MagicMock(choices=[MagicMock(message=MagicMock(content=second_json))]),
             MagicMock(choices=[MagicMock(message=MagicMock(content=second_deep))]),
+            MagicMock(choices=[MagicMock(message=MagicMock(content=_CONCEPTS_JSON))]),
         ]
         task2 = TaskQueue(
             id=uuid.uuid4().hex,
