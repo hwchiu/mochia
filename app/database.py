@@ -243,6 +243,90 @@ class SegmentConcept(Base):
     )
 
 
+class Topic(Base):
+    """知識庫主題節點（支援無限層級）"""
+
+    __tablename__ = "topics"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, unique=True, index=True)
+    slug = Column(String, unique=True, index=True)  # URL-friendly identifier
+    parent_id = Column(String, ForeignKey("topics.id", ondelete="SET NULL"), nullable=True)
+    domain = Column(String, nullable=True, index=True)  # top-level domain label
+    description = Column(Text, nullable=True)
+    learning_order = Column(Integer, default=0)  # ordering weight within parent
+    prerequisites = Column(Text, nullable=True)  # JSON: [topic_id, ...]
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    children = relationship(  # type: ignore[misc]
+        "Topic",
+        foreign_keys="Topic.parent_id",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
+    parent = relationship(  # type: ignore[misc]
+        "Topic",
+        foreign_keys="Topic.parent_id",
+        back_populates="children",
+        remote_side="Topic.id",
+    )
+    concept_links = relationship("ConceptTopic", cascade="all, delete-orphan")  # type: ignore[misc]
+
+
+class ConceptTopic(Base):
+    """概念 ↔ 主題 多對多關聯"""
+
+    __tablename__ = "concept_topics"
+
+    id = Column(String, primary_key=True)
+    concept_id = Column(String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True)
+    topic_id = Column(String, ForeignKey("topics.id", ondelete="CASCADE"), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("concept_id", "topic_id", name="uq_concept_topic"),)
+
+
+class WikiPage(Base):
+    """跨影片合成的知識頁面"""
+
+    __tablename__ = "wiki_pages"
+
+    id = Column(String, primary_key=True)
+    concept_id = Column(
+        String, ForeignKey("concepts.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    topic_id = Column(
+        String, ForeignKey("topics.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    title = Column(String, index=True)
+    slug = Column(String, unique=True, index=True)
+    synthesized_content = Column(Text, nullable=True)  # GPT-generated Markdown
+    source_video_count = Column(Integer, default=0)
+    last_synthesized_at = Column(DateTime, nullable=True)
+    status = Column(String, default="draft")  # draft / published / stale
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    sources = relationship("WikiPageSource", cascade="all, delete-orphan")  # type: ignore[misc]
+
+
+class WikiPageSource(Base):
+    """知識頁 ↔ 影片片段 溯源記錄"""
+
+    __tablename__ = "wiki_page_sources"
+
+    id = Column(String, primary_key=True)
+    wiki_page_id = Column(
+        String, ForeignKey("wiki_pages.id", ondelete="CASCADE"), index=True
+    )
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    start_time = Column(Float, nullable=True)
+    end_time = Column(Float, nullable=True)
+    excerpt = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def _migrate_db():
     """補齊新欄位與新資料表（不破壞已有資料）"""
     import re
@@ -422,6 +506,77 @@ def _migrate_db():
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS ix_chat_messages_video_id ON chat_messages(video_id)"
         )
+
+    # Wiki 知識庫表（idempotent）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS topics (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            parent_id TEXT REFERENCES topics(id) ON DELETE SET NULL,
+            domain TEXT,
+            description TEXT,
+            learning_order INTEGER DEFAULT 0,
+            prerequisites TEXT,
+            created_at DATETIME,
+            updated_at DATETIME
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_domain ON topics(domain)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_parent ON topics(parent_id)")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS concept_topics (
+            id TEXT PRIMARY KEY,
+            concept_id TEXT REFERENCES concepts(id) ON DELETE CASCADE,
+            topic_id TEXT REFERENCES topics(id) ON DELETE CASCADE,
+            created_at DATETIME,
+            UNIQUE(concept_id, topic_id)
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_concept_topics_concept ON concept_topics(concept_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_concept_topics_topic ON concept_topics(topic_id)"
+    )
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wiki_pages (
+            id TEXT PRIMARY KEY,
+            concept_id TEXT REFERENCES concepts(id) ON DELETE CASCADE,
+            topic_id TEXT REFERENCES topics(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            synthesized_content TEXT,
+            source_video_count INTEGER DEFAULT 0,
+            last_synthesized_at DATETIME,
+            status TEXT DEFAULT 'draft',
+            created_at DATETIME,
+            updated_at DATETIME
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiki_pages_concept ON wiki_pages(concept_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiki_pages_topic ON wiki_pages(topic_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wiki_pages_status ON wiki_pages(status)")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wiki_page_sources (
+            id TEXT PRIMARY KEY,
+            wiki_page_id TEXT REFERENCES wiki_pages(id) ON DELETE CASCADE,
+            video_id TEXT REFERENCES videos(id) ON DELETE CASCADE,
+            start_time REAL,
+            end_time REAL,
+            excerpt TEXT,
+            created_at DATETIME
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wiki_sources_page ON wiki_page_sources(wiki_page_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wiki_sources_video ON wiki_page_sources(video_id)"
+    )
 
     conn.commit()
     conn.close()

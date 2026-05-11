@@ -20,6 +20,7 @@ from app.routers import (
     stats,
     version,
     videos,
+    wiki,
 )
 
 
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(stats.router)
     app.include_router(version.router)
     app.include_router(concepts.router)
+    app.include_router(wiki.router)
 
     # 靜態檔案
     static_dir = Path(__file__).parent.parent / "static"

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ topic.name }} - 知識庫</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/theme.js"></script>
+  <style>
+    .wiki-layout { display:grid; grid-template-columns:260px 1fr; gap:0; min-height:100vh; }
+    .wiki-sidebar { background:var(--surface,#f8f9fa); border-right:1px solid var(--border,#e5e7eb); padding:24px 16px; position:sticky; top:0; height:100vh; overflow-y:auto; }
+    .wiki-main { padding:32px 40px; max-width:960px; }
+    .home-link { display:flex; align-items:center; gap:8px; color:var(--muted,#6b7280); font-size:13px; text-decoration:none; padding:6px 10px; border-radius:6px; margin-bottom:8px; }
+    .home-link:hover { background:var(--border,#eee); color:var(--text,#333); }
+    .sidebar-section-title { font-size:11px; font-weight:700; color:var(--muted,#6b7280); text-transform:uppercase; letter-spacing:.05em; padding:12px 8px 6px; }
+    .sidebar-link { display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border-radius:6px; font-size:13px; text-decoration:none; color:var(--text,#333); }
+    .sidebar-link:hover { background:var(--border,#eee); }
+    .sidebar-link.active { background:var(--primary,#4f46e5); color:#fff; }
+    .sidebar-badge { font-size:11px; padding:1px 6px; border-radius:10px; background:var(--border,#e5e7eb); color:var(--muted,#888); }
+    .sidebar-link.active .sidebar-badge { background:rgba(255,255,255,.25); color:#fff; }
+    /* Breadcrumb */
+    .breadcrumb { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted,#6b7280); margin-bottom:20px; flex-wrap:wrap; }
+    .breadcrumb a { color:var(--primary,#4f46e5); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    .breadcrumb-sep { color:var(--muted,#bbb); }
+    /* Topic header */
+    .topic-header { margin-bottom:32px; }
+    .topic-header h1 { font-size:26px; font-weight:700; margin-bottom:8px; }
+    .topic-desc { font-size:15px; color:var(--muted,#555); line-height:1.7; max-width:640px; }
+    /* Sub-topics */
+    .section-title { font-size:17px; font-weight:700; margin:32px 0 14px; display:flex; align-items:center; gap:8px; }
+    .subtopic-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; margin-bottom:32px; }
+    .subtopic-card { border:1px solid var(--border,#e5e7eb); border-radius:10px; padding:16px; background:var(--bg,#fff); text-decoration:none; color:inherit; display:block; transition:all .2s; }
+    .subtopic-card:hover { border-color:var(--primary,#4f46e5); box-shadow:0 3px 10px rgba(79,70,229,.07); }
+    .subtopic-card-name { font-size:14px; font-weight:700; margin-bottom:4px; }
+    .subtopic-card-desc { font-size:12px; color:var(--muted,#6b7280); line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:8px; }
+    .subtopic-card-meta { font-size:11px; color:var(--muted,#888); }
+    /* Concept cards */
+    .concept-list { display:flex; flex-direction:column; gap:10px; }
+    .concept-card { border:1px solid var(--border,#e5e7eb); border-radius:10px; padding:16px 20px; background:var(--bg,#fff); display:flex; align-items:flex-start; gap:16px; transition:all .2s; }
+    .concept-card:hover { border-color:var(--primary,#4f46e5); background:var(--surface,#f9f9ff); }
+    .concept-card-body { flex:1; }
+    .concept-card-title { font-size:15px; font-weight:700; margin-bottom:5px; }
+    .concept-card-title a { color:var(--text,#222); text-decoration:none; }
+    .concept-card-title a:hover { color:var(--primary,#4f46e5); }
+    .concept-card-desc { font-size:13px; color:var(--muted,#555); line-height:1.6; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .concept-card-meta { display:flex; align-items:center; gap:10px; margin-top:8px; font-size:12px; color:var(--muted,#888); }
+    .concept-card-side { text-align:right; flex-shrink:0; }
+    .wiki-badge { display:inline-block; padding:3px 8px; background:var(--primary,#4f46e5); color:#fff; border-radius:20px; font-size:11px; font-weight:600; text-decoration:none; }
+    .no-wiki-badge { padding:3px 8px; background:var(--surface,#f3f4f6); color:var(--muted,#888); border-radius:20px; font-size:11px; }
+    /* Empty */
+    .empty-state { text-align:center; padding:48px 20px; color:var(--muted,#6b7280); }
+    .empty-icon { font-size:40px; margin-bottom:12px; }
+    @media(max-width:768px) {
+      .wiki-layout { grid-template-columns:1fr; }
+      .wiki-sidebar { display:none; }
+      .wiki-main { padding:20px 16px; }
+    }
+  </style>
+</head>
+<body class="app-layout">
+
+<div class="wiki-layout">
+  <!-- Sidebar -->
+  <aside class="wiki-sidebar">
+    <a href="/" class="home-link">← 返回影片列表</a>
+    <a href="/wiki" class="home-link">📚 知識庫首頁</a>
+
+    {% if children %}
+    <div class="sidebar-section-title">子主題</div>
+    {% for child in children %}
+    <a class="sidebar-link" href="/wiki/{{ child.slug }}">
+      <span>{{ child.name }}</span>
+      <span class="sidebar-badge">{{ child.concept_count }}</span>
+    </a>
+    {% endfor %}
+    {% endif %}
+  </aside>
+
+  <!-- Main -->
+  <main class="wiki-main">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="麵包屑">
+      <a href="/wiki">知識庫</a>
+      {% for crumb in breadcrumb %}
+      <span class="breadcrumb-sep">›</span>
+      {% if not loop.last %}
+        <a href="/wiki/{{ crumb.slug }}">{{ crumb.name }}</a>
+      {% else %}
+        <span>{{ crumb.name }}</span>
+      {% endif %}
+      {% endfor %}
+    </nav>
+
+    <!-- Topic header -->
+    <div class="topic-header">
+      <h1>{{ topic.name }}</h1>
+      {% if topic.description %}
+      <p class="topic-desc">{{ topic.description }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Sub-topics -->
+    {% if children %}
+    <h2 class="section-title">🗂 子主題</h2>
+    <div class="subtopic-grid">
+      {% for child in children %}
+      <a class="subtopic-card" href="/wiki/{{ child.slug }}">
+        <div class="subtopic-card-name">{{ child.name }}</div>
+        {% if child.description %}
+        <div class="subtopic-card-desc">{{ child.description }}</div>
+        {% endif %}
+        <div class="subtopic-card-meta">{{ child.concept_count }} 個知識點</div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Concept list -->
+    {% if concept_cards %}
+    <h2 class="section-title">💡 知識點（{{ concept_cards|length }}）</h2>
+    <div class="concept-list">
+      {% for card in concept_cards %}
+      <div class="concept-card">
+        <div class="concept-card-body">
+          <div class="concept-card-title">
+            {% if card.wiki_slug %}
+            <a href="/wiki/concept/{{ card.wiki_slug }}">{{ card.name }}</a>
+            {% else %}
+            {{ card.name }}
+            {% endif %}
+          </div>
+          {% if card.description %}
+          <div class="concept-card-desc">{{ card.description }}</div>
+          {% endif %}
+          <div class="concept-card-meta">
+            <span>出現在 {{ card.video_count }} 部影片</span>
+          </div>
+        </div>
+        <div class="concept-card-side">
+          {% if card.wiki_slug %}
+          <a class="wiki-badge" href="/wiki/concept/{{ card.wiki_slug }}">閱讀詞條 →</a>
+          {% else %}
+          <span class="no-wiki-badge">尚無詞條</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">💡</div>
+      <p>此主題尚無知識點。請先完成影片分析。</p>
+    </div>
+    {% endif %}
+  </main>
+</div>
+
+</body>
+</html>

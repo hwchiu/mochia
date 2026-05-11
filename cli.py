@@ -12,6 +12,7 @@ Video Analyzer CLI
     python cli.py retry                重試所有失敗任務
     python cli.py list [--status S]    列出影片
     python cli.py worker               啟動 Worker（等同 python worker.py）
+    python cli.py export-wiki          匯出 wiki 知識庫為靜態 HTML 網站
 """
 
 from __future__ import annotations
@@ -304,6 +305,253 @@ def cmd_worker(args):
     run_worker()
 
 
+def cmd_export_wiki(args):
+    """匯出 wiki 知識庫為靜態 HTML 網站"""
+    import shutil
+
+    from jinja2 import Environment, FileSystemLoader
+
+    from app.database import (
+        Concept,
+        ConceptRelation,
+        ConceptTopic,
+        SegmentConcept,
+        Topic,
+        Video,
+        WikiPage,
+        WikiPageSource,
+    )
+
+    output_dir = Path(args.output).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "concept").mkdir(exist_ok=True)
+
+    db = _get_db()
+    try:
+        templates_dir = Path(__file__).parent / "templates"
+        env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=True)
+        # Add tojson filter (Jinja2 has it built in with autoescape=True)
+
+        def _fmt_mmss(sec):
+            if sec is None:
+                return None
+            total = max(0, int(float(sec)))
+            return f"{total // 60:02d}:{total % 60:02d}"
+
+        def _topic_tree_static(parent_id=None):
+            topics = (
+                db.query(Topic)
+                .filter(Topic.parent_id == parent_id)
+                .order_by(Topic.learning_order.asc(), Topic.name.asc())
+                .all()
+            )
+            result = []
+            for t in topics:
+                concept_count = db.query(ConceptTopic).filter(ConceptTopic.topic_id == t.id).count()
+                result.append({
+                    "id": t.id,
+                    "name": t.name,
+                    "slug": t.slug,
+                    "domain": t.domain,
+                    "description": t.description,
+                    "learning_order": t.learning_order,
+                    "concept_count": concept_count,
+                    "children": _topic_tree_static(t.id),
+                })
+            return result
+
+        pages_exported = 0
+        topics_exported = 0
+
+        # ── Index page ────────────────────────────────────────────────────────
+        domains_raw = (
+            db.query(Topic)
+            .filter(Topic.parent_id.is_(None))
+            .order_by(Topic.learning_order.asc())
+            .all()
+        )
+        domain_data = []
+        for d in domains_raw:
+            cc = db.query(ConceptTopic).join(Topic, ConceptTopic.topic_id == Topic.id).filter(Topic.domain == d.name).count()
+            wc = (
+                db.query(WikiPage)
+                .join(Concept, WikiPage.concept_id == Concept.id)
+                .join(ConceptTopic, ConceptTopic.concept_id == Concept.id)
+                .join(Topic, ConceptTopic.topic_id == Topic.id)
+                .filter(Topic.domain == d.name, WikiPage.status == "published")
+                .count()
+            )
+            domain_data.append({
+                "id": d.id, "name": d.name, "slug": d.slug,
+                "description": d.description,
+                "concept_count": cc, "wiki_count": wc,
+                "children": _topic_tree_static(d.id),
+            })
+
+        recent_pages = (
+            db.query(WikiPage)
+            .filter(WikiPage.status == "published")
+            .order_by(WikiPage.last_synthesized_at.desc())
+            .limit(8)
+            .all()
+        )
+        recent_data = [{"id": p.id, "title": p.title, "slug": p.slug, "source_video_count": p.source_video_count} for p in recent_pages]
+
+        tmpl = env.get_template("wiki_index.html")
+        html = tmpl.render(
+            domains=domain_data,
+            recent_pages=recent_data,
+            total_concepts=db.query(Concept).count(),
+            total_wiki=db.query(WikiPage).filter(WikiPage.status == "published").count(),
+            total_topics=db.query(Topic).count(),
+        )
+        (output_dir / "index.html").write_text(html, encoding="utf-8")
+        print("✅ 匯出首頁: index.html")
+
+        # ── Topic pages ───────────────────────────────────────────────────────
+        all_topics = db.query(Topic).all()
+        for topic in all_topics:
+            chain = []
+            t = topic
+            while t:
+                chain.insert(0, t)
+                t = db.query(Topic).filter(Topic.id == t.parent_id).first() if t.parent_id else None
+            breadcrumb = [{"name": t.name, "slug": t.slug} for t in chain]
+
+            children = _topic_tree_static(topic.id)
+            concept_links = db.query(ConceptTopic).filter(ConceptTopic.topic_id == topic.id).all()
+            concept_ids = [cl.concept_id for cl in concept_links]
+            concepts_map = {c.id: c for c in db.query(Concept).filter(Concept.id.in_(concept_ids)).all()}
+            wiki_pages_map = {
+                wp.concept_id: wp
+                for wp in db.query(WikiPage)
+                .filter(WikiPage.concept_id.in_(concept_ids), WikiPage.status == "published")
+                .all()
+            }
+            concept_cards = []
+            for cid in concept_ids:
+                c = concepts_map.get(cid)
+                if not c:
+                    continue
+                wp = wiki_pages_map.get(cid)
+                concept_cards.append({
+                    "id": c.id, "name": c.name, "description": c.description,
+                    "video_count": c.video_count or 0,
+                    "wiki_slug": wp.slug if wp else None,
+                    "has_wiki": wp is not None,
+                })
+            concept_cards.sort(key=lambda x: x["video_count"], reverse=True)
+
+            tmpl = env.get_template("wiki_topic.html")
+            html = tmpl.render(
+                topic={"id": topic.id, "name": topic.name, "slug": topic.slug, "description": topic.description, "domain": topic.domain, "learning_order": topic.learning_order},
+                breadcrumb=breadcrumb,
+                children=children,
+                concept_cards=concept_cards,
+            )
+            (output_dir / f"{topic.slug}.html").write_text(html, encoding="utf-8")
+            topics_exported += 1
+
+        print(f"✅ 匯出主題頁: {topics_exported} 頁")
+
+        # ── Concept/wiki pages ────────────────────────────────────────────────
+        wiki_pages = db.query(WikiPage).filter(WikiPage.status == "published").all()
+        for wp in wiki_pages:
+            concept = db.query(Concept).filter(Concept.id == wp.concept_id).first()
+            breadcrumb = []
+            if concept:
+                ct = db.query(ConceptTopic).filter(ConceptTopic.concept_id == concept.id).first()
+                if ct:
+                    topic = db.query(Topic).filter(Topic.id == ct.topic_id).first()
+                    if topic:
+                        chain = []
+                        t = topic
+                        while t:
+                            chain.insert(0, t)
+                            t = db.query(Topic).filter(Topic.id == t.parent_id).first() if t.parent_id else None
+                        breadcrumb = [{"name": t.name, "slug": t.slug} for t in chain]
+
+            # Relations
+            prerequisites = []
+            related = []
+            if concept:
+                rels_from = db.query(ConceptRelation).filter(ConceptRelation.source_concept_id == concept.id).all()
+                rels_to = db.query(ConceptRelation).filter(ConceptRelation.target_concept_id == concept.id).all()
+                all_ids = list({r.target_concept_id for r in rels_from} | {r.source_concept_id for r in rels_to})
+                rel_concepts = {c.id: c for c in db.query(Concept).filter(Concept.id.in_(all_ids)).all()}
+                rel_wiki = {p.concept_id: p for p in db.query(WikiPage).filter(WikiPage.concept_id.in_(all_ids), WikiPage.status == "published").all()}
+                for r in rels_from:
+                    rc = rel_concepts.get(r.target_concept_id)
+                    if not rc:
+                        continue
+                    entry = {"name": rc.name, "slug": rel_wiki[rc.id].slug if rc.id in rel_wiki else None, "relation_type": r.relation_type}
+                    if r.relation_type == "prerequisite":
+                        prerequisites.append(entry)
+                    else:
+                        related.append(entry)
+
+            # Source videos
+            sources = db.query(WikiPageSource).filter(WikiPageSource.wiki_page_id == wp.id).all()
+            vid_ids = list({s.video_id for s in sources})
+            vmap = {v.id: v for v in db.query(Video).filter(Video.id.in_(vid_ids)).all()}
+            seg_by_vid = {}
+            if concept:
+                for sl in db.query(SegmentConcept).filter(SegmentConcept.concept_id == concept.id).order_by(SegmentConcept.start_sec).all():
+                    vid = vmap.get(sl.video_id)
+                    if not vid:
+                        continue
+                    vid_id = str(sl.video_id)
+                    if vid_id not in seg_by_vid:
+                        seg_by_vid[vid_id] = {"video_id": vid_id, "title": str(vid.original_filename or vid.filename), "timestamps": []}
+                    seg_by_vid[vid_id]["timestamps"].append({"start_sec": sl.start_sec, "end_sec": sl.end_sec, "display": _fmt_mmss(sl.start_sec)})
+
+            tmpl = env.get_template("wiki_concept.html")
+            html = tmpl.render(
+                wiki_page={
+                    "id": wp.id, "title": wp.title, "slug": wp.slug,
+                    "synthesized_content": wp.synthesized_content or "",
+                    "source_video_count": wp.source_video_count,
+                    "last_synthesized_at": wp.last_synthesized_at,
+                    "status": wp.status,
+                },
+                concept={"id": concept.id if concept else None, "name": concept.name if concept else wp.title, "description": concept.description if concept else None},
+                breadcrumb=breadcrumb,
+                prerequisites=prerequisites,
+                related=related,
+                source_videos=list(seg_by_vid.values()),
+            )
+            (output_dir / "concept" / f"{wp.slug}.html").write_text(html, encoding="utf-8")
+            pages_exported += 1
+
+        print(f"✅ 匯出知識詞條: {pages_exported} 頁")
+
+        # ── Copy static assets ────────────────────────────────────────────────
+        static_src = Path(__file__).parent / "static"
+        static_dst = output_dir / "static"
+        if static_src.exists():
+            if static_dst.exists():
+                shutil.rmtree(static_dst)
+            shutil.copytree(str(static_src), str(static_dst))
+            print("✅ 複製靜態資源")
+
+        # ── Sitemap ───────────────────────────────────────────────────────────
+        sitemap_urls = ["index.html"]
+        sitemap_urls += [f"{t.slug}.html" for t in db.query(Topic).all()]
+        sitemap_urls += [f"concept/{p.slug}.html" for p in db.query(WikiPage).filter(WikiPage.status == "published").all()]
+        sitemap = "\n".join(sitemap_urls)
+        (output_dir / "sitemap.txt").write_text(sitemap, encoding="utf-8")
+        print(f"✅ 生成 sitemap.txt ({len(sitemap_urls)} 頁)")
+
+        print()
+        print(f"🎉 匯出完成！輸出目錄: {output_dir}")
+        print(f"   首頁:         {output_dir}/index.html")
+        print(f"   主題頁:       {topics_exported} 頁")
+        print(f"   知識詞條:     {pages_exported} 頁")
+
+    finally:
+        db.close()
+
+
 # ─────────────────────── Argument Parser ───────────────────────
 
 
@@ -348,6 +596,11 @@ def main():
     # worker
     p_worker = subparsers.add_parser("worker", help="啟動 Worker 進程")
     p_worker.set_defaults(func=cmd_worker)
+
+    # export-wiki
+    p_export = subparsers.add_parser("export-wiki", help="匯出 wiki 知識庫為靜態 HTML 網站")
+    p_export.add_argument("--output", default="./wiki-site", help="輸出目錄（預設 ./wiki-site）")
+    p_export.set_defaults(func=cmd_export_wiki)
 
     args = parser.parse_args()
     args.func(args)
