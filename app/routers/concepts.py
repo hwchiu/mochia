@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/concepts", tags=["concepts"])
 
 
-def _format_mmss(sec: float | int | None) -> str | None:
+def _format_mmss(sec: object) -> str | None:
     if sec is None:
         return None
     try:
-        total = max(0, int(float(sec)))
+        total = max(0, int(float(sec)))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
     mins = total // 60
@@ -199,22 +199,17 @@ def get_concept(concept_id: str, db: Session = Depends(get_db)):
 
     # Relations
     relations_from = (
-        db.query(ConceptRelation)
-        .filter(ConceptRelation.source_concept_id == concept_id)
-        .all()
+        db.query(ConceptRelation).filter(ConceptRelation.source_concept_id == concept_id).all()
     )
     relations_to = (
-        db.query(ConceptRelation)
-        .filter(ConceptRelation.target_concept_id == concept_id)
-        .all()
+        db.query(ConceptRelation).filter(ConceptRelation.target_concept_id == concept_id).all()
     )
 
     target_ids = [r.target_concept_id for r in relations_from]
     source_ids = [r.source_concept_id for r in relations_to]
     all_rel_ids = list(set(target_ids + source_ids))
     related_concepts = {
-        c.id: c
-        for c in db.query(Concept).filter(Concept.id.in_(all_rel_ids)).all()
+        c.id: c for c in db.query(Concept).filter(Concept.id.in_(all_rel_ids)).all()
     }
 
     relations_out = []
@@ -330,7 +325,8 @@ def get_concepts_by_video(video_id: str, db: Session = Depends(get_db)):
     # Group segment links by concept
     by_concept: dict[str, list[dict]] = {}
     for sl in seg_links:
-        by_concept.setdefault(sl.concept_id, []).append(
+        key = str(sl.concept_id or "")
+        by_concept.setdefault(key, []).append(
             {
                 "seg_idx": sl.seg_idx,
                 "start_sec": sl.start_sec,
@@ -354,7 +350,9 @@ def get_concepts_by_video(video_id: str, db: Session = Depends(get_db)):
         )
 
     # Sort by first segment time
-    items.sort(key=lambda x: x["segments"][0]["start_sec"] if x["segments"] else 0)
+    items.sort(
+        key=lambda x: (x["segments"][0]["start_sec"] if x["segments"] else 0)  # type: ignore[index]
+    )
 
     return {
         "video_id": video_id,

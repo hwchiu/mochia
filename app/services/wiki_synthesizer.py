@@ -94,14 +94,14 @@ def synthesize_wiki_page(concept_id: str, db: Session) -> WikiPage | None:
         seg_text = ""
         segs: list[dict] = tr_data["segments"]
         idx = sl.seg_idx
-        if segs and 0 <= idx < len(segs):
+        if segs and idx is not None and 0 <= idx < len(segs):
             # Include surrounding context (±1 segment)
             context_segs = segs[max(0, idx - 1) : min(len(segs), idx + 2)]
             seg_text = " ".join(str(s.get("text", "")).strip() for s in context_segs)
         if not seg_text:
             # Fallback: use raw transcript excerpt at approximate character offset
             avg_seg_len = max(1, len(tr_data["content"]) // max(1, len(segs)))
-            start_char = idx * avg_seg_len
+            start_char = (idx or 0) * avg_seg_len
             seg_text = tr_data["content"][start_char : start_char + _MAX_EXCERPT_CHARS]
 
         vid = videos_map.get(vid_id)
@@ -180,7 +180,7 @@ def synthesize_wiki_page(concept_id: str, db: Session) -> WikiPage | None:
         )
     else:
         existing_slugs.discard("")  # remove empty slug if present
-        slug = _unique_slug(_slugify(concept.name), existing_slugs)
+        slug = _unique_slug(_slugify(concept.name or concept_id), existing_slugs)
         wiki_page = WikiPage(
             id=uuid.uuid4().hex,
             concept_id=concept_id,
@@ -276,11 +276,11 @@ def mark_concept_wiki_stale(concept_id: str, db: Session) -> None:
     db.flush()
 
 
-def _format_mmss(sec: float | None) -> str | None:
+def _format_mmss(sec: object) -> str | None:
     if sec is None:
         return None
     try:
-        total = max(0, int(float(sec)))
+        total = max(0, int(float(sec)))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
     mins = total // 60

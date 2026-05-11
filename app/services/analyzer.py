@@ -562,4 +562,3 @@ relation_type 可選值：
 
     logger.info("知識點抽取完成，共 %d 個概念", len(result))
     return result
-

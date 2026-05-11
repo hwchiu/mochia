@@ -208,18 +208,16 @@ class ConceptRelation(Base):
     __tablename__ = "concept_relations"
 
     id = Column(String, primary_key=True)
-    source_concept_id = Column(
-        String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True
-    )
-    target_concept_id = Column(
-        String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True
-    )
+    source_concept_id = Column(String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True)
+    target_concept_id = Column(String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True)
     relation_type = Column(String, default="related")  # related / prerequisite / part_of
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
         UniqueConstraint(
-            "source_concept_id", "target_concept_id", "relation_type",
+            "source_concept_id",
+            "target_concept_id",
+            "relation_type",
             name="uq_concept_relation",
         ),
     )
@@ -233,14 +231,12 @@ class SegmentConcept(Base):
     id = Column(String, primary_key=True)
     video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     concept_id = Column(String, ForeignKey("concepts.id", ondelete="CASCADE"), index=True)
-    seg_idx = Column(Integer)       # segment index in transcript.segments JSON
-    start_sec = Column(Float)       # segment start time (seconds)
-    end_sec = Column(Float)         # segment end time (seconds)
+    seg_idx = Column(Integer)  # segment index in transcript.segments JSON
+    start_sec = Column(Float)  # segment start time (seconds)
+    end_sec = Column(Float)  # segment end time (seconds)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (
-        UniqueConstraint("video_id", "concept_id", "seg_idx", name="uq_seg_concept"),
-    )
+    __table_args__ = (UniqueConstraint("video_id", "concept_id", "seg_idx", name="uq_seg_concept"),)
 
 
 class Topic(Base):
@@ -317,9 +313,7 @@ class WikiPageSource(Base):
     __tablename__ = "wiki_page_sources"
 
     id = Column(String, primary_key=True)
-    wiki_page_id = Column(
-        String, ForeignKey("wiki_pages.id", ondelete="CASCADE"), index=True
-    )
+    wiki_page_id = Column(String, ForeignKey("wiki_pages.id", ondelete="CASCADE"), index=True)
     video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     start_time = Column(Float, nullable=True)
     end_time = Column(Float, nullable=True)
@@ -476,9 +470,7 @@ def _migrate_db():
             UNIQUE(video_id, concept_id, seg_idx)
         )
     """)
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_seg_concept_video ON segment_concepts(video_id)"
-    )
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_seg_concept_video ON segment_concepts(video_id)")
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_seg_concept_concept ON segment_concepts(concept_id)"
     )

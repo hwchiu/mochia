@@ -348,16 +348,18 @@ def cmd_export_wiki(args):
             result = []
             for t in topics:
                 concept_count = db.query(ConceptTopic).filter(ConceptTopic.topic_id == t.id).count()
-                result.append({
-                    "id": t.id,
-                    "name": t.name,
-                    "slug": t.slug,
-                    "domain": t.domain,
-                    "description": t.description,
-                    "learning_order": t.learning_order,
-                    "concept_count": concept_count,
-                    "children": _topic_tree_static(t.id),
-                })
+                result.append(
+                    {
+                        "id": t.id,
+                        "name": t.name,
+                        "slug": t.slug,
+                        "domain": t.domain,
+                        "description": t.description,
+                        "learning_order": t.learning_order,
+                        "concept_count": concept_count,
+                        "children": _topic_tree_static(t.id),
+                    }
+                )
             return result
 
         pages_exported = 0
@@ -372,7 +374,12 @@ def cmd_export_wiki(args):
         )
         domain_data = []
         for d in domains_raw:
-            cc = db.query(ConceptTopic).join(Topic, ConceptTopic.topic_id == Topic.id).filter(Topic.domain == d.name).count()
+            cc = (
+                db.query(ConceptTopic)
+                .join(Topic, ConceptTopic.topic_id == Topic.id)
+                .filter(Topic.domain == d.name)
+                .count()
+            )
             wc = (
                 db.query(WikiPage)
                 .join(Concept, WikiPage.concept_id == Concept.id)
@@ -381,12 +388,17 @@ def cmd_export_wiki(args):
                 .filter(Topic.domain == d.name, WikiPage.status == "published")
                 .count()
             )
-            domain_data.append({
-                "id": d.id, "name": d.name, "slug": d.slug,
-                "description": d.description,
-                "concept_count": cc, "wiki_count": wc,
-                "children": _topic_tree_static(d.id),
-            })
+            domain_data.append(
+                {
+                    "id": d.id,
+                    "name": d.name,
+                    "slug": d.slug,
+                    "description": d.description,
+                    "concept_count": cc,
+                    "wiki_count": wc,
+                    "children": _topic_tree_static(d.id),
+                }
+            )
 
         recent_pages = (
             db.query(WikiPage)
@@ -395,7 +407,15 @@ def cmd_export_wiki(args):
             .limit(8)
             .all()
         )
-        recent_data = [{"id": p.id, "title": p.title, "slug": p.slug, "source_video_count": p.source_video_count} for p in recent_pages]
+        recent_data = [
+            {
+                "id": p.id,
+                "title": p.title,
+                "slug": p.slug,
+                "source_video_count": p.source_video_count,
+            }
+            for p in recent_pages
+        ]
 
         tmpl = env.get_template("wiki_index.html")
         html = tmpl.render(
@@ -421,7 +441,9 @@ def cmd_export_wiki(args):
             children = _topic_tree_static(topic.id)
             concept_links = db.query(ConceptTopic).filter(ConceptTopic.topic_id == topic.id).all()
             concept_ids = [cl.concept_id for cl in concept_links]
-            concepts_map = {c.id: c for c in db.query(Concept).filter(Concept.id.in_(concept_ids)).all()}
+            concepts_map = {
+                c.id: c for c in db.query(Concept).filter(Concept.id.in_(concept_ids)).all()
+            }
             wiki_pages_map = {
                 wp.concept_id: wp
                 for wp in db.query(WikiPage)
@@ -434,17 +456,28 @@ def cmd_export_wiki(args):
                 if not c:
                     continue
                 wp = wiki_pages_map.get(cid)
-                concept_cards.append({
-                    "id": c.id, "name": c.name, "description": c.description,
-                    "video_count": c.video_count or 0,
-                    "wiki_slug": wp.slug if wp else None,
-                    "has_wiki": wp is not None,
-                })
+                concept_cards.append(
+                    {
+                        "id": c.id,
+                        "name": c.name,
+                        "description": c.description,
+                        "video_count": c.video_count or 0,
+                        "wiki_slug": wp.slug if wp else None,
+                        "has_wiki": wp is not None,
+                    }
+                )
             concept_cards.sort(key=lambda x: x["video_count"], reverse=True)
 
             tmpl = env.get_template("wiki_topic.html")
             html = tmpl.render(
-                topic={"id": topic.id, "name": topic.name, "slug": topic.slug, "description": topic.description, "domain": topic.domain, "learning_order": topic.learning_order},
+                topic={
+                    "id": topic.id,
+                    "name": topic.name,
+                    "slug": topic.slug,
+                    "description": topic.description,
+                    "domain": topic.domain,
+                    "learning_order": topic.learning_order,
+                },
                 breadcrumb=breadcrumb,
                 children=children,
                 concept_cards=concept_cards,
@@ -468,23 +501,49 @@ def cmd_export_wiki(args):
                         t = topic
                         while t:
                             chain.insert(0, t)
-                            t = db.query(Topic).filter(Topic.id == t.parent_id).first() if t.parent_id else None
+                            t = (
+                                db.query(Topic).filter(Topic.id == t.parent_id).first()
+                                if t.parent_id
+                                else None
+                            )
                         breadcrumb = [{"name": t.name, "slug": t.slug} for t in chain]
 
             # Relations
             prerequisites = []
             related = []
             if concept:
-                rels_from = db.query(ConceptRelation).filter(ConceptRelation.source_concept_id == concept.id).all()
-                rels_to = db.query(ConceptRelation).filter(ConceptRelation.target_concept_id == concept.id).all()
-                all_ids = list({r.target_concept_id for r in rels_from} | {r.source_concept_id for r in rels_to})
-                rel_concepts = {c.id: c for c in db.query(Concept).filter(Concept.id.in_(all_ids)).all()}
-                rel_wiki = {p.concept_id: p for p in db.query(WikiPage).filter(WikiPage.concept_id.in_(all_ids), WikiPage.status == "published").all()}
+                rels_from = (
+                    db.query(ConceptRelation)
+                    .filter(ConceptRelation.source_concept_id == concept.id)
+                    .all()
+                )
+                rels_to = (
+                    db.query(ConceptRelation)
+                    .filter(ConceptRelation.target_concept_id == concept.id)
+                    .all()
+                )
+                all_ids = list(
+                    {r.target_concept_id for r in rels_from}
+                    | {r.source_concept_id for r in rels_to}
+                )
+                rel_concepts = {
+                    c.id: c for c in db.query(Concept).filter(Concept.id.in_(all_ids)).all()
+                }
+                rel_wiki = {
+                    p.concept_id: p
+                    for p in db.query(WikiPage)
+                    .filter(WikiPage.concept_id.in_(all_ids), WikiPage.status == "published")
+                    .all()
+                }
                 for r in rels_from:
                     rc = rel_concepts.get(r.target_concept_id)
                     if not rc:
                         continue
-                    entry = {"name": rc.name, "slug": rel_wiki[rc.id].slug if rc.id in rel_wiki else None, "relation_type": r.relation_type}
+                    entry = {
+                        "name": rc.name,
+                        "slug": rel_wiki[rc.id].slug if rc.id in rel_wiki else None,
+                        "relation_type": r.relation_type,
+                    }
                     if r.relation_type == "prerequisite":
                         prerequisites.append(entry)
                     else:
@@ -496,25 +555,46 @@ def cmd_export_wiki(args):
             vmap = {v.id: v for v in db.query(Video).filter(Video.id.in_(vid_ids)).all()}
             seg_by_vid = {}
             if concept:
-                for sl in db.query(SegmentConcept).filter(SegmentConcept.concept_id == concept.id).order_by(SegmentConcept.start_sec).all():
+                for sl in (
+                    db.query(SegmentConcept)
+                    .filter(SegmentConcept.concept_id == concept.id)
+                    .order_by(SegmentConcept.start_sec)
+                    .all()
+                ):
                     vid = vmap.get(sl.video_id)
                     if not vid:
                         continue
                     vid_id = str(sl.video_id)
                     if vid_id not in seg_by_vid:
-                        seg_by_vid[vid_id] = {"video_id": vid_id, "title": str(vid.original_filename or vid.filename), "timestamps": []}
-                    seg_by_vid[vid_id]["timestamps"].append({"start_sec": sl.start_sec, "end_sec": sl.end_sec, "display": _fmt_mmss(sl.start_sec)})
+                        seg_by_vid[vid_id] = {
+                            "video_id": vid_id,
+                            "title": str(vid.original_filename or vid.filename),
+                            "timestamps": [],
+                        }
+                    seg_by_vid[vid_id]["timestamps"].append(
+                        {
+                            "start_sec": sl.start_sec,
+                            "end_sec": sl.end_sec,
+                            "display": _fmt_mmss(sl.start_sec),
+                        }
+                    )
 
             tmpl = env.get_template("wiki_concept.html")
             html = tmpl.render(
                 wiki_page={
-                    "id": wp.id, "title": wp.title, "slug": wp.slug,
+                    "id": wp.id,
+                    "title": wp.title,
+                    "slug": wp.slug,
                     "synthesized_content": wp.synthesized_content or "",
                     "source_video_count": wp.source_video_count,
                     "last_synthesized_at": wp.last_synthesized_at,
                     "status": wp.status,
                 },
-                concept={"id": concept.id if concept else None, "name": concept.name if concept else wp.title, "description": concept.description if concept else None},
+                concept={
+                    "id": concept.id if concept else None,
+                    "name": concept.name if concept else wp.title,
+                    "description": concept.description if concept else None,
+                },
                 breadcrumb=breadcrumb,
                 prerequisites=prerequisites,
                 related=related,
@@ -537,7 +617,10 @@ def cmd_export_wiki(args):
         # ── Sitemap ───────────────────────────────────────────────────────────
         sitemap_urls = ["index.html"]
         sitemap_urls += [f"{t.slug}.html" for t in db.query(Topic).all()]
-        sitemap_urls += [f"concept/{p.slug}.html" for p in db.query(WikiPage).filter(WikiPage.status == "published").all()]
+        sitemap_urls += [
+            f"concept/{p.slug}.html"
+            for p in db.query(WikiPage).filter(WikiPage.status == "published").all()
+        ]
         sitemap = "\n".join(sitemap_urls)
         (output_dir / "sitemap.txt").write_text(sitemap, encoding="utf-8")
         print(f"✅ 生成 sitemap.txt ({len(sitemap_urls)} 頁)")

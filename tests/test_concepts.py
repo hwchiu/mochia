@@ -351,9 +351,7 @@ class TestRebuildConceptsForVideo:
             rebuild_concepts_for_video(vid_id, db_session)
 
         sc_count = (
-            db_session.query(SegmentConcept)
-            .filter(SegmentConcept.video_id == vid_id)
-            .count()
+            db_session.query(SegmentConcept).filter(SegmentConcept.video_id == vid_id).count()
         )
         assert sc_count == 1  # 冪等：不重複
 

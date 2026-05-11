@@ -33,11 +33,11 @@ templates = Jinja2Templates(directory=str(_templates_dir))
 # ─── Helper ──────────────────────────────────────────────────────────────────
 
 
-def _format_mmss(sec: float | None) -> str | None:
+def _format_mmss(sec: object) -> str | None:
     if sec is None:
         return None
     try:
-        total = max(0, int(float(sec)))
+        total = max(0, int(float(sec)))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
     return f"{total // 60:02d}:{total % 60:02d}"
@@ -165,7 +165,11 @@ async def wiki_concept_page(request: Request, slug: str, db: Session = Depends(g
                 t: Topic | None = topic
                 while t:
                     chain.insert(0, t)
-                    t = db.query(Topic).filter(Topic.id == t.parent_id).first() if t.parent_id else None
+                    t = (
+                        db.query(Topic).filter(Topic.id == t.parent_id).first()
+                        if t.parent_id
+                        else None
+                    )
                 breadcrumb = [{"name": t.name, "slug": t.slug} for t in chain]
 
     # Relations
@@ -173,14 +177,10 @@ async def wiki_concept_page(request: Request, slug: str, db: Session = Depends(g
     related: list[dict] = []
     if concept:
         relations_from = (
-            db.query(ConceptRelation)
-            .filter(ConceptRelation.source_concept_id == concept.id)
-            .all()
+            db.query(ConceptRelation).filter(ConceptRelation.source_concept_id == concept.id).all()
         )
         relations_to = (
-            db.query(ConceptRelation)
-            .filter(ConceptRelation.target_concept_id == concept.id)
-            .all()
+            db.query(ConceptRelation).filter(ConceptRelation.target_concept_id == concept.id).all()
         )
         all_rel_ids = list(
             {r.target_concept_id for r in relations_from}
@@ -222,11 +222,7 @@ async def wiki_concept_page(request: Request, slug: str, db: Session = Depends(g
                 related.append(entry)
 
     # Source videos
-    sources = (
-        db.query(WikiPageSource)
-        .filter(WikiPageSource.wiki_page_id == wiki_page.id)
-        .all()
-    )
+    sources = db.query(WikiPageSource).filter(WikiPageSource.wiki_page_id == wiki_page.id).all()
     video_ids = list({s.video_id for s in sources})
     videos_map = {v.id: v for v in db.query(Video).filter(Video.id.in_(video_ids)).all()}
 
@@ -306,9 +302,7 @@ async def wiki_topic_page(request: Request, slug: str, db: Session = Depends(get
     children = _topic_tree(db, topic.id)
 
     # Concepts in this topic (ordered by learning path)
-    concept_links = (
-        db.query(ConceptTopic).filter(ConceptTopic.topic_id == topic.id).all()
-    )
+    concept_links = db.query(ConceptTopic).filter(ConceptTopic.topic_id == topic.id).all()
     concept_ids = [cl.concept_id for cl in concept_links]
     concepts_map = {c.id: c for c in db.query(Concept).filter(Concept.id.in_(concept_ids)).all()}
     wiki_pages_map = {
@@ -336,7 +330,7 @@ async def wiki_topic_page(request: Request, slug: str, db: Session = Depends(get
         )
 
     # Sort by video_count desc for prominence
-    concept_cards.sort(key=lambda x: x["video_count"], reverse=True)
+    concept_cards.sort(key=lambda x: x["video_count"] or 0, reverse=True)
 
     return templates.TemplateResponse(
         request,
@@ -451,8 +445,7 @@ def api_get_wiki_page(page_id_or_slug: str, db: Session = Depends(get_db)):
             {
                 "video_id": s.video_id,
                 "video_title": str(
-                    videos_map[s.video_id].original_filename
-                    or videos_map[s.video_id].filename
+                    videos_map[s.video_id].original_filename or videos_map[s.video_id].filename
                 )
                 if s.video_id in videos_map
                 else s.video_id,
@@ -528,9 +521,7 @@ def api_wiki_stats(db: Session = Depends(get_db)):
         "total_topics": db.query(Topic).count(),
         "total_domains": db.query(Topic).filter(Topic.parent_id.is_(None)).count(),
         "total_wiki_pages": db.query(WikiPage).count(),
-        "published_wiki_pages": db.query(WikiPage)
-        .filter(WikiPage.status == "published")
-        .count(),
+        "published_wiki_pages": db.query(WikiPage).filter(WikiPage.status == "published").count(),
         "stale_wiki_pages": db.query(WikiPage).filter(WikiPage.status == "stale").count(),
         "total_concept_links": db.query(ConceptTopic).count(),
     }

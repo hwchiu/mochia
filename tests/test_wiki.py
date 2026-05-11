@@ -17,7 +17,9 @@ from app.database import (
 
 
 def _make_concept(db, name: str, video_count: int = 1) -> Concept:
-    c = Concept(id=uuid.uuid4().hex, name=name, description=f"{name}的說明", video_count=video_count)
+    c = Concept(
+        id=uuid.uuid4().hex, name=name, description=f"{name}的說明", video_count=video_count
+    )
     db.add(c)
     db.commit()
     db.refresh(c)
@@ -40,7 +42,9 @@ def _make_topic(db, name: str, slug: str, parent_id=None, domain=None) -> Topic:
     return t
 
 
-def _make_wiki_page(db, concept_id: str, title: str, slug: str, status: str = "published") -> WikiPage:
+def _make_wiki_page(
+    db, concept_id: str, title: str, slug: str, status: str = "published"
+) -> WikiPage:
     from datetime import datetime
 
     wp = WikiPage(
