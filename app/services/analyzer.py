@@ -562,3 +562,178 @@ relation_type 可選值：
 
     logger.info("知識點抽取完成，共 %d 個概念", len(result))
     return result
+
+
+def generate_quizzes(
+    transcript: str,
+    segments: list[dict] | None = None,
+    concepts: list[dict] | None = None,
+) -> list[dict]:
+    """Generate quiz questions from a video transcript.
+
+    Creates a mix of MCQ, true/false, and fill-in-the-blank questions that test
+    understanding of key concepts covered in the video.
+
+    Args:
+        transcript: Full transcript text.
+        segments: Optional Whisper segment dicts with 'start', 'end', 'text'.
+        concepts: Optional concept dicts from extract_concepts() for richer context.
+
+    Returns:
+        List of question dicts with keys:
+            - question_type: "mcq" | "truefalse" | "fillblank"
+            - question: str
+            - options: list[str] | null  (only for mcq)
+            - answer: str  (correct answer)
+            - explanation: str
+            - concept_name: str | null
+            - source_seg_idx: int | null
+            - source_start_sec: float | null
+            - source_end_sec: float | null
+        Returns empty list on failure.
+    """
+    if segments:
+        transcript_for_gpt = _format_timestamped_transcript(segments, max_chars=6000)
+    else:
+        transcript_for_gpt = _prepare_transcript(transcript, max_chars=6000)
+
+    concept_names = ""
+    if concepts:
+        names = [c.get("name", "") for c in concepts if c.get("name")]
+        if names:
+            concept_names = "\n\n核心概念列表：" + "、".join(names[:12])
+
+    system_prompt = """你是一位專業的教育評量設計師，擅長從教學影片內容設計測驗題目。
+請根據影片逐字稿設計題目，測試學習者對核心知識的理解。
+每題必須嚴格基於影片內容，不可出現影片未提及的知識。
+僅以 JSON 格式回傳，不要有任何額外說明或 markdown。"""
+
+    user_content = f"""請根據以下影片逐字稿，設計 8-12 題測驗題目。{concept_names}
+
+逐字稿：
+{transcript_for_gpt}
+
+請以 JSON 陣列格式回傳（純 JSON，不要 markdown code block）：
+[
+  {{
+    "question_type": "mcq",
+    "question": "題目文字",
+    "options": ["A. 選項一", "B. 選項二", "C. 選項三", "D. 選項四"],
+    "answer": "A. 選項一",
+    "explanation": "解析說明（引用影片中的具體內容）",
+    "concept_name": "對應的概念名稱（可為 null）",
+    "source_keyword": "逐字稿中與本題直接相關的關鍵詞"
+  }},
+  {{
+    "question_type": "truefalse",
+    "question": "以下敘述是否正確：...",
+    "options": null,
+    "answer": "正確",
+    "explanation": "解析說明",
+    "concept_name": null,
+    "source_keyword": "關鍵詞"
+  }},
+  {{
+    "question_type": "fillblank",
+    "question": "_____ 是指（填入核心概念）",
+    "options": null,
+    "answer": "正確答案",
+    "explanation": "解析說明",
+    "concept_name": null,
+    "source_keyword": "關鍵詞"
+  }}
+]
+
+題型比例要求：
+- mcq（選擇題）：5-7 題，4 個選項，1 個正確答案
+- truefalse（是非題）：2-3 題
+- fillblank（填空題）：1-2 題
+
+品質要求：
+- 題目必須直接測試影片中的具體知識點
+- 解析要引用影片內容，幫助學習者理解
+- 選擇題的錯誤選項要有足夠干擾性
+- concept_name 對應核心概念列表中的名稱（若不相關則填 null）"""
+
+    logger.info("開始生成測驗題目...")
+    raw = _chat(system_prompt, user_content, max_tokens=4000)
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        raw = raw.rsplit("```", 1)[0].strip()
+
+    try:
+        raw_items = json.loads(raw)
+        if not isinstance(raw_items, list):
+            logger.warning("generate_quizzes: GPT 回傳非列表")
+            return []
+    except json.JSONDecodeError:
+        logger.warning("generate_quizzes: JSON 解析失敗，raw=%r", raw[:200])
+        return []
+
+    # Build segment lookup for source tracing
+    seg_lookup: list[dict] = []
+    if segments:
+        for idx, seg in enumerate(segments):
+            text = str(seg.get("text", "")).strip()
+            if text:
+                seg_lookup.append(
+                    {
+                        "idx": idx,
+                        "text": text,
+                        "start": float(seg.get("start", 0.0) or 0.0),
+                        "end": float(seg.get("end", 0.0) or 0.0),
+                    }
+                )
+
+    result: list[dict] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        q_type = str(item.get("question_type", "mcq")).strip()
+        if q_type not in ("mcq", "truefalse", "fillblank"):
+            q_type = "mcq"
+        question = str(item.get("question", "")).strip()
+        if not question:
+            continue
+        options = item.get("options")
+        if isinstance(options, list):
+            options = [str(o) for o in options]
+        else:
+            options = None
+        answer = str(item.get("answer", "")).strip()
+        explanation = str(item.get("explanation", "")).strip()
+        concept_name = item.get("concept_name")
+        if concept_name:
+            concept_name = str(concept_name).strip() or None
+
+        # Trace to source segment by keyword
+        source_keyword = str(item.get("source_keyword", "")).strip()
+        source_seg_idx: int | None = None
+        source_start_sec: float | None = None
+        source_end_sec: float | None = None
+        if source_keyword and seg_lookup:
+            for s in seg_lookup:
+                if source_keyword in s["text"]:
+                    source_seg_idx = s["idx"]
+                    source_start_sec = s["start"]
+                    source_end_sec = s["end"]
+                    break
+
+        result.append(
+            {
+                "question_type": q_type,
+                "question": question,
+                "options": options,
+                "answer": answer,
+                "explanation": explanation,
+                "concept_name": concept_name,
+                "source_seg_idx": source_seg_idx,
+                "source_start_sec": source_start_sec,
+                "source_end_sec": source_end_sec,
+            }
+        )
+
+    logger.info("測驗題目生成完成，共 %d 題", len(result))
+    return result

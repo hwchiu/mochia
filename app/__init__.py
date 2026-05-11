@@ -15,6 +15,7 @@ from app.routers import (
     concepts,
     labels,
     notes,
+    quiz,
     review,
     search,
     stats,
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(version.router)
     app.include_router(concepts.router)
     app.include_router(wiki.router)
+    app.include_router(quiz.router)
 
     # 靜態檔案
     static_dir = Path(__file__).parent.parent / "static"

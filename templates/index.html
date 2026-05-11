@@ -303,6 +303,35 @@
       <div class="card-title">📈 複習最多的影片</div>
       <div id="top-reviewed-list"></div>
     </div>
+
+    <!-- Activity Heatmap -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">🗓️ 複習活躍度（過去一年）</div>
+      <div id="heatmap-container" style="overflow-x:auto;padding:8px 0">
+        <div id="activity-heatmap" style="display:inline-flex;flex-direction:column;gap:3px"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--muted,#888)">
+          <span>少</span>
+          <span style="display:inline-block;width:12px;height:12px;background:#ebedf0;border-radius:2px"></span>
+          <span style="display:inline-block;width:12px;height:12px;background:#9be9a8;border-radius:2px"></span>
+          <span style="display:inline-block;width:12px;height:12px;background:#40c463;border-radius:2px"></span>
+          <span style="display:inline-block;width:12px;height:12px;background:#30a14e;border-radius:2px"></span>
+          <span style="display:inline-block;width:12px;height:12px;background:#216e39;border-radius:2px"></span>
+          <span>多</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quiz Stats -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">📝 測驗統計</div>
+      <div id="quiz-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:8px">
+        <div class="stats-kpi-card"><div class="skpi-num" id="qstat-total-items">—</div><div class="skpi-label">題目總數</div></div>
+        <div class="stats-kpi-card"><div class="skpi-num" id="qstat-attempts">—</div><div class="skpi-label">答題次數</div></div>
+        <div class="stats-kpi-card"><div class="skpi-num" style="color:var(--success,#22c55e)" id="qstat-correct">—</div><div class="skpi-label">答對次數</div></div>
+        <div class="stats-kpi-card"><div class="skpi-num" style="color:var(--danger,#ef4444)" id="qstat-wrong">—</div><div class="skpi-label">答錯次數</div></div>
+        <div class="stats-kpi-card"><div class="skpi-num" id="qstat-accuracy">—</div><div class="skpi-label">正確率</div></div>
+      </div>
+    </div>
   </section>
 
   <!-- ══ 標籤管理 ══ -->

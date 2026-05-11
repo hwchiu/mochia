@@ -90,3 +90,13 @@ function fmtDur(s) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
   return h > 0 ? `${h}h${String(m).padStart(2,"0")}m` : `${m}m${String(sec).padStart(2,"0")}s`;
 }
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

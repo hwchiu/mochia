@@ -192,6 +192,7 @@ function switchTab(tabName) {
     else if (tabName === "case-analysis") loadCaseAnalysis();
     else if (tabName === "notes") loadNote();
     else if (tabName === "concepts") loadConcepts();
+    else if (tabName === "quiz") loadQuiz();
     else if (tabName === "qa-chat") { /* chat history already loaded */ }
   }
 }
@@ -640,6 +641,215 @@ async function queueVideo(vid) {
 
 window.addEventListener("load", () => { loadDetail(); loadAllLabels(); });
 window.addEventListener("beforeunload", () => { if (pollTimer) clearTimeout(pollTimer); });
+
+// ─── 📝 測驗系統 ─────────────────────────────────────────────────────────────
+
+let _quizItems = [];      // all quiz items for this video
+let _quizCurrent = 0;    // current question index
+let _quizCorrect = 0;    // correct count this session
+let _quizCurrentSource = null; // {start_sec, end_sec} for current question
+
+async function loadQuiz() {
+  const vid = videoId;
+  const practiceArea = document.getElementById("quiz-practice-area");
+  const loadingEl = document.getElementById("quiz-loading");
+  const emptyEl = document.getElementById("quiz-empty");
+  const generatingEl = document.getElementById("quiz-generating");
+  if (!practiceArea) return;
+
+  [loadingEl, emptyEl, generatingEl, practiceArea].forEach(el => { if (el) el.style.display = "none"; });
+  if (loadingEl) loadingEl.style.display = "block";
+
+  try {
+    const data = await api("GET", `/api/quiz/${vid}`);
+    if (loadingEl) loadingEl.style.display = "none";
+
+    if (!data.items || data.items.length === 0) {
+      if (emptyEl) emptyEl.style.display = "block";
+      return;
+    }
+
+    _quizItems = data.items;
+    const statsLabel = document.getElementById("quiz-stats-label");
+    if (statsLabel) statsLabel.textContent = `共 ${_quizItems.length} 題`;
+
+    _quizCurrent = 0;
+    _quizCorrect = 0;
+    if (practiceArea) practiceArea.style.display = "block";
+    document.getElementById("quiz-score-summary").style.display = "none";
+    document.getElementById("quiz-question-card").style.display = "block";
+    showQuestion(_quizCurrent);
+  } catch (e) {
+    if (loadingEl) loadingEl.style.display = "none";
+    if (emptyEl) { emptyEl.style.display = "block"; emptyEl.textContent = "載入失敗：" + e.message; }
+  }
+}
+
+function showQuestion(idx) {
+  if (idx >= _quizItems.length) { showQuizSummary(); return; }
+  const q = _quizItems[idx];
+  _quizCurrentSource = (q.source_start_sec != null) ? q : null;
+
+  // Progress
+  const pct = Math.round((idx / _quizItems.length) * 100);
+  document.getElementById("quiz-progress-bar").style.width = pct + "%";
+  document.getElementById("quiz-progress-label").textContent = `${idx + 1} / ${_quizItems.length}`;
+
+  // Type badge
+  const typeBadge = document.getElementById("quiz-qtype-badge");
+  const typeMap = { mcq: "選擇題", truefalse: "是非題", fillblank: "填空題" };
+  typeBadge.textContent = typeMap[q.question_type] || q.question_type;
+
+  // Concept badge
+  const conceptBadge = document.getElementById("quiz-concept-badge");
+  conceptBadge.textContent = q.concept_name || "";
+  conceptBadge.style.display = q.concept_name ? "inline-block" : "none";
+
+  // Question text
+  document.getElementById("quiz-question-text").textContent = q.question;
+
+  // Hide feedback and next button
+  const fb = document.getElementById("quiz-feedback");
+  if (fb) fb.style.display = "none";
+  const nextBtn = document.getElementById("quiz-next-btn");
+  if (nextBtn) nextBtn.style.display = "none";
+
+  // Show correct input type
+  const optionsList = document.getElementById("quiz-options-list");
+  const tfBtns = document.getElementById("quiz-tf-buttons");
+  const fbArea = document.getElementById("quiz-fillblank-area");
+  const fbInput = document.getElementById("quiz-fillblank-input");
+  [optionsList, tfBtns, fbArea].forEach(el => { if (el) el.style.display = "none"; });
+
+  if (q.question_type === "mcq" && q.options) {
+    optionsList.style.display = "flex";
+    optionsList.innerHTML = q.options.map(opt => `
+      <button onclick="submitQuizAnswer(${JSON.stringify(opt)})"
+        style="text-align:left;padding:12px 16px;border:2px solid var(--border,#ddd);border-radius:8px;cursor:pointer;background:#fff;font-size:14px;line-height:1.4;transition:all .15s"
+        onmouseover="this.style.borderColor='var(--primary,#4f46e5)'"
+        onmouseout="this.style.borderColor='var(--border,#ddd)'"
+      >${escapeHtml(opt)}</button>
+    `).join("");
+  } else if (q.question_type === "truefalse") {
+    tfBtns.style.display = "flex";
+  } else if (q.question_type === "fillblank") {
+    fbArea.style.display = "block";
+    if (fbInput) { fbInput.value = ""; setTimeout(() => fbInput.focus(), 50); }
+  }
+}
+
+async function submitQuizAnswer(userAnswer) {
+  if (!_quizItems[_quizCurrent]) return;
+  const q = _quizItems[_quizCurrent];
+
+  // Disable inputs immediately
+  document.querySelectorAll("#quiz-options-list button, .quiz-tf-btn").forEach(b => b.disabled = true);
+
+  let result;
+  try {
+    result = await api("POST", "/api/quiz/attempt", { quiz_item_id: q.id, user_answer: userAnswer });
+  } catch (e) {
+    toast("提交失敗: " + e.message, "error");
+    return;
+  }
+
+  if (result.is_correct) _quizCorrect++;
+
+  // Show feedback
+  const fb = document.getElementById("quiz-feedback");
+  const verdict = document.getElementById("quiz-feedback-verdict");
+  const explanation = document.getElementById("quiz-feedback-explanation");
+  const answerHint = document.getElementById("quiz-feedback-answer");
+  const tsBtn = document.getElementById("quiz-feedback-ts-btn");
+
+  fb.style.display = "block";
+  fb.style.background = result.is_correct ? "#f0fdf4" : "#fef2f2";
+  fb.style.borderLeft = `4px solid ${result.is_correct ? "#22c55e" : "#ef4444"}`;
+  verdict.textContent = result.is_correct ? "✅ 答對了！" : "❌ 答錯了";
+  verdict.style.color = result.is_correct ? "#16a34a" : "#dc2626";
+  explanation.textContent = result.explanation || "";
+  answerHint.textContent = result.is_correct ? "" : `正確答案：${result.correct_answer}`;
+
+  // Source timestamp button
+  if (tsBtn && _quizCurrentSource && _quizCurrentSource.source_start_sec != null) {
+    tsBtn.style.display = "inline-block";
+  } else if (tsBtn) {
+    tsBtn.style.display = "none";
+  }
+
+  // Show next button
+  const nextBtn = document.getElementById("quiz-next-btn");
+  if (nextBtn) {
+    nextBtn.style.display = "inline-block";
+    nextBtn.textContent = _quizCurrent + 1 < _quizItems.length ? "下一題 →" : "查看結果 🎯";
+  }
+}
+
+function nextQuestion() {
+  _quizCurrent++;
+  if (_quizCurrent >= _quizItems.length) {
+    showQuizSummary();
+  } else {
+    showQuestion(_quizCurrent);
+  }
+}
+
+function showQuizSummary() {
+  document.getElementById("quiz-question-card").style.display = "none";
+  document.getElementById("quiz-feedback").style.display = "none";
+  document.getElementById("quiz-next-btn").style.display = "none";
+  const summary = document.getElementById("quiz-score-summary");
+  summary.style.display = "block";
+
+  const total = _quizItems.length;
+  const pct = Math.round((_quizCorrect / total) * 100);
+  document.getElementById("quiz-progress-bar").style.width = "100%";
+  document.getElementById("quiz-progress-label").textContent = `${total} / ${total}`;
+
+  let emoji = "😰"; let msg = "再接再厲！";
+  if (pct >= 90) { emoji = "🏆"; msg = "完美！太厲害了！"; }
+  else if (pct >= 70) { emoji = "🎉"; msg = "掌握良好！"; }
+  else if (pct >= 50) { emoji = "😊"; msg = "還不錯，繼續努力！"; }
+
+  document.getElementById("quiz-score-emoji").textContent = emoji;
+  document.getElementById("quiz-score-text").textContent = `${_quizCorrect} / ${total} 答對`;
+  document.getElementById("quiz-score-sub").textContent = `正確率 ${pct}%　${msg}`;
+}
+
+function restartQuiz() {
+  _quizCurrent = 0;
+  _quizCorrect = 0;
+  document.getElementById("quiz-score-summary").style.display = "none";
+  document.getElementById("quiz-question-card").style.display = "block";
+  showQuestion(0);
+}
+
+function jumpToQuizSource() {
+  if (!_quizCurrentSource || _quizCurrentSource.source_start_sec == null) return;
+  const player = document.getElementById("video-player");
+  if (player) {
+    player.currentTime = _quizCurrentSource.source_start_sec;
+    player.play();
+    player.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+async function generateQuiz() {
+  const vid = videoId;
+  const generatingEl = document.getElementById("quiz-generating");
+  const practiceArea = document.getElementById("quiz-practice-area");
+  const emptyEl = document.getElementById("quiz-empty");
+  [practiceArea, emptyEl].forEach(el => { if (el) el.style.display = "none"; });
+  if (generatingEl) generatingEl.style.display = "block";
+  try {
+    await api("POST", `/api/quiz/${vid}/generate`);
+    toast("題目生成中，請稍後重新整理頁面", "info");
+  } catch (e) {
+    if (generatingEl) generatingEl.style.display = "none";
+    toast("生成失敗: " + e.message, "error");
+  }
+}
+
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 // Space = play/pause · ← → = ±10s · J/L = ±10s · K = play/pause · M = mute · F = fullscreen

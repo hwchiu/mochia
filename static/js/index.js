@@ -727,16 +727,18 @@ async function reindexFTS() {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadStatsPage() {
   try {
-    const [overview, daily, confidence, topReviewed] = await Promise.all([
+    const [overview, daily, confidence, topReviewed, heatmap, quizStats] = await Promise.all([
       api("GET", "/api/stats/overview"),
       api("GET", "/api/stats/daily?days=7"),
       api("GET", "/api/stats/confidence"),
       api("GET", "/api/stats/top-reviewed?limit=8"),
+      api("GET", "/api/stats/heatmap?days=365"),
+      api("GET", "/api/quiz/stats/overview"),
     ]);
 
     // KPI cards
     document.getElementById("skpi-completed").querySelector(".skpi-num").textContent = overview.completed;
-    document.getElementById("skpi-reviewed").querySelector(".skpi-num").textContent = overview.reviewed_at_least_once;
+    document.getElementById("skpi-reviewed").querySelector(".skpi-num").textContent = overview.reviewed;
     document.getElementById("skpi-never").querySelector(".skpi-num").textContent = overview.never_reviewed;
     document.getElementById("skpi-due").querySelector(".skpi-num").textContent = overview.due_today;
     document.getElementById("skpi-today").querySelector(".skpi-num").textContent = overview.reviewed_today;
@@ -778,9 +780,73 @@ async function loadStatsPage() {
         </div>
       `).join("")}</div>`;
     }
+
+    // Activity Heatmap (GitHub-style)
+    renderActivityHeatmap(heatmap.data);
+
+    // Quiz stats
+    document.getElementById("qstat-total-items").textContent = quizStats.total_items ?? "—";
+    document.getElementById("qstat-attempts").textContent = quizStats.total_attempts ?? "—";
+    document.getElementById("qstat-correct").textContent = quizStats.correct_attempts ?? "—";
+    document.getElementById("qstat-wrong").textContent = quizStats.wrong_attempts ?? "—";
+    document.getElementById("qstat-accuracy").textContent =
+      quizStats.total_attempts ? `${quizStats.accuracy_percent}%` : "—";
   } catch (e) {
     console.error("loadStatsPage error:", e);
   }
+}
+
+// ─── Activity Heatmap ────────────────────────────────────────────────────────
+
+function renderActivityHeatmap(data) {
+  const el = document.getElementById("activity-heatmap");
+  if (!el) return;
+
+  const heatColors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  function colorForCount(n) {
+    if (n === 0) return heatColors[0];
+    if (n === 1) return heatColors[1];
+    if (n <= 3) return heatColors[2];
+    if (n <= 6) return heatColors[3];
+    return heatColors[4];
+  }
+
+  // Group days into weeks (columns), Sunday-first
+  const weeks = [];
+  let week = [];
+  data.forEach((d, i) => {
+    const dow = new Date(d.date + "T00:00:00").getDay(); // 0=Sun
+    if (i === 0) {
+      // Pad start of first week
+      for (let p = 0; p < dow; p++) week.push(null);
+    }
+    week.push(d);
+    if (week.length === 7) { weeks.push(week); week = []; }
+  });
+  if (week.length) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+
+  // Render: rows = days of week (0=Sun..6=Sat), cols = weeks
+  const dayLabels = ["", "一", "", "三", "", "五", ""];
+  let html = "";
+  for (let row = 0; row < 7; row++) {
+    html += `<div style="display:flex;gap:3px;align-items:center">`;
+    html += `<span style="font-size:10px;color:var(--muted,#888);width:14px;text-align:right">${dayLabels[row]}</span>`;
+    for (const wk of weeks) {
+      const day = wk[row];
+      if (!day) {
+        html += `<div style="width:12px;height:12px"></div>`;
+      } else {
+        const c = colorForCount(day.count);
+        const title = `${day.date}: ${day.count} 次複習`;
+        html += `<div title="${title}" style="width:12px;height:12px;background:${c};border-radius:2px;cursor:default"></div>`;
+      }
+    }
+    html += `</div>`;
+  }
+  el.innerHTML = html;
 }
 
 // ─── 自動掃描狀態 Banner ──────────────────────────────────────────────────────

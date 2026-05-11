@@ -128,6 +128,35 @@ def get_confidence_distribution(db: Session = Depends(get_db)):
     return {"distribution": [{"level": k, "label": labels[k], "count": v} for k, v in dist.items()]}
 
 
+@router.get("/heatmap")
+def get_activity_heatmap(days: int = 365, db: Session = Depends(get_db)):
+    """Return daily review counts for the last N days (for a GitHub-style heatmap)."""
+    now = datetime.utcnow()
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Fetch all review records in range
+    records = (
+        db.query(ReviewRecord.reviewed_at)
+        .filter(ReviewRecord.reviewed_at >= start)
+        .all()
+    )
+
+    # Aggregate by date string
+    counts: dict[str, int] = {}
+    for (reviewed_at,) in records:
+        if reviewed_at:
+            date_str = reviewed_at.strftime("%Y-%m-%d")
+            counts[date_str] = counts.get(date_str, 0) + 1
+
+    # Fill in all days (including zeros)
+    data = []
+    for i in range(days):
+        d = (start + timedelta(days=i)).strftime("%Y-%m-%d")
+        data.append({"date": d, "count": counts.get(d, 0)})
+
+    return {"days": days, "data": data}
+
+
 @router.get("/top-reviewed")
 def get_top_reviewed(limit: int = 10, db: Session = Depends(get_db)):
     """複習次數最多的影片"""

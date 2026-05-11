@@ -321,6 +321,58 @@ class WikiPageSource(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ── M3 題庫系統 ────────────────────────────────────────────────────────────────
+
+
+class Quiz(Base):
+    """題目集 — 每支影片一份題庫"""
+
+    __tablename__ = "quizzes"
+
+    id = Column(String, primary_key=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), unique=True, index=True)
+    total_items = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    items = relationship("QuizItem", cascade="all, delete-orphan")  # type: ignore[misc]
+
+
+class QuizItem(Base):
+    """單一題目"""
+
+    __tablename__ = "quiz_items"
+
+    id = Column(String, primary_key=True)
+    quiz_id = Column(String, ForeignKey("quizzes.id", ondelete="CASCADE"), index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    question_type = Column(String, default="mcq")  # mcq / truefalse / fillblank
+    question = Column(Text)
+    options = Column(Text, nullable=True)   # JSON list of option strings (MCQ)
+    answer = Column(Text)                   # correct answer text
+    explanation = Column(Text, nullable=True)
+    concept_name = Column(String, nullable=True)
+    source_seg_idx = Column(Integer, nullable=True)
+    source_start_sec = Column(Float, nullable=True)
+    source_end_sec = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    attempts = relationship("QuizAttempt", cascade="all, delete-orphan")  # type: ignore[misc]
+
+
+class QuizAttempt(Base):
+    """答題紀錄"""
+
+    __tablename__ = "quiz_attempts"
+
+    id = Column(String, primary_key=True)
+    quiz_item_id = Column(String, ForeignKey("quiz_items.id", ondelete="CASCADE"), index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    user_answer = Column(Text)
+    is_correct = Column(Integer, default=0)  # 0=wrong, 1=correct
+    attempted_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 def _migrate_db():
     """補齊新欄位與新資料表（不破壞已有資料）"""
     import re
@@ -568,6 +620,59 @@ def _migrate_db():
     )
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_wiki_sources_video ON wiki_page_sources(video_id)"
+    )
+
+    # M3 題庫系統（idempotent）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quizzes (
+            id TEXT PRIMARY KEY,
+            video_id TEXT REFERENCES videos(id) ON DELETE CASCADE,
+            total_items INTEGER DEFAULT 0,
+            created_at DATETIME,
+            updated_at DATETIME,
+            UNIQUE(video_id)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quizzes_video ON quizzes(video_id)")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quiz_items (
+            id TEXT PRIMARY KEY,
+            quiz_id TEXT REFERENCES quizzes(id) ON DELETE CASCADE,
+            video_id TEXT REFERENCES videos(id) ON DELETE CASCADE,
+            question_type TEXT DEFAULT 'mcq',
+            question TEXT,
+            options TEXT,
+            answer TEXT,
+            explanation TEXT,
+            concept_name TEXT,
+            source_seg_idx INTEGER,
+            source_start_sec REAL,
+            source_end_sec REAL,
+            created_at DATETIME
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quiz_items_quiz ON quiz_items(quiz_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quiz_items_video ON quiz_items(video_id)")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quiz_attempts (
+            id TEXT PRIMARY KEY,
+            quiz_item_id TEXT REFERENCES quiz_items(id) ON DELETE CASCADE,
+            video_id TEXT REFERENCES videos(id) ON DELETE CASCADE,
+            user_answer TEXT,
+            is_correct INTEGER DEFAULT 0,
+            attempted_at DATETIME
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_item ON quiz_attempts(quiz_item_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_video ON quiz_attempts(video_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_time ON quiz_attempts(attempted_at)"
     )
 
     conn.commit()
