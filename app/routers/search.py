@@ -1,5 +1,6 @@
 """全文搜尋 API — 基於 SQLite FTS5"""
 
+import json
 import logging
 import sqlite3
 
@@ -16,6 +17,18 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 
 def _get_fts_conn():
     return sqlite3.connect(str(settings.DATA_DIR / "video_analyzer.db"))
+
+
+def _format_mmss(sec: float | int | None) -> str | None:
+    if sec is None:
+        return None
+    try:
+        total = max(0, int(float(sec)))
+    except (TypeError, ValueError):
+        return None
+    mins = total // 60
+    secs = total % 60
+    return f"{mins:02d}:{secs:02d}"
 
 
 def rebuild_fts_index(video_id: str, db: Session) -> None:
@@ -46,10 +59,44 @@ def rebuild_fts_index(video_id: str, db: Session) -> None:
     cur = conn.cursor()
     # 先刪除舊索引（若有），再插入
     cur.execute("DELETE FROM video_fts WHERE video_id = ?", (video_id,))
+    cur.execute("DELETE FROM segment_fts WHERE video_id = ?", (video_id,))
     cur.execute(
         "INSERT INTO video_fts(video_id, title, summary, transcript, key_points) VALUES (?,?,?,?,?)",
         (video_id, title, summary_text, transcript_text, kp_text),
     )
+    if transcript_row and transcript_row.segments:
+        segments = []
+        try:
+            loaded = json.loads(transcript_row.segments)
+            if isinstance(loaded, list):
+                segments = loaded
+        except Exception:
+            segments = []
+
+        segment_values: list[tuple[str, int, float, float, str]] = []
+        for idx, seg in enumerate(segments):
+            if not isinstance(seg, dict):
+                logger.warning("忽略無效 segment（非物件）: video_id=%s idx=%s", video_id, idx)
+                continue
+            text = str(seg.get("text", "")).strip()
+            if not text:
+                logger.warning("忽略空白 segment: video_id=%s idx=%s", video_id, idx)
+                continue
+            try:
+                start_sec = float(seg.get("start", 0.0) or 0.0)
+                end_sec = float(seg.get("end", start_sec) or start_sec)
+            except (TypeError, ValueError):
+                logger.warning("忽略無效時間 segment: video_id=%s idx=%s", video_id, idx)
+                continue
+            segment_values.append((video_id, idx, start_sec, end_sec, text))
+        if segment_values:
+            cur.executemany(
+                """
+                INSERT INTO segment_fts(video_id, seg_idx, start_sec, end_sec, text)
+                VALUES (?,?,?,?,?)
+                """,
+                segment_values,
+            )
     conn.commit()
     conn.close()
     logger.info(f"FTS 索引已更新: {video_id}")
@@ -72,7 +119,25 @@ def search_videos(
     cur = conn.cursor()
 
     try:
-        # FTS5 查詢：使用 highlight() 取得標記片段
+        # 先查 segment 級命中（可直接跳時間戳）
+        cur.execute(
+            """
+            SELECT
+                video_id,
+                start_sec,
+                end_sec,
+                snippet(segment_fts, 4, '<mark>', '</mark>', '...', 24) AS seg_snip,
+                rank
+            FROM segment_fts
+            WHERE segment_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+            """,
+            (q, limit),
+        )
+        segment_rows = cur.fetchall()
+
+        # 再查影片層命中（摘要/逐字稿）
         cur.execute(
             """
             SELECT
@@ -89,18 +154,39 @@ def search_videos(
             """,
             (q, limit),
         )
-        rows = cur.fetchall()
+        video_rows = cur.fetchall()
     except sqlite3.OperationalError as e:
         logger.warning(f"FTS 查詢錯誤: {e}")
-        rows = []
+        segment_rows = []
+        video_rows = []
     finally:
         conn.close()
 
-    if not rows:
+    if not segment_rows and not video_rows:
         return {"query": q, "total": 0, "items": []}
 
+    # 先保留每個影片第一筆 segment 命中
+    segment_hit_map: dict[str, dict] = {}
+    for vid_id, start_sec, end_sec, seg_snip, _rank in segment_rows:
+        if vid_id not in segment_hit_map:
+            segment_hit_map[vid_id] = {
+                "start_sec": float(start_sec) if start_sec is not None else None,
+                "end_sec": float(end_sec) if end_sec is not None else None,
+                "segment_snippet": seg_snip or "",
+            }
+
+    # 合併排序：segment 命中優先，再補影片層命中
+    ordered_video_ids: list[str] = []
+    for vid_id, *_rest in segment_rows:
+        if vid_id not in ordered_video_ids:
+            ordered_video_ids.append(vid_id)
+    for vid_id, *_rest in video_rows:
+        if vid_id not in ordered_video_ids:
+            ordered_video_ids.append(vid_id)
+    ordered_video_ids = ordered_video_ids[:limit]
+
     # 取得影片詳細資訊
-    video_ids = [r[0] for r in rows]
+    video_ids = ordered_video_ids
     videos = {v.id: v for v in db.query(Video).filter(Video.id.in_(video_ids)).all()}
     classifications = {
         c.video_id: c
@@ -118,16 +204,30 @@ def search_videos(
                 {"id": lbl.id, "name": lbl.name, "color": lbl.color}
             )
 
+    video_row_map = {row[0]: row for row in video_rows}
     items = []
-    for row in rows:
-        vid_id, title_hl, summary_hl, transcript_snip, kp_snip, rank = row
+    for vid_id in ordered_video_ids:
         video = videos.get(vid_id)
         if not video:
             continue
         cls = classifications.get(vid_id)
+        vrow = video_row_map.get(vid_id)
+        title_hl = vrow[1] if vrow else ""
+        summary_hl = vrow[2] if vrow else ""
+        transcript_snip = vrow[3] if vrow else ""
+        kp_snip = vrow[4] if vrow else ""
+        segment_hit = segment_hit_map.get(vid_id)
 
         # 選最佳片段展示
-        snippet = summary_hl or transcript_snip or kp_snip or ""
+        snippet = (
+            (segment_hit.get("segment_snippet") if segment_hit else "")
+            or summary_hl
+            or transcript_snip
+            or kp_snip
+            or ""
+        )
+        start_sec = segment_hit.get("start_sec") if segment_hit else None
+        end_sec = segment_hit.get("end_sec") if segment_hit else None
 
         items.append(
             {
@@ -145,6 +245,9 @@ def search_videos(
                 else None,
                 "snippet": snippet,
                 "title_highlight": title_hl,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+                "timestamp": _format_mmss(start_sec),
             }
         )
 

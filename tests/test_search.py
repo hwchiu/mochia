@@ -3,7 +3,9 @@
 """
 
 import json
+import sqlite3
 import uuid
+from pathlib import Path
 
 from app.database import Summary, Transcript, Video
 
@@ -73,6 +75,52 @@ class TestSearch:
             item = r.json()["items"][0]
             for field in ["id", "filename", "status"]:
                 assert field in item
+
+    def test_search_returns_segment_timestamp_when_segment_matches(
+        self, client, completed_video, tmp_path, monkeypatch
+    ):
+        """若命中 segment 索引，應回傳 start/end 秒數與 MM:SS 時間戳。"""
+        from app.routers import search as search_router
+
+        db_path = Path(tmp_path) / "fts.db"
+        conn = sqlite3.connect(str(db_path))
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE VIRTUAL TABLE video_fts USING fts5(
+                video_id UNINDEXED, title, summary, transcript, key_points, tokenize='unicode61'
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE VIRTUAL TABLE segment_fts USING fts5(
+                video_id UNINDEXED, seg_idx UNINDEXED, start_sec UNINDEXED, end_sec UNINDEXED, text,
+                tokenize='unicode61'
+            )
+            """
+        )
+        cur.execute(
+            "INSERT INTO video_fts(video_id,title,summary,transcript,key_points) VALUES (?,?,?,?,?)",
+            (completed_video.id, "completed.mp4", "摘要", "無關內容", "[]"),
+        )
+        cur.execute(
+            "INSERT INTO segment_fts(video_id,seg_idx,start_sec,end_sec,text) VALUES (?,?,?,?,?)",
+            (completed_video.id, 0, 83.0, 91.2, "this segment mentions astrology core concepts"),
+        )
+        conn.commit()
+        conn.close()
+
+        monkeypatch.setattr(search_router, "_get_fts_conn", lambda: sqlite3.connect(str(db_path)))
+
+        r = client.get("/api/search/?q=astrology")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["items"]
+        first = data["items"][0]
+        assert first["start_sec"] == 83.0
+        assert first["end_sec"] == 91.2
+        assert first["timestamp"] == "01:23"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -214,3 +262,73 @@ class TestRebuildFtsIndex:
         db_session.commit()
         # 不應拋出例外（8000 char 截斷正常）
         rebuild_fts_index(vid_id, db_session)
+
+    def test_rebuild_writes_segment_fts_rows(self, db_session, tmp_path, monkeypatch):
+        """rebuild_fts_index 應把 transcript.segments 寫入 segment_fts。"""
+        from app.routers import search as search_router
+
+        db_path = Path(tmp_path) / "fts_segments.db"
+        conn = sqlite3.connect(str(db_path))
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE VIRTUAL TABLE video_fts USING fts5(
+                video_id UNINDEXED, title, summary, transcript, key_points, tokenize='unicode61'
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE VIRTUAL TABLE segment_fts USING fts5(
+                video_id UNINDEXED, seg_idx UNINDEXED, start_sec UNINDEXED, end_sec UNINDEXED, text,
+                tokenize='unicode61'
+            )
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        monkeypatch.setattr(search_router, "_get_fts_conn", lambda: sqlite3.connect(str(db_path)))
+
+        vid_id = uuid.uuid4().hex
+        db_session.add(
+            Video(
+                id=vid_id,
+                filename="seg.mp4",
+                original_filename="seg.mp4",
+                file_size=100,
+                status="completed",
+            )
+        )
+        db_session.add(
+            Transcript(
+                id=uuid.uuid4().hex,
+                video_id=vid_id,
+                content="逐字稿",
+                segments=json.dumps(
+                    [
+                        {"start": 0.0, "end": 6.0, "text": "第一段"},
+                        {"start": 8.5, "end": 12.0, "text": "第二段占星"},
+                    ],
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        db_session.add(
+            Summary(
+                id=uuid.uuid4().hex,
+                video_id=vid_id,
+                summary="摘要",
+                key_points="[]",
+            )
+        )
+        db_session.commit()
+
+        search_router.rebuild_fts_index(vid_id, db_session)
+
+        conn = sqlite3.connect(str(db_path))
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM segment_fts WHERE video_id=?", (vid_id,))
+        count = cur.fetchone()[0]
+        conn.close()
+        assert count == 2

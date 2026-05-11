@@ -176,6 +176,7 @@ class VideoNote(Base):
 
 def _migrate_db():
     """補齊新欄位與新資料表（不破壞已有資料）"""
+    import re
     import sqlite3
 
     db_path = str(settings.DATA_DIR / "video_analyzer.db")
@@ -221,6 +222,8 @@ def _migrate_db():
             raise
 
     # FTS5 全文搜尋虛擬表
+    # NOTE: 不要使用 content=''（contentless FTS）。
+    # 我們需要保留 UNINDEXED 欄位（video_id/start_sec 等）供搜尋結果回傳。
     cursor.execute("""
         CREATE VIRTUAL TABLE IF NOT EXISTS video_fts USING fts5(
             video_id UNINDEXED,
@@ -228,10 +231,52 @@ def _migrate_db():
             summary,
             transcript,
             key_points,
-            content='',
             tokenize='unicode61'
         )
     """)
+    cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS segment_fts USING fts5(
+            video_id UNINDEXED,
+            seg_idx UNINDEXED,
+            start_sec UNINDEXED,
+            end_sec UNINDEXED,
+            text,
+            tokenize='unicode61'
+        )
+    """)
+    # 舊版使用 content=''（contentless FTS）時，UNINDEXED 欄位讀回會是 NULL；
+    # 需重建表以保留 video_id/start_sec 等欄位值。
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='video_fts'")
+    video_fts_sql = (cursor.fetchone() or [""])[0] or ""
+    if re.search(r"\bcontent\s*=\s*''", video_fts_sql, re.IGNORECASE):
+        cursor.execute("DROP TABLE IF EXISTS video_fts")
+        cursor.execute("""
+            CREATE VIRTUAL TABLE video_fts USING fts5(
+                video_id UNINDEXED,
+                title,
+                summary,
+                transcript,
+                key_points,
+                tokenize='unicode61'
+            )
+        """)
+        logger.info("[migration] rebuilt video_fts without content=''")
+
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='segment_fts'")
+    segment_fts_sql = (cursor.fetchone() or [""])[0] or ""
+    if re.search(r"\bcontent\s*=\s*''", segment_fts_sql, re.IGNORECASE):
+        cursor.execute("DROP TABLE IF EXISTS segment_fts")
+        cursor.execute("""
+            CREATE VIRTUAL TABLE segment_fts USING fts5(
+                video_id UNINDEXED,
+                seg_idx UNINDEXED,
+                start_sec UNINDEXED,
+                end_sec UNINDEXED,
+                text,
+                tokenize='unicode61'
+            )
+        """)
+        logger.info("[migration] rebuilt segment_fts without content=''")
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_taskqueue_status ON task_queue(status)")
