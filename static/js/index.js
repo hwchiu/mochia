@@ -1,5 +1,6 @@
 // ─── Sidebar Navigation ───────────────────────────────────────────────────────
 let currentSection = "analysis";
+let currentMode = "review";
 
 function showSection(name) {
   currentSection = name;
@@ -14,9 +15,45 @@ function showSection(name) {
   if (name === "labels") loadLabelsPage();
   if (name === "search") document.getElementById("fts-input").focus();
   if (name === "stats") loadStatsPage();
+  if (name === "wiki-home") loadWikiHome();
+  if (name === "wiki-pages") loadWikiPages();
+  // Update hash for wiki sections
+  if (name.startsWith("wiki-")) {
+    history.replaceState(null, "", `#${name}`);
+  }
 }
 
-document.querySelectorAll(".nav-item").forEach(a => {
+function switchMode(mode) {
+  currentMode = mode;
+  const reviewNav = document.getElementById("review-nav");
+  const wikiNav = document.getElementById("wiki-nav");
+  const tabReview = document.getElementById("mode-tab-review");
+  const tabWiki = document.getElementById("mode-tab-wiki");
+
+  if (mode === "wiki") {
+    reviewNav.classList.add("hidden");
+    wikiNav.classList.remove("hidden");
+    tabReview.classList.remove("active");
+    tabWiki.classList.add("active");
+    showSection("wiki-home");
+  } else {
+    wikiNav.classList.add("hidden");
+    reviewNav.classList.remove("hidden");
+    tabWiki.classList.remove("active");
+    tabReview.classList.add("active");
+    showSection("analysis");
+  }
+  try { localStorage.setItem("sidebarMode", mode); } catch (_) {}
+}
+
+document.getElementById("review-nav").querySelectorAll(".nav-item").forEach(a => {
+  a.addEventListener("click", e => {
+    e.preventDefault();
+    showSection(a.dataset.section);
+  });
+});
+
+document.getElementById("wiki-nav").querySelectorAll(".nav-item").forEach(a => {
   a.addEventListener("click", e => {
     e.preventDefault();
     showSection(a.dataset.section);
@@ -612,9 +649,34 @@ loadVideos();
 startPoll();
 startAutoScanPoll();
 
+// Restore mode from localStorage
+(function initMode() {
+  const saved = (() => { try { return localStorage.getItem("sidebarMode"); } catch (_) { return null; } })();
+  if (saved === "wiki") {
+    switchMode("wiki");
+  }
+})();
+
 // 從 URL ?section= 恢復選中的頁面（從 detail 頁返回時）
 const _initSection = new URLSearchParams(window.location.search).get("section");
 if (_initSection) showSection(_initSection);
+
+// Hash routing
+function applyHash() {
+  const h = location.hash.slice(1);
+  if (!h) return;
+  if (h.startsWith("wiki-topic-")) {
+    switchMode("wiki");
+    loadWikiTopic(h.replace("wiki-topic-", ""));
+    showSection("wiki-topics");
+  } else if (h.startsWith("wiki-")) {
+    switchMode("wiki");
+    showSection(h);
+  } else {
+    showSection(h);
+  }
+}
+applyHash();
 
 // ─── 鍵盤快捷鍵：按 / 跳至全文搜尋 ──────────────────────────────────────────
 document.addEventListener("keydown", e => {
@@ -963,3 +1025,201 @@ function startAutoScanPoll() {
     if (_autoScanDone) clearInterval(t);
   }, 2000);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 知識庫 (Wiki) Functions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadWikiHome() {
+  // Load stats
+  const statsGrid = document.getElementById("wiki-stats-grid");
+  if (!statsGrid) return;
+  statsGrid.innerHTML = "";
+  try {
+    const s = await api("GET", "/api/wiki/stats");
+    const items = [
+      { label: "主題數", value: s.total_topics ?? 0 },
+      { label: "領域數", value: s.total_domains ?? 0 },
+      { label: "知識頁面", value: s.total_wiki_pages ?? 0 },
+      { label: "已發布", value: s.published_wiki_pages ?? 0 },
+    ];
+    statsGrid.innerHTML = items.map(i => `
+      <div class="stats-kpi-card">
+        <div class="skpi-num">${i.value}</div>
+        <div class="skpi-label">${i.label}</div>
+      </div>`).join("");
+  } catch (e) {
+    statsGrid.innerHTML = `<div style="color:var(--muted);font-size:13px">無法載入統計資料</div>`;
+  }
+
+  // Load topic tree
+  const treeEl = document.getElementById("wiki-topic-tree");
+  if (!treeEl) return;
+  treeEl.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">載入中...</div>`;
+  try {
+    const d = await api("GET", "/api/wiki/topics");
+    if (!d.tree || !d.tree.length) {
+      treeEl.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">尚無分類。請先分析影片後使用建置工具。</div>`;
+      return;
+    }
+    treeEl.innerHTML = d.tree.map(topic => renderTopicTreeItem(topic)).join("");
+  } catch (e) {
+    treeEl.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:12px 0">載入失敗：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderTopicTreeItem(topic) {
+  const childrenHtml = (topic.children && topic.children.length)
+    ? `<div style="padding-left:20px;border-left:2px solid var(--border-subtle);margin-left:12px;margin-top:4px">${topic.children.map(c => renderTopicTreeItem(c)).join("")}</div>`
+    : "";
+  return `
+    <div>
+      <div class="wiki-topic-tree-item" onclick="loadWikiTopic('${escapeHtml(String(topic.id))}');showSection('wiki-topics')">
+        <span style="flex:1;font-weight:500">${escapeHtml(topic.name)}</span>
+        ${topic.domain ? `<span class="wiki-domain-badge">${escapeHtml(topic.domain)}</span>` : ""}
+        ${(topic.children && topic.children.length) ? `<span style="font-size:11px;color:var(--muted)">${topic.children.length} 子主題</span>` : ""}
+      </div>
+      ${childrenHtml}
+    </div>`;
+}
+
+async function loadWikiTopic(topicId) {
+  history.replaceState(null, "", `#wiki-topic-${topicId}`);
+  const el = document.getElementById("wiki-topic-detail");
+  if (!el) return;
+  el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">載入中...</div>`;
+  try {
+    const t = await api("GET", `/api/wiki/topics/${topicId}`);
+    const childrenHtml = (t.children && t.children.length)
+      ? t.children.map(c => `
+          <div class="wiki-topic-tree-item" onclick="loadWikiTopic('${escapeHtml(String(c.id))}')">
+            <span style="flex:1;font-weight:500">${escapeHtml(c.name)}</span>
+            ${c.domain ? `<span class="wiki-domain-badge">${escapeHtml(c.domain)}</span>` : ""}
+          </div>`).join("")
+      : `<div style="color:var(--muted);font-size:13px;padding:8px 0">（無子主題）</div>`;
+
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <button class="btn btn-ghost btn-sm" onclick="showSection('wiki-home')">← 返回</button>
+          ${t.domain ? `<span class="wiki-domain-badge">${escapeHtml(t.domain)}</span>` : ""}
+          ${t.concept_count != null ? `<span style="font-size:12px;color:var(--muted)">${t.concept_count} 概念</span>` : ""}
+        </div>
+        <h3 style="font-size:18px;margin-bottom:8px">${escapeHtml(t.name)}</h3>
+        ${t.description ? `<p style="font-size:13px;color:var(--muted);margin-bottom:16px">${escapeHtml(t.description)}</p>` : ""}
+        <div class="card-title" style="margin-top:16px">子主題</div>
+        ${childrenHtml}
+      </div>`;
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:12px 0">載入失敗：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function loadWikiPages() {
+  const listEl = document.getElementById("wiki-pages-list");
+  const detailEl = document.getElementById("wiki-page-detail");
+  if (!listEl) return;
+  detailEl.style.display = "none";
+  listEl.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">載入中...</div>`;
+  try {
+    const d = await api("GET", "/api/wiki/pages");
+    if (!d.items || !d.items.length) {
+      listEl.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">尚無知識頁面。請先使用建置工具合成。</div>`;
+      return;
+    }
+    listEl.innerHTML = d.items.map(p => {
+      const statusClass = p.status === "published" ? "wiki-status-published" : "wiki-status-stale";
+      const statusLabel = p.status === "published" ? "已發布" : "過期";
+      const date = p.last_synthesized_at ? new Date(p.last_synthesized_at).toLocaleDateString("zh-TW") : "—";
+      return `
+        <div class="wiki-page-item" onclick="loadWikiPage('${escapeHtml(String(p.id))}')">
+          <div style="flex:1">
+            <div style="font-weight:600;margin-bottom:4px">${escapeHtml(p.title)}</div>
+            <div style="font-size:12px;color:var(--muted)">來源影片：${p.source_video_count ?? 0} · 最後合成：${date}</div>
+          </div>
+          <span class="wiki-status-badge ${statusClass}">${statusLabel}</span>
+        </div>`;
+    }).join("");
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:12px 0">載入失敗：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function loadWikiPage(id) {
+  const detailEl = document.getElementById("wiki-page-detail");
+  if (!detailEl) return;
+  detailEl.style.display = "block";
+  detailEl.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">載入中...</div>`;
+  try {
+    const p = await api("GET", `/api/wiki/pages/${id}`);
+    const sourcesHtml = (p.sources && p.sources.length)
+      ? p.sources.map(s => `
+          <div style="padding:8px 12px;border-left:3px solid var(--primary);margin-bottom:8px;background:var(--bg);border-radius:4px">
+            <div style="font-weight:600;font-size:12px;margin-bottom:4px">${escapeHtml(s.video_title || "—")}${s.timestamp ? ` · ${escapeHtml(s.timestamp)}` : ""}</div>
+            <div style="font-size:12px;color:var(--muted)">${escapeHtml(s.excerpt || "")}</div>
+          </div>`).join("")
+      : `<div style="color:var(--muted);font-size:13px">（無來源）</div>`;
+
+    detailEl.innerHTML = `
+      <div class="card">
+        <div style="margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" onclick="loadWikiPages()">← 返回列表</button>
+        </div>
+        <h3 style="font-size:18px;margin-bottom:16px">${escapeHtml(p.title)}</h3>
+        <div class="wiki-page-content">${escapeHtml(p.synthesized_content || "（無內容）")}</div>
+        <div class="card-title" style="margin-top:20px">📎 來源</div>
+        ${sourcesHtml}
+      </div>`;
+  } catch (e) {
+    detailEl.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:12px 0">載入失敗：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ─── Wiki Tools ───────────────────────────────────────────────────────────────
+(function initWikiTools() {
+  const btnTaxonomy = document.getElementById("btn-build-taxonomy");
+  const btnSynthesize = document.getElementById("btn-synthesize-wiki");
+  if (btnTaxonomy) {
+    btnTaxonomy.addEventListener("click", async () => {
+      const resultEl = document.getElementById("build-taxonomy-result");
+      btnTaxonomy.disabled = true;
+      btnTaxonomy.textContent = "建立中...";
+      resultEl.textContent = "";
+      try {
+        const d = await api("POST", "/api/wiki/build-taxonomy");
+        resultEl.style.color = "var(--success)";
+        resultEl.textContent = `✅ ${d.message || "完成"}（領域 ${d.domains_created ?? "?"} · 主題 ${d.topics_created ?? "?"} · 概念連結 ${d.concept_links_created ?? "?"}）`;
+        showToast("分類樹建立完成", "success");
+      } catch (e) {
+        resultEl.style.color = "var(--danger)";
+        resultEl.textContent = `❌ 失敗：${e.message}`;
+        showToast("建立分類樹失敗", "error");
+      } finally {
+        btnTaxonomy.disabled = false;
+        btnTaxonomy.textContent = "🏗️ 建立分類樹";
+      }
+    });
+  }
+  if (btnSynthesize) {
+    btnSynthesize.addEventListener("click", async () => {
+      const resultEl = document.getElementById("synthesize-result");
+      const force = document.getElementById("synthesize-force")?.checked ?? false;
+      btnSynthesize.disabled = true;
+      btnSynthesize.textContent = "合成中...";
+      resultEl.textContent = "";
+      try {
+        const d = await api("POST", `/api/wiki/synthesize?force=${force}`);
+        resultEl.style.color = "var(--success)";
+        resultEl.textContent = `✅ ${d.message || "完成"}（合成 ${d.synthesized ?? "?"} · 跳過 ${d.skipped ?? "?"} · 錯誤 ${d.errors ?? "?"}）`;
+        showToast("知識頁面合成完成", "success");
+      } catch (e) {
+        resultEl.style.color = "var(--danger)";
+        resultEl.textContent = `❌ 失敗：${e.message}`;
+        showToast("合成知識頁面失敗", "error");
+      } finally {
+        btnSynthesize.disabled = false;
+        btnSynthesize.textContent = "✨ 合成知識頁面";
+      }
+    });
+  }
+})();

@@ -28,26 +28,55 @@
     </button>
   </div>
 
-  <nav class="sidebar-nav">
-    <button class="nav-item active" onclick="showSection('analysis')" data-section="analysis" title="分析中心">
+  <!-- Mode Tabs -->
+  <div class="sidebar-mode-tabs">
+    <button class="mode-tab active" id="mode-tab-review" onclick="switchMode('review')" title="復習中心">
+      🎬<span class="mode-tab-label">復習中心</span>
+    </button>
+    <button class="mode-tab" id="mode-tab-wiki" onclick="switchMode('wiki')" title="知識庫">
+      📚<span class="mode-tab-label">知識庫</span>
+    </button>
+  </div>
+
+  <nav class="sidebar-nav" id="review-nav">
+    <button class="nav-item active" data-section="analysis" data-nav-group="review" title="分析中心">
       <i data-lucide="microscope" class="nav-icon" aria-hidden="true"></i>
       <span class="nav-label">分析中心</span>
     </button>
-    <button class="nav-item" onclick="showSection('review')" data-section="review" title="複習中心">
+    <button class="nav-item" data-section="review" data-nav-group="review" title="複習中心">
       <i data-lucide="book-open" class="nav-icon" aria-hidden="true"></i>
       <span class="nav-label">複習中心</span>
     </button>
-    <button class="nav-item" onclick="showSection('search')" data-section="search" title="全文搜尋">
+    <button class="nav-item" data-section="search" data-nav-group="review" title="全文搜尋">
       <i data-lucide="search" class="nav-icon" aria-hidden="true"></i>
       <span class="nav-label">全文搜尋</span>
     </button>
-    <button class="nav-item" onclick="showSection('stats')" data-section="stats" title="學習統計">
+    <button class="nav-item" data-section="stats" data-nav-group="review" title="學習統計">
       <i data-lucide="bar-chart-2" class="nav-icon" aria-hidden="true"></i>
       <span class="nav-label">學習統計</span>
     </button>
-    <button class="nav-item" onclick="showSection('labels')" data-section="labels" title="標籤管理">
+    <button class="nav-item" data-section="labels" data-nav-group="review" title="標籤管理">
       <i data-lucide="tag" class="nav-icon" aria-hidden="true"></i>
       <span class="nav-label">標籤管理</span>
+    </button>
+  </nav>
+
+  <nav class="sidebar-nav hidden" id="wiki-nav">
+    <button class="nav-item" data-section="wiki-home" data-nav-group="wiki" title="知識總覽">
+      <i data-lucide="globe" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">知識總覽</span>
+    </button>
+    <button class="nav-item" data-section="wiki-topics" data-nav-group="wiki" title="主題瀏覽">
+      <i data-lucide="folder-tree" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">主題瀏覽</span>
+    </button>
+    <button class="nav-item" data-section="wiki-pages" data-nav-group="wiki" title="知識頁面">
+      <i data-lucide="file-text" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">知識頁面</span>
+    </button>
+    <button class="nav-item" data-section="wiki-tools" data-nav-group="wiki" title="建置工具">
+      <i data-lucide="settings" class="nav-icon" aria-hidden="true"></i>
+      <span class="nav-label">建置工具</span>
     </button>
   </nav>
 
@@ -360,6 +389,75 @@
     </div>
     <div class="card">
       <div id="labels-grid"></div>
+    </div>
+  </section>
+
+  <!-- ══ 知識總覽 ══ -->
+  <section id="section-wiki-home" class="app-section hidden">
+    <div class="section-header">
+      <h2>📚 知識庫</h2>
+      <span class="section-desc">整合所有影片中的知識點，建立有層級的學習路徑</span>
+    </div>
+    <div id="wiki-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px"></div>
+    <div class="card">
+      <div class="card-title">🗂️ 知識分類</div>
+      <div id="wiki-topic-tree">
+        <div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">載入中...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 主題瀏覽 ══ -->
+  <section id="section-wiki-topics" class="app-section hidden">
+    <div class="section-header">
+      <h2>🗂️ 主題瀏覽</h2>
+      <span class="section-desc">瀏覽知識主題與相關概念</span>
+    </div>
+    <div id="wiki-topic-detail">
+      <div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">請從知識總覽選擇一個主題</div>
+    </div>
+  </section>
+
+  <!-- ══ 知識頁面 ══ -->
+  <section id="section-wiki-pages" class="app-section hidden">
+    <div class="section-header">
+      <h2>📄 知識頁面</h2>
+      <span class="section-desc">由影片分析內容合成的知識文章</span>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div id="wiki-pages-list">
+        <div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">載入中...</div>
+      </div>
+    </div>
+    <div id="wiki-page-detail" style="display:none"></div>
+  </section>
+
+  <!-- ══ 建置工具 ══ -->
+  <section id="section-wiki-tools" class="app-section hidden">
+    <div class="section-header">
+      <h2>⚙️ 知識庫建置工具</h2>
+      <span class="section-desc">維護用操作：建立分類樹、合成知識頁面</span>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">1. 建立分類樹</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        根據所有已抽取的概念，呼叫 GPT 自動建立主題分類層級。
+      </p>
+      <button class="btn btn-primary" id="btn-build-taxonomy">🏗️ 建立分類樹</button>
+      <div id="build-taxonomy-result" style="margin-top:12px;font-size:13px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">2. 合成知識頁面</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        根據各概念的影片素材，呼叫 GPT 合成知識文章。
+      </p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+          <input type="checkbox" id="synthesize-force"> 強制重新合成（忽略已合成）
+        </label>
+      </div>
+      <button class="btn btn-primary" id="btn-synthesize-wiki">✨ 合成知識頁面</button>
+      <div id="synthesize-result" style="margin-top:12px;font-size:13px"></div>
     </div>
   </section>
 
