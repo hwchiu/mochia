@@ -315,8 +315,13 @@
         </p>
         <div id="concepts-loading" class="loading-text">載入中...</div>
         <div id="concepts-list"></div>
-        <div id="concepts-empty" class="hidden" style="color:var(--muted,#888);padding:20px;text-align:center">
-          尚未抽取知識點。點擊「重新抽取」或等待下次分析完成。
+        <div id="concepts-empty" class="hidden" style="color:var(--muted,#888);padding:20px;text-align:center;line-height:1.8">
+          <div style="font-size:32px;margin-bottom:8px">🧠</div>
+          <div style="font-weight:600;margin-bottom:6px">尚未抽取知識點</div>
+          <div style="font-size:12px;margin-bottom:14px">
+            可能原因：影片較早分析（M2 功能加入前）、GPT 解析失敗、或影片內容較短。<br>
+            點擊「🔄 重新抽取」讓 AI 重新分析本影片的知識點。
+          </div>
         </div>
       </div>
     </div>

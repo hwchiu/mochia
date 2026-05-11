@@ -241,14 +241,33 @@ async function loadConcepts() {
 }
 
 async function rebuildConcepts() {
+  const btn = document.querySelector("#tab-concepts .btn[onclick='rebuildConcepts()']");
+  const originalText = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ 抽取中..."; }
+
+  // Show rebuilding state in the concepts list area
+  const listEl = document.getElementById("concepts-list");
+  const loadingEl = document.getElementById("concepts-loading");
+  const emptyEl = document.getElementById("concepts-empty");
+  if (emptyEl) emptyEl.classList.add("hidden");
+  if (listEl) listEl.innerHTML = "";
+  if (loadingEl) loadingEl.style.display = "block";
+
   try {
-    toast("知識點抽取中，請稍候...", "info");
-    await api("POST", `/api/concepts/rebuild/${videoId}`);
+    const result = await api("POST", `/api/concepts/rebuild/${videoId}`);
     tabLoaded["concepts"] = false;
-    loadConcepts();
-    toast("知識點已重新抽取", "success");
+    await loadConcepts();
+    if (result.count === 0) {
+      toast("⚠️ 未抽取到知識點（GPT 可能回傳空結果，稍後再試）", "warning");
+    } else {
+      toast(`✅ 成功抽取 ${result.count} 個知識點`, "success");
+    }
   } catch (e) {
-    toast("知識點抽取失敗: " + e.message, "error");
+    if (loadingEl) loadingEl.style.display = "none";
+    if (emptyEl) emptyEl.classList.remove("hidden");
+    toast("❌ 知識點抽取失敗：" + e.message, "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
   }
 }
 
