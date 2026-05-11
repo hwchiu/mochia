@@ -218,7 +218,7 @@ async def wiki_concept_page(request: Request, slug: str, db: Session = Depends(g
                 "slug": rel_wiki_pages[rc.id].slug if rc.id in rel_wiki_pages else None,
                 "relation_type": r.relation_type,
             }
-            if r.relation_type not in [e["name"] for e in related]:
+            if rc.name not in [e["name"] for e in related]:
                 related.append(entry)
 
     # Source videos

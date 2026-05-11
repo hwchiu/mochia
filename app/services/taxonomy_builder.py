@@ -60,6 +60,11 @@ def build_taxonomy(db: Session) -> dict:
     concept_names = [c.name for c in concepts]
     concept_name_to_id = {c.name: str(c.id) for c in concepts}
 
+    if len(concept_names) > 200:
+        logger.warning(
+            "build_taxonomy: 概念數量 %d 超過 200，僅取前 200 個進行分類", len(concept_names)
+        )
+
     logger.info("build_taxonomy: 開始分類 %d 個概念", len(concept_names))
 
     # ── 呼叫 GPT 建立分類樹 ───────────────────────────────────────────────────

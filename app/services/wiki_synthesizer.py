@@ -159,7 +159,7 @@ def synthesize_wiki_page(concept_id: str, db: Session) -> WikiPage | None:
 - 繁體中文，術語保持一致
 - 不要在內容中提到「影片」或「片段」等來源資訊"""
 
-    raw_content = _chat(system_prompt, user_content, max_tokens=2000)
+    raw_content = _chat(system_prompt, user_content, max_tokens=3000)
 
     # ── 儲存到 DB ─────────────────────────────────────────────────────────────
     now = datetime.utcnow()
