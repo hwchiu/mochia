@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>知識庫 - Video Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/theme.js"></script>
+  <style>
+    .wiki-layout { display:grid; grid-template-columns:280px 1fr; gap:0; min-height:100vh; }
+    .wiki-sidebar { background:var(--surface,#f8f9fa); border-right:1px solid var(--border,#e5e7eb); padding:24px 16px; position:sticky; top:0; height:100vh; overflow-y:auto; }
+    .wiki-main { padding:32px 40px; max-width:960px; }
+    .wiki-sidebar-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .wiki-sidebar-title { font-size:14px; font-weight:700; color:var(--muted,#6b7280); text-transform:uppercase; letter-spacing:.05em; }
+    .home-link { display:flex; align-items:center; gap:8px; color:var(--muted,#6b7280); font-size:13px; text-decoration:none; padding:6px 10px; border-radius:6px; margin-bottom:16px; }
+    .home-link:hover { background:var(--border,#eee); color:var(--text,#333); }
+    /* Tree */
+    .tree-item { font-size:13px; }
+    .tree-domain { font-weight:700; color:var(--primary,#4f46e5); padding:6px 8px; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; }
+    .tree-domain:hover { background:var(--border,#eee); }
+    .tree-children { margin-left:12px; border-left:2px solid var(--border,#e5e7eb); padding-left:8px; }
+    .tree-child { padding:5px 8px; border-radius:5px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; color:var(--text,#555); }
+    .tree-child:hover { background:var(--border,#eee); }
+    .tree-badge { font-size:11px; background:var(--border,#e5e7eb); padding:1px 6px; border-radius:10px; color:var(--muted,#888); flex-shrink:0; }
+    .tree-toggle { font-size:10px; color:var(--muted,#aaa); }
+    /* Main content */
+    .wiki-hero { margin-bottom:32px; }
+    .wiki-hero h1 { font-size:28px; font-weight:700; margin-bottom:8px; }
+    .wiki-hero p { color:var(--muted,#6b7280); font-size:15px; line-height:1.6; }
+    .stats-bar { display:flex; gap:24px; margin:20px 0 32px; flex-wrap:wrap; }
+    .stat-item { text-align:center; }
+    .stat-num { font-size:28px; font-weight:700; color:var(--primary,#4f46e5); }
+    .stat-label { font-size:12px; color:var(--muted,#6b7280); margin-top:2px; }
+    /* Domain cards */
+    .section-title { font-size:18px; font-weight:700; margin:32px 0 16px; display:flex; align-items:center; gap:8px; }
+    .domain-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; margin-bottom:40px; }
+    .domain-card { border:1px solid var(--border,#e5e7eb); border-radius:12px; padding:20px; background:var(--bg,#fff); cursor:pointer; transition:all .2s; text-decoration:none; color:inherit; display:block; }
+    .domain-card:hover { border-color:var(--primary,#4f46e5); box-shadow:0 4px 12px rgba(79,70,229,.08); transform:translateY(-1px); }
+    .domain-card-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
+    .domain-card-name { font-size:16px; font-weight:700; }
+    .domain-card-icon { font-size:24px; }
+    .domain-card-desc { font-size:13px; color:var(--muted,#6b7280); line-height:1.6; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .domain-card-meta { display:flex; gap:12px; font-size:12px; color:var(--muted,#888); }
+    .domain-card-sub { margin-top:12px; display:flex; flex-wrap:wrap; gap:6px; }
+    .sub-tag { font-size:11px; padding:3px 8px; background:var(--surface,#f3f4f6); border-radius:20px; color:var(--muted,#555); }
+    /* Recent */
+    .recent-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
+    .recent-card { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:14px; background:var(--bg,#fff); text-decoration:none; color:inherit; display:block; transition:all .2s; }
+    .recent-card:hover { border-color:var(--primary,#4f46e5); background:var(--surface,#f9f9ff); }
+    .recent-card-title { font-size:14px; font-weight:600; margin-bottom:6px; }
+    .recent-card-meta { font-size:12px; color:var(--muted,#888); }
+    /* Empty state */
+    .empty-state { text-align:center; padding:60px 20px; color:var(--muted,#6b7280); }
+    .empty-state-icon { font-size:48px; margin-bottom:16px; }
+    .empty-state h3 { font-size:18px; font-weight:600; margin-bottom:8px; }
+    .empty-state p { font-size:14px; line-height:1.7; }
+    .btn-action { display:inline-block; margin-top:16px; padding:10px 20px; background:var(--primary,#4f46e5); color:#fff; border-radius:8px; text-decoration:none; font-size:14px; font-weight:600; border:none; cursor:pointer; }
+    .btn-action:hover { opacity:.88; }
+    @media(max-width:768px) {
+      .wiki-layout { grid-template-columns:1fr; }
+      .wiki-sidebar { display:none; }
+      .wiki-main { padding:20px 16px; }
+    }
+  </style>
+</head>
+<body class="app-layout">
+
+<div class="wiki-layout">
+  <!-- Sidebar -->
+  <aside class="wiki-sidebar">
+    <a href="/" class="home-link">
+      ← 返回影片列表
+    </a>
+    <div class="wiki-sidebar-header">
+      <span class="wiki-sidebar-title">知識分類</span>
+      <button onclick="toggleTheme()" class="icon-btn" title="切換暗色模式">🌙</button>
+    </div>
+
+    {% if domains %}
+      {% for domain in domains %}
+      <div class="tree-item">
+        <div class="tree-domain" onclick="toggleTree('tree-{{ domain.id }}')">
+          <a href="/wiki/{{ domain.slug }}" style="text-decoration:none;color:inherit;flex:1">{{ domain.name }}</a>
+          <span class="tree-badge">{{ domain.concept_count }}</span>
+        </div>
+        <div class="tree-children" id="tree-{{ domain.id }}">
+          {% for child in domain.children %}
+          <a class="tree-child" href="/wiki/{{ child.slug }}" style="text-decoration:none">
+            <span>{{ child.name }}</span>
+            <span class="tree-badge">{{ child.concept_count }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="font-size:13px;color:var(--muted,#888);padding:8px">尚無分類。請先上傳並分析影片，再呼叫「建立分類樹」。</p>
+    {% endif %}
+  </aside>
+
+  <!-- Main -->
+  <main class="wiki-main">
+    <div class="wiki-hero">
+      <h1>📚 知識庫</h1>
+      <p>整合所有影片中的知識點，建立有層級的學習路徑。</p>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-num">{{ total_concepts }}</div>
+        <div class="stat-label">知識點</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">{{ total_wiki }}</div>
+        <div class="stat-label">知識詞條</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">{{ total_topics }}</div>
+        <div class="stat-label">主題分類</div>
+      </div>
+    </div>
+
+    {% if domains %}
+      <h2 class="section-title">🗂 知識領域</h2>
+      <div class="domain-grid">
+        {% for domain in domains %}
+        <a class="domain-card" href="/wiki/{{ domain.slug }}">
+          <div class="domain-card-header">
+            <span class="domain-card-name">{{ domain.name }}</span>
+            <span class="domain-card-icon">{% if '占星' in domain.name %}⭐{% elif '風水' in domain.name %}🌊{% elif '奇門' in domain.name %}🔮{% elif '玄學' in domain.name %}☯{% elif '技巧' in domain.name %}🛠{% elif '案例' in domain.name %}📋{% else %}📖{% endif %}</span>
+          </div>
+          {% if domain.description %}
+          <div class="domain-card-desc">{{ domain.description }}</div>
+          {% endif %}
+          <div class="domain-card-meta">
+            <span>{{ domain.concept_count }} 個知識點</span>
+            <span>{{ domain.wiki_count }} 篇詞條</span>
+          </div>
+          {% if domain.children %}
+          <div class="domain-card-sub">
+            {% for child in domain.children[:4] %}
+            <span class="sub-tag">{{ child.name }}</span>
+            {% endfor %}
+            {% if domain.children|length > 4 %}
+            <span class="sub-tag">+{{ domain.children|length - 4 }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state-icon">🔮</div>
+        <h3>知識庫尚未建立</h3>
+        <p>請先確保影片已完成分析（含知識點抽取），<br>再呼叫 API 建立主題分類樹與合成知識詞條。</p>
+        <button class="btn-action" onclick="buildTaxonomy()">建立分類樹</button>
+      </div>
+    {% endif %}
+
+    {% if recent_pages %}
+    <h2 class="section-title">✨ 最近更新的知識詞條</h2>
+    <div class="recent-grid">
+      {% for page in recent_pages %}
+      <a class="recent-card" href="/wiki/concept/{{ page.slug }}">
+        <div class="recent-card-title">{{ page.title }}</div>
+        <div class="recent-card-meta">來自 {{ page.source_video_count }} 部影片</div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </main>
+</div>
+
+<script>
+function toggleTree(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+async function buildTaxonomy() {
+  if (!confirm('即將呼叫 GPT 建立主題分類樹，這可能需要約 30 秒。確定繼續？')) return;
+  const btn = event.target;
+  btn.textContent = '建立中...';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/wiki/build-taxonomy', {method:'POST'});
+    const d = await r.json();
+    alert(d.message || '完成');
+    location.reload();
+  } catch(e) {
+    alert('建立失敗：' + e.message);
+    btn.textContent = '建立分類樹';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

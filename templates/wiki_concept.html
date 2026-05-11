@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ wiki_page.title }} - 知識庫</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/theme.js"></script>
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@9"></script>
+  <style>
+    .wiki-layout { display:grid; grid-template-columns:260px 1fr 240px; gap:0; min-height:100vh; }
+    .wiki-sidebar { background:var(--surface,#f8f9fa); border-right:1px solid var(--border,#e5e7eb); padding:24px 16px; position:sticky; top:0; height:100vh; overflow-y:auto; }
+    .wiki-main { padding:32px 40px; min-width:0; }
+    .wiki-aside { padding:24px 16px; position:sticky; top:0; height:100vh; overflow-y:auto; border-left:1px solid var(--border,#e5e7eb); }
+    .home-link { display:flex; align-items:center; gap:8px; color:var(--muted,#6b7280); font-size:13px; text-decoration:none; padding:6px 10px; border-radius:6px; margin-bottom:8px; }
+    .home-link:hover { background:var(--border,#eee); color:var(--text,#333); }
+    .sidebar-section-title { font-size:11px; font-weight:700; color:var(--muted,#6b7280); text-transform:uppercase; letter-spacing:.05em; padding:12px 8px 6px; }
+    /* Breadcrumb */
+    .breadcrumb { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted,#6b7280); margin-bottom:20px; flex-wrap:wrap; }
+    .breadcrumb a { color:var(--primary,#4f46e5); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    .breadcrumb-sep { color:var(--muted,#bbb); }
+    /* Concept header */
+    .concept-header { margin-bottom:28px; }
+    .concept-header h1 { font-size:26px; font-weight:700; margin-bottom:10px; }
+    .concept-meta { display:flex; align-items:center; gap:12px; font-size:13px; color:var(--muted,#6b7280); flex-wrap:wrap; }
+    .meta-chip { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; background:var(--surface,#f3f4f6); border-radius:20px; }
+    /* Markdown */
+    .wiki-content { line-height:1.8; font-size:15px; max-width:720px; }
+    .wiki-content h2 { font-size:18px; font-weight:700; margin:28px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--border,#e5e7eb); color:var(--primary,#4f46e5); }
+    .wiki-content h3 { font-size:16px; font-weight:600; margin:20px 0 8px; }
+    .wiki-content p { margin-bottom:12px; }
+    .wiki-content ul, .wiki-content ol { padding-left:24px; margin-bottom:12px; }
+    .wiki-content li { margin-bottom:5px; }
+    .wiki-content strong { color:var(--text,#222); }
+    /* Relations */
+    .relation-section { margin-top:32px; padding-top:24px; border-top:1px solid var(--border,#e5e7eb); }
+    .relation-title { font-size:14px; font-weight:700; color:var(--muted,#6b7280); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+    .relation-chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .relation-chip { display:inline-block; padding:5px 12px; border:1px solid var(--border,#e5e7eb); border-radius:20px; font-size:13px; text-decoration:none; color:var(--text,#333); transition:all .15s; }
+    .relation-chip:hover { border-color:var(--primary,#4f46e5); color:var(--primary,#4f46e5); background:var(--surface,#f0f0ff); }
+    .relation-chip.prerequisite { border-color:#f59e0b; color:#d97706; }
+    .relation-chip.prerequisite:hover { background:#fffbeb; }
+    /* Source videos */
+    .sources-section { margin-top:32px; padding-top:24px; border-top:1px solid var(--border,#e5e7eb); }
+    .sources-title { font-size:14px; font-weight:700; color:var(--muted,#6b7280); margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none; }
+    .sources-toggle { font-size:12px; }
+    .source-item { border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:12px 16px; margin-bottom:8px; background:var(--bg,#fff); }
+    .source-title { font-size:13px; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+    .source-title a { color:var(--text,#333); text-decoration:none; }
+    .source-title a:hover { color:var(--primary,#4f46e5); }
+    .source-timestamps { display:flex; flex-wrap:wrap; gap:6px; }
+    .ts-chip { padding:3px 8px; background:var(--surface,#f3f4f6); border-radius:6px; font-size:12px; font-family:monospace; color:var(--muted,#555); cursor:pointer; text-decoration:none; }
+    .ts-chip:hover { background:var(--primary,#4f46e5); color:#fff; }
+    /* Right aside */
+    .aside-title { font-size:13px; font-weight:700; color:var(--muted,#6b7280); margin-bottom:10px; text-transform:uppercase; letter-spacing:.05em; }
+    .aside-action { display:block; width:100%; padding:9px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--border,#ddd); background:var(--bg,#fff); text-align:center; transition:all .15s; margin-bottom:8px; text-decoration:none; color:var(--text,#333); }
+    .aside-action:hover { border-color:var(--primary,#4f46e5); color:var(--primary,#4f46e5); background:var(--surface,#f0f0ff); }
+    .aside-action.primary { background:var(--primary,#4f46e5); color:#fff; border-color:var(--primary,#4f46e5); }
+    .aside-action.primary:hover { opacity:.88; }
+    .aside-divider { border:none; border-top:1px solid var(--border,#e5e7eb); margin:16px 0; }
+    @media(max-width:1024px) {
+      .wiki-layout { grid-template-columns:240px 1fr; }
+      .wiki-aside { display:none; }
+    }
+    @media(max-width:768px) {
+      .wiki-layout { grid-template-columns:1fr; }
+      .wiki-sidebar { display:none; }
+      .wiki-main { padding:20px 16px; }
+    }
+  </style>
+</head>
+<body class="app-layout">
+
+<div class="wiki-layout">
+  <!-- Left sidebar -->
+  <aside class="wiki-sidebar">
+    <a href="/" class="home-link">← 返回影片列表</a>
+    <a href="/wiki" class="home-link">📚 知識庫首頁</a>
+
+    {% if breadcrumb %}
+    <div class="sidebar-section-title">所在位置</div>
+    {% for crumb in breadcrumb %}
+    <a class="home-link" href="/wiki/{{ crumb.slug }}" style="padding-left:{{ loop.index0 * 8 + 10 }}px">
+      {% if not loop.last %}📂{% else %}🏷{% endif %} {{ crumb.name }}
+    </a>
+    {% endfor %}
+    {% endif %}
+  </aside>
+
+  <!-- Main content -->
+  <main class="wiki-main">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="階層導覽">
+      <a href="/wiki">知識庫</a>
+      {% for crumb in breadcrumb %}
+      <span class="breadcrumb-sep">›</span>
+      <a href="/wiki/{{ crumb.slug }}">{{ crumb.name }}</a>
+      {% endfor %}
+      <span class="breadcrumb-sep">›</span>
+      <span>{{ wiki_page.title }}</span>
+    </nav>
+
+    <!-- Header -->
+    <div class="concept-header">
+      <h1>{{ wiki_page.title }}</h1>
+      <div class="concept-meta">
+        <span class="meta-chip">📹 {{ wiki_page.source_video_count }} 部影片來源</span>
+        {% if wiki_page.status == 'published' %}
+        <span class="meta-chip" style="color:#16a34a">✓ 已發布</span>
+        {% elif wiki_page.status == 'stale' %}
+        <span class="meta-chip" style="color:#d97706">⚠ 需更新</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Main wiki content -->
+    <div class="wiki-content" id="wiki-content">
+      <div style="color:var(--muted,#888);font-style:italic">載入中...</div>
+    </div>
+
+    <!-- Prerequisites -->
+    {% if prerequisites %}
+    <div class="relation-section">
+      <div class="relation-title">🔑 前置知識</div>
+      <div class="relation-chips">
+        {% for p in prerequisites %}
+        {% if p.slug %}
+        <a class="relation-chip prerequisite" href="/wiki/concept/{{ p.slug }}">{{ p.name }}</a>
+        {% else %}
+        <span class="relation-chip prerequisite">{{ p.name }}</span>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Related concepts -->
+    {% if related %}
+    <div class="relation-section">
+      <div class="relation-title">🔗 相關概念</div>
+      <div class="relation-chips">
+        {% for r in related %}
+        {% if r.slug %}
+        <a class="relation-chip" href="/wiki/concept/{{ r.slug }}">{{ r.name }}</a>
+        {% else %}
+        <span class="relation-chip">{{ r.name }}</span>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Source videos -->
+    {% if source_videos %}
+    <div class="sources-section">
+      <div class="sources-title" onclick="toggleSources()">
+        <span>📹 原始影片來源（{{ source_videos|length }} 部）</span>
+        <span class="sources-toggle" id="sources-toggle">▼</span>
+      </div>
+      <div id="sources-list">
+        {% for src in source_videos %}
+        <div class="source-item">
+          <div class="source-title">
+            <span>🎬</span>
+            <a href="/video/{{ src.video_id }}">{{ src.title }}</a>
+          </div>
+          {% if src.timestamps %}
+          <div class="source-timestamps">
+            {% for ts in src.timestamps %}
+            <a class="ts-chip"
+               href="/video/{{ src.video_id }}?t={{ ts.start_sec|int }}">
+              {{ ts.display }}
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </main>
+
+  <!-- Right aside -->
+  <aside class="wiki-aside">
+    <div class="aside-title">操作</div>
+    <button class="aside-action primary" onclick="resynthesizePage()">🔄 重新合成</button>
+    <a class="aside-action" href="/wiki" >← 回知識庫</a>
+
+    <hr class="aside-divider">
+
+    {% if wiki_page.last_synthesized_at %}
+    <div style="font-size:12px;color:var(--muted,#888)">
+      最後合成：<br>{{ wiki_page.last_synthesized_at.strftime('%Y-%m-%d %H:%M') if wiki_page.last_synthesized_at }}
+    </div>
+    {% endif %}
+  </aside>
+</div>
+
+<script>
+const rawContent = {{ wiki_page.synthesized_content | tojson }};
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('wiki-content');
+  if (rawContent) {
+    marked.setOptions({ breaks: true, gfm: true });
+    el.innerHTML = marked.parse(rawContent);
+  } else {
+    el.innerHTML = '<p style="color:var(--muted,#888)">尚無內容。請點擊「重新合成」以生成知識說明。</p>';
+  }
+});
+
+function toggleSources() {
+  const list = document.getElementById('sources-list');
+  const toggle = document.getElementById('sources-toggle');
+  if (list.style.display === 'none') {
+    list.style.display = '';
+    toggle.textContent = '▼';
+  } else {
+    list.style.display = 'none';
+    toggle.textContent = '▶';
+  }
+}
+
+async function resynthesizePage() {
+  const conceptId = {{ concept.id | tojson }};
+  if (!conceptId) { alert('無法取得概念 ID'); return; }
+  if (!confirm('將重新呼叫 GPT 合成此知識詞條，確定繼續？')) return;
+  const btn = event.target;
+  btn.textContent = '合成中...';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/wiki/synthesize?concept_id=${conceptId}`, {method:'POST'});
+    const d = await r.json();
+    if (d.slug) {
+      alert('合成完成！');
+      location.reload();
+    } else {
+      alert(d.message || '完成');
+      btn.textContent = '🔄 重新合成';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    alert('合成失敗：' + e.message);
+    btn.textContent = '🔄 重新合成';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

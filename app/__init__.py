@@ -9,7 +9,19 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.database import init_db
-from app.routers import analysis, batch, labels, notes, review, search, stats, version, videos
+from app.routers import (
+    analysis,
+    batch,
+    concepts,
+    labels,
+    notes,
+    review,
+    search,
+    stats,
+    version,
+    videos,
+    wiki,
+)
 
 
 def create_app() -> FastAPI:
@@ -38,6 +50,8 @@ def create_app() -> FastAPI:
     app.include_router(notes.router)
     app.include_router(stats.router)
     app.include_router(version.router)
+    app.include_router(concepts.router)
+    app.include_router(wiki.router)
 
     # 靜態檔案
     static_dir = Path(__file__).parent.parent / "static"
