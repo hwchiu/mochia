@@ -17,8 +17,8 @@ function showSection(name) {
   if (name === "stats") loadStatsPage();
   if (name === "wiki-home") loadWikiHome();
   if (name === "wiki-pages") loadWikiPages();
-  // Update hash for wiki sections
-  if (name.startsWith("wiki-")) {
+  // Update hash for wiki sections (but not wiki-topics — loadWikiTopic manages it)
+  if (name.startsWith("wiki-") && name !== "wiki-topics") {
     history.replaceState(null, "", `#${name}`);
   }
 }
@@ -676,7 +676,11 @@ function applyHash() {
     showSection(h);
   }
 }
-applyHash();
+
+// ─── DOMContentLoaded: Initialize page ─────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  applyHash();
+});
 
 // ─── 鍵盤快捷鍵：按 / 跳至全文搜尋 ──────────────────────────────────────────
 document.addEventListener("keydown", e => {
