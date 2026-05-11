@@ -1252,6 +1252,11 @@ textarea:focus-visible {
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.12s;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  border: none;
+  background: none;
 }
 .wiki-topic-tree-item:hover { background: var(--border-subtle); }
 .wiki-domain-badge {
@@ -1272,6 +1277,10 @@ textarea:focus-visible {
   border: 1px solid var(--border, #e5e7eb);
   margin-bottom: 10px;
   transition: box-shadow 0.12s;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: none;
 }
 .wiki-page-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 .wiki-status-badge {

@@ -1078,11 +1078,11 @@ function renderTopicTreeItem(topic) {
     : "";
   return `
     <div>
-      <div class="wiki-topic-tree-item" onclick="loadWikiTopic('${escapeHtml(String(topic.id))}');showSection('wiki-topics')">
+      <button type="button" class="wiki-topic-tree-item" onclick="loadWikiTopic('${escapeHtml(String(topic.id))}');showSection('wiki-topics')">
         <span style="flex:1;font-weight:500">${escapeHtml(topic.name)}</span>
         ${topic.domain ? `<span class="wiki-domain-badge">${escapeHtml(topic.domain)}</span>` : ""}
         ${(topic.children && topic.children.length) ? `<span style="font-size:11px;color:var(--muted)">${topic.children.length} 子主題</span>` : ""}
-      </div>
+      </button>
       ${childrenHtml}
     </div>`;
 }
@@ -1096,10 +1096,10 @@ async function loadWikiTopic(topicId) {
     const t = await api("GET", `/api/wiki/topics/${topicId}`);
     const childrenHtml = (t.children && t.children.length)
       ? t.children.map(c => `
-          <div class="wiki-topic-tree-item" onclick="loadWikiTopic('${escapeHtml(String(c.id))}')">
+          <button type="button" class="wiki-topic-tree-item" onclick="loadWikiTopic('${escapeHtml(String(c.id))}')">
             <span style="flex:1;font-weight:500">${escapeHtml(c.name)}</span>
             ${c.domain ? `<span class="wiki-domain-badge">${escapeHtml(c.domain)}</span>` : ""}
-          </div>`).join("")
+          </button>`).join("")
       : `<div style="color:var(--muted);font-size:13px;padding:8px 0">（無子主題）</div>`;
 
     el.innerHTML = `
@@ -1136,13 +1136,13 @@ async function loadWikiPages() {
       const statusLabel = p.status === "published" ? "已發布" : "過期";
       const date = p.last_synthesized_at ? new Date(p.last_synthesized_at).toLocaleDateString("zh-TW") : "—";
       return `
-        <div class="wiki-page-item" onclick="loadWikiPage('${escapeHtml(String(p.id))}')">
+        <button type="button" class="wiki-page-item" onclick="loadWikiPage('${escapeHtml(String(p.id))}')">
           <div style="flex:1">
             <div style="font-weight:600;margin-bottom:4px">${escapeHtml(p.title)}</div>
             <div style="font-size:12px;color:var(--muted)">來源影片：${p.source_video_count ?? 0} · 最後合成：${date}</div>
           </div>
           <span class="wiki-status-badge ${statusClass}">${statusLabel}</span>
-        </div>`;
+        </button>`;
     }).join("");
   } catch (e) {
     listEl.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:12px 0">載入失敗：${escapeHtml(e.message)}</div>`;
