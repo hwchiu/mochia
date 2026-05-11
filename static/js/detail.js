@@ -187,7 +187,7 @@ function switchTab(tabName) {
   if (!tabLoaded[tabName]) {
     tabLoaded[tabName] = true;
     const panelEl = document.getElementById("tab-" + tabName);
-    if (panelEl && tabName !== "qa-chat") panelEl.innerHTML = _contentSkeletonHtml();
+    if (panelEl && tabName !== "qa-chat" && tabName !== "quiz") panelEl.innerHTML = _contentSkeletonHtml();
     if (tabName === "faq") loadFAQ();
     else if (tabName === "case-analysis") loadCaseAnalysis();
     else if (tabName === "notes") loadNote();

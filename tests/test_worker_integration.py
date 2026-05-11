@@ -218,12 +218,12 @@ class TestWorkerRealAnalyzeAll:
         db_session.refresh(task)
         assert task.status == "done"
 
-    def test_gpt_called_exactly_three_times(self, db_session, tmp_path, video_and_task):
-        """Worker must make exactly 3 GPT calls: analyze_all + generate_deep_content + extract_concepts."""
+    def test_gpt_called_exactly_four_times(self, db_session, tmp_path, video_and_task):
+        """Worker must make exactly 4 GPT calls: analyze_all + generate_deep_content + extract_concepts + generate_quizzes."""
         video, task = video_and_task
         analyzer_client = _make_analyzer_client()
         self._run_task(task, db_session, tmp_path, analyzer_client)
-        assert analyzer_client.chat.completions.create.call_count == 3
+        assert analyzer_client.chat.completions.create.call_count == 4
 
     def test_rerun_overwrites_existing_records(self, db_session, tmp_path, video_and_task):
         """Running _process_task twice must update records, not duplicate them."""

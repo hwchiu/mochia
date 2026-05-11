@@ -135,11 +135,7 @@ def get_activity_heatmap(days: int = 365, db: Session = Depends(get_db)):
     start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Fetch all review records in range
-    records = (
-        db.query(ReviewRecord.reviewed_at)
-        .filter(ReviewRecord.reviewed_at >= start)
-        .all()
-    )
+    records = db.query(ReviewRecord.reviewed_at).filter(ReviewRecord.reviewed_at >= start).all()
 
     # Aggregate by date string
     counts: dict[str, int] = {}

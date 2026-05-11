@@ -10,7 +10,7 @@ function showSection(name) {
   document.querySelectorAll(".nav-item").forEach(a => {
     a.classList.toggle("active", a.dataset.section === name);
   });
-  if (name === "review") { reviewPage = 0; loadReview(); loadLabelFilters(); loadDueReviews(); }
+  if (name === "review") { reviewPage = 0; loadReview(); loadLabelFilters(); loadDueReviews(); loadWrongAnswers(); }
   if (name === "labels") loadLabelsPage();
   if (name === "search") document.getElementById("fts-input").focus();
   if (name === "stats") loadStatsPage();
@@ -660,6 +660,62 @@ async function loadDueReviews() {
   }
 }
 
+async function loadWrongAnswers() {
+  const listEl = document.getElementById("wrong-answers-list");
+  const badgeEl = document.getElementById("wrong-answers-count-badge");
+  if (!listEl) return;
+
+  listEl.innerHTML = `<div style="color:var(--muted);font-size:13px">載入中...</div>`;
+
+  try {
+    const data = await api("GET", "/api/quiz/wrong-answers/list?limit=20");
+    if (badgeEl) badgeEl.textContent = data.total;
+
+    if (!data.items || data.items.length === 0) {
+      listEl.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:12px 0">🎉 目前沒有錯題！繼續保持！</div>`;
+      return;
+    }
+
+    const typeLabels = { mcq: "選擇", truefalse: "是非", fillblank: "填空" };
+
+    listEl.innerHTML = data.items.map(item => {
+      const typeLabel = typeLabels[item.question_type] || item.question_type;
+      const tsHtml = item.source_start_sec != null
+        ? `<a href="/video/${item.video_id}?t=${Math.floor(item.source_start_sec)}" style="font-size:11px;color:var(--primary,#4f46e5);text-decoration:none">⏱ 回看片段</a>`
+        : "";
+      const conceptHtml = item.concept_name
+        ? `<span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--border,#eee);color:var(--muted,#666)">${escapeHtml(item.concept_name)}</span>`
+        : "";
+      const optionsHtml = item.options
+        ? `<div style="font-size:12px;color:var(--muted,#888);margin-top:4px">${item.options.map(o => escapeHtml(o)).join(" · ")}</div>`
+        : "";
+      return `
+        <div style="padding:14px 16px;background:var(--surface,#f9f9f9);border-radius:10px;border-left:3px solid var(--danger,#ef4444)">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+                <span style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--danger,#ef4444);color:#fff">${typeLabel}</span>
+                ${conceptHtml}
+                ${tsHtml}
+              </div>
+              <div style="font-size:14px;font-weight:600;line-height:1.5;color:var(--text,#333)">${escapeHtml(item.question)}</div>
+              ${optionsHtml}
+            </div>
+            <a href="/video/${item.video_id}" style="font-size:11px;color:var(--primary,#4f46e5);white-space:nowrap;text-decoration:none;padding-top:2px">查看影片</a>
+          </div>
+          <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
+            <span>我的答案：<span style="color:var(--danger,#ef4444);font-weight:600">${escapeHtml(item.user_answer)}</span></span>
+            <span>正確答案：<span style="color:var(--success,#22c55e);font-weight:600">${escapeHtml(item.correct_answer)}</span></span>
+          </div>
+          ${item.explanation ? `<div style="margin-top:8px;font-size:13px;color:var(--muted,#666);line-height:1.5;border-top:1px solid var(--border,#eee);padding-top:8px">💡 ${escapeHtml(item.explanation)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:var(--danger,#ef4444);font-size:13px">載入失敗：${e.message}</div>`;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 全文搜尋
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -727,13 +783,12 @@ async function reindexFTS() {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadStatsPage() {
   try {
-    const [overview, daily, confidence, topReviewed, heatmap, quizStats] = await Promise.all([
+    const [overview, daily, confidence, topReviewed, heatmap] = await Promise.all([
       api("GET", "/api/stats/overview"),
       api("GET", "/api/stats/daily?days=7"),
       api("GET", "/api/stats/confidence"),
       api("GET", "/api/stats/top-reviewed?limit=8"),
       api("GET", "/api/stats/heatmap?days=365"),
-      api("GET", "/api/quiz/stats/overview"),
     ]);
 
     // KPI cards
@@ -784,7 +839,13 @@ async function loadStatsPage() {
     // Activity Heatmap (GitHub-style)
     renderActivityHeatmap(heatmap.data);
 
-    // Quiz stats
+  } catch (e) {
+    console.error("loadStatsPage error:", e);
+  }
+
+  // Load quiz stats separately — non-critical, fails gracefully
+  try {
+    const quizStats = await api("GET", "/api/quiz/stats/overview");
     document.getElementById("qstat-total-items").textContent = quizStats.total_items ?? "—";
     document.getElementById("qstat-attempts").textContent = quizStats.total_attempts ?? "—";
     document.getElementById("qstat-correct").textContent = quizStats.correct_attempts ?? "—";
@@ -792,7 +853,8 @@ async function loadStatsPage() {
     document.getElementById("qstat-accuracy").textContent =
       quizStats.total_attempts ? `${quizStats.accuracy_percent}%` : "—";
   } catch (e) {
-    console.error("loadStatsPage error:", e);
+    console.warn("Quiz stats load failed (non-critical):", e.message);
+    // Leave the "—" placeholders from HTML
   }
 }
 

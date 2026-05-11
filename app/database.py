@@ -348,8 +348,8 @@ class QuizItem(Base):
     video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     question_type = Column(String, default="mcq")  # mcq / truefalse / fillblank
     question = Column(Text)
-    options = Column(Text, nullable=True)   # JSON list of option strings (MCQ)
-    answer = Column(Text)                   # correct answer text
+    options = Column(Text, nullable=True)  # JSON list of option strings (MCQ)
+    answer = Column(Text)  # correct answer text
     explanation = Column(Text, nullable=True)
     concept_name = Column(String, nullable=True)
     source_seg_idx = Column(Integer, nullable=True)
@@ -668,9 +668,7 @@ def _migrate_db():
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_item ON quiz_attempts(quiz_item_id)"
     )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_video ON quiz_attempts(video_id)"
-    )
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quiz_attempts_video ON quiz_attempts(video_id)")
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_time ON quiz_attempts(attempted_at)"
     )

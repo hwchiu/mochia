@@ -84,7 +84,7 @@ def rebuild_quiz_for_video(video_id: str, db: Session) -> None:
         raise ValueError(f"影片不存在: {video_id}")
 
     transcript_row = db.query(Transcript).filter(Transcript.video_id == video_id).first()
-    if not transcript_row or not transcript_row.full_text:
+    if not transcript_row or not transcript_row.content:
         logger.info("[quiz] 影片 %s 尚無逐字稿，跳過題目生成", video_id)
         return
 
@@ -108,7 +108,7 @@ def rebuild_quiz_for_video(video_id: str, db: Session) -> None:
     )
     concepts = [{"name": c.name, "description": c.description or ""} for c in concept_rows]
 
-    quiz_data = generate_quizzes(transcript_row.full_text, segments=segments, concepts=concepts)
+    quiz_data = generate_quizzes(transcript_row.content, segments=segments, concepts=concepts)
     if not quiz_data:
         logger.warning("[quiz] generate_quizzes 返回空結果 video_id=%s", video_id)
         return
@@ -197,7 +197,7 @@ def generate_quiz(
         raise HTTPException(status_code=404, detail="影片不存在")
 
     transcript = db.query(Transcript).filter(Transcript.video_id == video_id).first()
-    if not transcript or not transcript.full_text:
+    if not transcript or not transcript.content:
         raise HTTPException(status_code=400, detail="影片尚無逐字稿，請先完成分析")
 
     background_tasks.add_task(_rebuild_quiz_bg, video_id)
@@ -253,9 +253,7 @@ def get_wrong_answers(limit: int = 50, db: Session = Depends(get_db)):
     )
 
     item_ids = list({a.quiz_item_id for a in wrong})
-    items_map = {
-        i.id: i for i in db.query(QuizItem).filter(QuizItem.id.in_(item_ids)).all()
-    }
+    items_map = {i.id: i for i in db.query(QuizItem).filter(QuizItem.id.in_(item_ids)).all()}
 
     result = []
     for attempt in wrong:
