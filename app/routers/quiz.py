@@ -177,8 +177,12 @@ def get_quiz(video_id: str, db: Session = Depends(get_db)):
                 explanation=item.explanation,
                 concept_name=item.concept_name,
                 source_seg_idx=item.source_seg_idx,
-                source_start_sec=float(item.source_start_sec) if item.source_start_sec is not None else None,
-                source_end_sec=float(item.source_end_sec) if item.source_end_sec is not None else None,
+                source_start_sec=float(item.source_start_sec)
+                if item.source_start_sec is not None
+                else None,
+                source_end_sec=float(item.source_end_sec)
+                if item.source_end_sec is not None
+                else None,
             )
             for item in items
         ],
