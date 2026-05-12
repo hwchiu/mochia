@@ -13,6 +13,9 @@ Video Analyzer CLI
     python cli.py list [--status S]    列出影片
     python cli.py worker               啟動 Worker（等同 python worker.py）
     python cli.py export-wiki          匯出 wiki 知識庫為靜態 HTML 網站
+    python cli.py backfill             補齊所有已完成影片的 segments/知識點/題目
+      --dry-run                          預覽，不實際執行
+      --skip-whisper                     跳過 Whisper 重跑
 """
 
 from __future__ import annotations
@@ -303,6 +306,125 @@ def cmd_worker(args):
     from worker import run_worker
 
     run_worker()
+
+
+def cmd_backfill(args):
+    """補齊所有已完成影片的 segments / 知識點 / 題目"""
+    import json
+    import os
+
+    from app.database import Transcript, Video, init_db
+    from app.routers.concepts import rebuild_concepts_for_video
+    from app.routers.quiz import rebuild_quiz_for_video
+
+    init_db()
+    db = _get_db()
+    dry_run: bool = getattr(args, "dry_run", False)
+    skip_whisper: bool = getattr(args, "skip_whisper", False)
+
+    try:
+        videos = db.query(Video).filter(Video.status == "completed").all()
+        print(f"\n📊 已完成影片：{len(videos)} 支\n")
+
+        seg_ok = seg_skip = seg_fail = 0
+        concept_ok = concept_skip = concept_fail = 0
+        quiz_ok = quiz_fail = 0
+
+        for i, video in enumerate(videos, 1):
+            vid_id = str(video.id)
+            fname = str(video.original_filename or video.filename or vid_id)[:40]
+            t = db.query(Transcript).filter(Transcript.video_id == vid_id).first()
+
+            print(f"[{i:2d}/{len(videos)}] {fname}")
+
+            # ── Step 1: Re-run Whisper for segments ──────────────────────────
+            if not skip_whisper:
+                has_segments = bool(t and t.segments and t.segments not in ("null", "[]"))
+                if has_segments:
+                    print("  ✓ segments 已有，跳過 Whisper")
+                    seg_skip += 1
+                elif not t or not t.content:
+                    print("  ⚠ 無逐字稿，跳過 Whisper")
+                    seg_skip += 1
+                else:
+                    file_path = str(video.file_path or "")
+                    if not file_path or not os.path.exists(file_path):
+                        print(f"  ⚠ 原始檔不存在 ({file_path or '未知'})，跳過 Whisper")
+                        seg_skip += 1
+                    elif dry_run:
+                        print(f"  [DRY-RUN] 會重跑 Whisper: {file_path}")
+                        seg_ok += 1
+                    else:
+                        try:
+                            from app.services.audio_extractor import extract_audio
+                            from app.services.transcriber import transcribe
+
+                            print("  🎤 重跑 Whisper…", end="", flush=True)
+                            audio_path = extract_audio(file_path)
+                            _, segments = transcribe(audio_path, language="zh")
+                            if segments:
+                                t.segments = json.dumps(segments, ensure_ascii=False)
+                                db.commit()
+                                print(f" ✅ {len(segments)} 片段")
+                                seg_ok += 1
+                            else:
+                                print(" ⚠ 無片段回傳")
+                                seg_skip += 1
+                            try:
+                                os.remove(audio_path)
+                            except OSError:
+                                pass
+                        except Exception as e:
+                            print(f" ❌ {e}")
+                            seg_fail += 1
+
+            # ── Step 2: Extract concepts ─────────────────────────────────────
+            if dry_run:
+                print("  [DRY-RUN] 會抽取知識點")
+                concept_ok += 1
+            else:
+                try:
+                    db.expire_all()
+                    n = rebuild_concepts_for_video(vid_id, db)
+                    if n > 0:
+                        print(f"  🧠 知識點：{n} 個 ✅")
+                        concept_ok += 1
+                    else:
+                        print("  🧠 知識點：0 個（GPT 無輸出）")
+                        concept_skip += 1
+                except Exception as e:
+                    print(f"  🧠 知識點失敗：{e}")
+                    concept_fail += 1
+
+            # ── Step 3: Generate quiz ─────────────────────────────────────────
+            if dry_run:
+                print("  [DRY-RUN] 會生成題目")
+                quiz_ok += 1
+            else:
+                try:
+                    rebuild_quiz_for_video(vid_id, db)
+                    from app.database import Quiz
+
+                    q = db.query(Quiz).filter(Quiz.video_id == vid_id).first()
+                    n_quiz = int(q.total_items or 0) if q else 0
+                    print(f"  🧩 題目：{n_quiz} 題 ✅")
+                    quiz_ok += 1
+                except Exception as e:
+                    print(f"  🧩 題目失敗：{e}")
+                    quiz_fail += 1
+
+            print()
+
+        print("=" * 50)
+        if not skip_whisper:
+            print(f"🎤 Whisper segments：成功 {seg_ok}，跳過 {seg_skip}，失敗 {seg_fail}")
+        print(f"🧠 知識點：成功 {concept_ok}，跳過/空 {concept_skip}，失敗 {concept_fail}")
+        print(f"🧩 題目：成功 {quiz_ok}，失敗 {quiz_fail}")
+        if dry_run:
+            print("\n（以上為 DRY-RUN 預覽，未實際執行）")
+
+    finally:
+        db.close()
 
 
 def cmd_export_wiki(args):
@@ -684,6 +806,25 @@ def main():
     p_export = subparsers.add_parser("export-wiki", help="匯出 wiki 知識庫為靜態 HTML 網站")
     p_export.add_argument("--output", default="./wiki-site", help="輸出目錄（預設 ./wiki-site）")
     p_export.set_defaults(func=cmd_export_wiki)
+
+    # backfill
+    p_bf = subparsers.add_parser(
+        "backfill",
+        help="補齊所有已完成影片的 segments / 知識點 / 題目",
+    )
+    p_bf.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="預覽會處理哪些影片，不實際執行",
+    )
+    p_bf.add_argument(
+        "--skip-whisper",
+        action="store_true",
+        dest="skip_whisper",
+        help="跳過 Whisper 重跑，只補知識點和題目",
+    )
+    p_bf.set_defaults(func=cmd_backfill)
 
     args = parser.parse_args()
     args.func(args)
